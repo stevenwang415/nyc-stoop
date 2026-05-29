@@ -54,16 +54,21 @@ body {
 }
 
 /* ── Top Nav ─────────────────────────────────────── */
+/* Adds safe-area-inset-top so the iPhone status bar / Dynamic Island doesn't
+   overlap the nav row. The status-bar area becomes part of the nav background
+   so it looks intentional. */
 .top-nav {
   position: sticky;
   top: 0;
   z-index: 100;
   background: var(--white);
   border-bottom: 1px solid var(--gray-100);
-  height: var(--nav-height);
+  min-height: calc(var(--nav-height) + env(safe-area-inset-top, 0px));
+  padding-top: env(safe-area-inset-top, 0px);
   display: flex;
   align-items: center;
-  padding: 0 16px;
+  padding-left: 16px;
+  padding-right: 16px;
   gap: 12px;
 }
 
@@ -114,7 +119,9 @@ body {
 .screen {
   flex: 1;
   overflow-y: auto;
-  padding-bottom: 80px; /* clears 60px bottom nav */
+  /* Clears 60px bottom nav + the iPhone home-indicator inset so content
+     doesn't get cut off behind it. */
+  padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
 }
 
 /* ── Hero ─────────────────────────────────────── */
@@ -372,8 +379,11 @@ h2.display {
 }
 
 /* ── Home Screen ─────────────────────────────────── */
+/* The home-header sits at the very top on screens that hide the TopNav
+   (Home, Tonight, My Trip). Add the iPhone status-bar inset to padding-top
+   so content doesn't slide under the notch / Dynamic Island. */
 .home-header {
-  padding: 36px 20px 24px;
+  padding: calc(36px + env(safe-area-inset-top, 0px)) 20px 24px;
   background: var(--black);
   color: var(--white);
 }

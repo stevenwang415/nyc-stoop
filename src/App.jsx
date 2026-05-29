@@ -168,6 +168,9 @@ const USER_PLACE_CATEGORIES = [
 ]
 
 // ── Neighborhood groups (module-level so HomeScreen + NeighborhoodScreen share) ──
+// `comingSoon: true` marks a borough we want visible in the grid for geographic
+// completeness, but whose editorial coverage hasn't landed yet. The chip + the
+// detail screen both get a "Coming soon" treatment instead of looking dim/broken.
 const NEIGHBORHOOD_GROUPS = [
   { key: 'midtown',         label: 'Midtown',           emoji: '🏙️', match: n => /midtown|columbus circle|times square/i.test(n) },
   { key: 'upper_east',      label: 'Upper East Side',   emoji: '🎨', match: n => /upper east/i.test(n) },
@@ -176,9 +179,13 @@ const NEIGHBORHOOD_GROUPS = [
   { key: 'lower_manhattan', label: 'Lower Manhattan',   emoji: '🗽', match: n => /financial district|lower manhattan|civic center|downtown|lower east/i.test(n) },
   { key: 'harlem',          label: 'Harlem',            emoji: '🎶', match: n => /harlem/i.test(n) },
   { key: 'brooklyn',        label: 'Brooklyn',          emoji: '🌉', match: n => /brooklyn|dumbo|greenpoint|williamsburg|bushwick|fort greene|clinton hill|prospect heights|park slope|crown heights/i.test(n) },
-  { key: 'bronx',           label: 'The Bronx',         emoji: '⚾', match: n => /bronx/i.test(n) },
-  { key: 'queens',          label: 'Queens',            emoji: '🎺', match: n => /queens/i.test(n) },
   { key: 'central_park',    label: 'Central Park',      emoji: '🌳', match: n => /central park/i.test(n) },
+  { key: 'queens',          label: 'Queens',            emoji: '🎺', match: n => /queens/i.test(n),    comingSoon: true,
+    tease: 'Long Island City, Astoria, Flushing, and the Rockaways. Coming soon.' },
+  { key: 'bronx',           label: 'The Bronx',         emoji: '⚾', match: n => /bronx/i.test(n),     comingSoon: true,
+    tease: 'Yankee Stadium, Arthur Avenue, the Bronx Zoo, and the New York Botanical Garden. Coming soon.' },
+  { key: 'staten_island',   label: 'Staten Island',     emoji: '⛴️', match: n => /staten island/i.test(n), comingSoon: true,
+    tease: 'The free ferry, Snug Harbor, and the North Shore. Coming soon.' },
 ]
 
 function getNeighborhoodVenues(key, venuesObj) {
@@ -1025,10 +1032,12 @@ function TopNav({ title, canGoBack, onBack, isHome }) {
 }
 
 // ── Home Screen ───────────────────────────────────────────────────────────
-function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {} }) {
+function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, onOpenSettings = () => {}, userVenues = {} }) {
   const [query, setQuery] = useState('')
   const [browseBy, setBrowseBy] = useState('topics') // 'topics' | 'neighborhoods'
 
+  // Global search across venues, sights (Brooklyn deep-dive), works, figures, and user-added places.
+  // Results are ordered: exact-prefix matches first, then partial matches; capped at 25 to stay snappy.
   const searchResults = React.useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return []
@@ -1036,6 +1045,10 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {} }
     Object.values(venues).forEach(v => {
       if (v.name.toLowerCase().includes(q))
         results.push({ type: 'venue', id: v.id, name: v.name, sub: v.neighborhood || '' })
+    })
+    Object.values(ALL_SIGHTS).forEach(s => {
+      if ((s.name || '').toLowerCase().includes(q))
+        results.push({ type: 'sight', id: s.id, name: s.name, sub: `${s.neighborhood || ''}${s.neighborhood && s.subArea ? ' · ' : ''}${s.subArea || ''}` })
     })
     Object.values(figures).forEach(f => {
       if (f.name.toLowerCase().includes(q)) {
@@ -1049,18 +1062,50 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {} }
         results.push({ type: 'work', id: w.id, name: w.title, sub: fig?.name || '' })
       }
     })
+    Object.values(userVenues || {}).forEach(uv => {
+      if ((uv.name || '').toLowerCase().includes(q))
+        results.push({ type: 'user_venue', id: uv.id, name: uv.name, sub: `Your place · ${uv.neighborhood || ''}` })
+    })
+    // Boost exact-prefix matches to the top.
+    results.sort((a, b) => {
+      const ap = a.name.toLowerCase().startsWith(q) ? 0 : 1
+      const bp = b.name.toLowerCase().startsWith(q) ? 0 : 1
+      return ap - bp
+    })
     return results.slice(0, 25)
   }, [query])
 
-  // BottomNav is 60px fixed; no TopNav on home — so available height is 100dvh - 60px
+  // BottomNav is 60px + iPhone home-indicator inset; no TopNav on home —
+  // so available height = 100dvh - 60px - safe-area-inset-bottom.
   return (
-    <div style={{ height: 'calc(100dvh - 60px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{
+      height: 'calc(100dvh - 60px - env(safe-area-inset-bottom, 0px))',
+      display: 'flex', flexDirection: 'column', overflow: 'hidden',
+    }}>
 
       {/* ── Pinned header + search — never scrolls away ── */}
       <div style={{ flexShrink: 0 }}>
-        <div className="home-header">
+        <div className="home-header" style={{ position: 'relative' }}>
           <div className="home-wordmark">NYC Tonight</div>
           <div className="home-subtitle">A curated guide to what&apos;s on — and the stories behind it.</div>
+          {/* Gear → Settings modal. Top-right, unobtrusive. */}
+          <button
+            onClick={onOpenSettings}
+            aria-label="Settings"
+            style={{
+              position: 'absolute',
+              top: 'calc(env(safe-area-inset-top, 0px) + 24px)',
+              right: 20,
+              background: 'rgba(255,255,255,0.08)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              borderRadius: 999,
+              width: 36, height: 36,
+              color: 'rgba(255,255,255,0.85)',
+              fontSize: 17, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: 0, lineHeight: 1,
+            }}
+          >⚙</button>
         </div>
         <div style={{ padding: '12px 20px 10px', background: 'var(--white)', borderBottom: '1px solid var(--gray-100)' }}>
           <div style={{
@@ -1070,7 +1115,7 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {} }
             <span style={{ fontSize: 16, color: 'var(--gray-400)', flexShrink: 0 }}>🔍</span>
             <input
               type="search"
-              placeholder="Search venues, artists, works…"
+              placeholder="Search venues, sights, artists…"
               value={query}
               onChange={e => setQuery(e.target.value)}
               style={{
@@ -1096,28 +1141,38 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {} }
             <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--gray-400)' }}>
               <div style={{ fontSize: 32, marginBottom: 10 }}>&#128269;</div>
               <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--gray-600)', marginBottom: 6 }}>No results for &#8220;{query}&#8221;</div>
-              <div style={{ fontSize: 13 }}>Try a venue name, artist, or artwork</div>
+              <div style={{ fontSize: 13 }}>Try a venue, sight, neighborhood, or artist name</div>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 8 }}>
               {searchResults.map(r => {
-                const typeLabel = r.type === 'venue' ? 'Venue' : r.type === 'figure' ? 'Artist' : 'Work'
-                const typeColor = r.type === 'venue' ? '#1a56db' : r.type === 'figure' ? '#7c3aed' : '#059669'
+                const typeMeta = {
+                  venue:      { label: 'Venue',  color: '#1a56db' },
+                  sight:      { label: 'Sight',  color: '#0891b2' },
+                  figure:     { label: 'Artist', color: '#7c3aed' },
+                  work:       { label: 'Work',   color: '#059669' },
+                  user_venue: { label: 'Yours',  color: '#b45309' },
+                }
+                const meta = typeMeta[r.type] || { label: r.type, color: '#666' }
                 const onPress = () => {
-                  if (r.type === 'venue') push({ screen: 'venue', venueId: r.id })
-                  else if (r.type === 'figure') push({ screen: 'figure', figureId: r.id })
-                  else push({ screen: 'work', workId: r.id })
+                  if (r.type === 'venue')        push({ screen: 'venue', venueId: r.id })
+                  else if (r.type === 'sight')   push({ screen: 'sight', sightId: r.id })
+                  else if (r.type === 'figure')  push({ screen: 'figure', figureId: r.id })
+                  else if (r.type === 'work')    push({ screen: 'work', workId: r.id })
+                  // user_venue has no detail screen — tapping does nothing for now
                 }
                 return (
-                  <button key={r.type + ':' + r.id} onClick={onPress} style={{
+                  <button key={r.type + ':' + r.id} onClick={onPress} disabled={r.type === 'user_venue'} style={{
                     width: '100%', background: 'var(--white)', border: '1px solid var(--gray-200)',
-                    borderRadius: 12, padding: '13px 16px', cursor: 'pointer', textAlign: 'left',
+                    borderRadius: 12, padding: '13px 16px',
+                    cursor: r.type === 'user_venue' ? 'default' : 'pointer',
+                    textAlign: 'left',
                     display: 'flex', alignItems: 'center', gap: 12,
                   }}>
                     <span style={{
                       fontSize: 10, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
-                      color: typeColor, background: typeColor + '18', padding: '3px 8px', borderRadius: 20, flexShrink: 0,
-                    }}>{typeLabel}</span>
+                      color: meta.color, background: meta.color + '18', padding: '3px 8px', borderRadius: 20, flexShrink: 0,
+                    }}>{meta.label}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--gray-900)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</div>
                       {r.sub && <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 1 }}>{r.sub}</div>}
@@ -1449,6 +1504,8 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {} }
 
                     {browseBy === 'neighborhoods' && NEIGHBORHOOD_GROUPS.map(grp => {
                       const count = getNeighborhoodVenues(grp.key, venues).length
+                      const hasSubAreas = (NEIGHBORHOOD_SUBAREAS[grp.key] || []).length > 0
+                      const showSoonBadge = !!grp.comingSoon && count === 0
                       return (
                         <button key={grp.key}
                           onClick={() => push({ screen: 'neighborhood', neighborhoodKey: grp.key })}
@@ -1460,25 +1517,35 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {} }
                             border: '1px solid var(--gray-200)',
                             boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
                             cursor: 'pointer',
-                            opacity: count > 0 ? 1 : 0.55,
+                            // Coming-soon boroughs stay fully opaque now — the "Soon" badge does the talking,
+                            // and dimming them made them look broken next to Brooklyn.
+                            opacity: 1,
                             minWidth: 0,
                             width: '100%',
                             textAlign: 'left',
                           }}>
                           <span style={{ fontSize: 17, lineHeight: 1, flexShrink: 0 }}>{grp.emoji}</span>
                           <span style={{
-                            fontSize: 13, fontWeight: 700, color: 'var(--gray-900)',
+                            fontSize: 13, fontWeight: 700,
+                            color: showSoonBadge ? 'var(--gray-500)' : 'var(--gray-900)',
                             flex: 1, minWidth: 0,
                             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                           }}>{grp.label}</span>
-                          {count > 0 && (
+                          {showSoonBadge ? (
+                            <span style={{
+                              fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
+                              color: '#92400e', background: '#fef3c7',
+                              padding: '2px 7px', borderRadius: 999,
+                              flexShrink: 0,
+                            }}>Soon</span>
+                          ) : count > 0 ? (
                             <span style={{
                               fontSize: 10, fontWeight: 700, color: 'var(--gray-600)',
                               background: 'var(--gray-100)',
                               padding: '2px 7px', borderRadius: 999,
                               flexShrink: 0,
-                            }}>{count}</span>
-                          )}
+                            }}>{count}{hasSubAreas ? '+' : ''}</span>
+                          ) : null}
                         </button>
                       )
                     })}
@@ -3030,6 +3097,71 @@ function VenueGroupScreen({ domainId, groupIndex, push, savedItems = {} }) {
 function NeighborhoodScreen({ neighborhoodKey, subAreaName, push, savedItems = {} }) {
   const group = NEIGHBORHOOD_GROUPS.find(g => g.key === neighborhoodKey)
   if (!group) return null
+
+  // Coming-soon boroughs: short editorial tease + a feedback CTA instead of
+  // a half-empty venue list. Keeps the geography intentional and warm.
+  if (group.comingSoon) {
+    return (
+      <div className="screen">
+        <div className="section">
+          <p className="meta">{group.emoji} Neighborhood</p>
+          <h1 className="display" style={{ marginTop: 8 }}>{group.label}</h1>
+        </div>
+        <div style={{ padding: '8px 20px 24px' }}>
+          <div style={{
+            background: '#fef3c7', border: '1px solid #fde68a',
+            borderRadius: 14, padding: '20px',
+            display: 'flex', flexDirection: 'column', gap: 12,
+          }}>
+            <div style={{
+              fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
+              color: '#92400e',
+            }}>Coming soon</div>
+            <div style={{ fontSize: 15, color: '#451a03', lineHeight: 1.55 }}>
+              {group.tease || `Editorial coverage of ${group.label} is on the way.`}
+            </div>
+            <div style={{ fontSize: 13, color: '#78350f', lineHeight: 1.5 }}>
+              Want a specific place added first? Tell us what to start with —
+              feedback shapes which neighborhood we cover next.
+            </div>
+            <a
+              href={`mailto:hsichunw@gmail.com?subject=NYC%20Stoop%20${encodeURIComponent(group.label)}%20request`}
+              style={{
+                display: 'inline-block', textAlign: 'center',
+                background: 'var(--gray-900)', color: '#fff', textDecoration: 'none',
+                fontSize: 13, fontWeight: 700,
+                padding: '10px 14px', borderRadius: 10, marginTop: 4,
+              }}
+            >Suggest a place →</a>
+          </div>
+          {/* Tease: in the meantime, here are the other boroughs that are live. */}
+          <div style={{
+            marginTop: 24, padding: '16px 0 0',
+            borderTop: '1px solid var(--gray-100)',
+          }}>
+            <div style={{
+              fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase',
+              color: 'var(--gray-400)', marginBottom: 12,
+            }}>While you wait — explore now</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {NEIGHBORHOOD_GROUPS.filter(g => !g.comingSoon && getNeighborhoodVenues(g.key, venues).length > 0).slice(0, 5).map(g => (
+                <button key={g.key} onClick={() => push({ screen: 'neighborhood', neighborhoodKey: g.key })} style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  background: 'var(--white)', border: '1px solid var(--gray-200)',
+                  borderRadius: 12, padding: '10px 14px', cursor: 'pointer', textAlign: 'left',
+                }}>
+                  <span style={{ fontSize: 17 }}>{g.emoji}</span>
+                  <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: 'var(--gray-900)' }}>{g.label}</span>
+                  <span style={{ fontSize: 18, color: 'var(--gray-300)' }}>›</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // If subAreaName is set, we're showing the focused view for a specific Brooklyn neighborhood (Williamsburg, etc.)
   let subAreaInfo = null
   if (subAreaName) {
@@ -3558,7 +3690,10 @@ function BottomNav({ activeTab, onTabPress, savedCount, onAddPlace }) {
       position: 'fixed', bottom: 0,
       left: '50%', transform: 'translateX(-50%)',
       width: '100%', maxWidth: 430,
-      height: 60,
+      // Total height = 60px nav row + iPhone home-indicator inset.
+      // paddingBottom pushes the row content above the indicator so taps still land.
+      height: 'calc(60px + env(safe-area-inset-bottom, 0px))',
+      paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       background: 'var(--white)',
       borderTop: '1px solid var(--gray-200)',
       display: 'flex', zIndex: 200,
@@ -3709,7 +3844,14 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
   const selInfo  = selectedVenueId ? venueCoords[selectedVenueId] : null
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 430, bottom: 60, zIndex: 1 }}>
+    <div style={{
+      display: 'flex', flexDirection: 'column', position: 'fixed',
+      top: 'env(safe-area-inset-top, 0px)',
+      left: '50%', transform: 'translateX(-50%)',
+      width: '100%', maxWidth: 430,
+      bottom: 'calc(60px + env(safe-area-inset-bottom, 0px))',
+      zIndex: 1,
+    }}>
       {/* Filter chips */}
       <div style={{
         padding: '10px 14px 8px', display: 'flex', gap: 8, overflowX: 'auto',
@@ -7182,6 +7324,159 @@ function OnboardingModal({ onDismiss }) {
   )
 }
 
+// ── Settings Modal ──────────────────────────────────────────────────────────
+// Bottom-sheet modal reachable from the gear icon in the home-header.
+// Houses About / version, Privacy policy link, Send feedback (mailto), and a
+// destructive "Clear all data" with a two-tap confirmation.
+const APP_VERSION = '0.1.0'
+const FEEDBACK_EMAIL = 'hsichunw@gmail.com'
+const PRIVACY_URL = 'https://stevenwang415.github.io/nyc-stoop/privacy.html'
+
+function SettingsModal({ onClose }) {
+  const [confirmClear, setConfirmClear] = React.useState(false)
+
+  function handleClearAllData() {
+    // Wipe every nyc_* key — that's our full localStorage namespace.
+    try {
+      const keysToRemove = []
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i)
+        if (k && k.startsWith('nyc_')) keysToRemove.push(k)
+      }
+      keysToRemove.forEach(k => localStorage.removeItem(k))
+    } catch {}
+    // Reload so all React state re-initializes from a clean slate.
+    window.location.reload()
+  }
+
+  const rowStyle = {
+    width: '100%', display: 'flex', alignItems: 'center', gap: 14,
+    padding: '14px 18px', background: 'var(--white)',
+    border: 'none', borderBottom: '1px solid var(--gray-100)',
+    cursor: 'pointer', textAlign: 'left',
+    fontFamily: 'inherit', fontSize: 15, color: 'var(--gray-900)',
+  }
+  const labelStyle = { flex: 1, minWidth: 0 }
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 900,
+        background: 'rgba(0,0,0,0.5)',
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: 'var(--white)', borderRadius: '20px 20px 0 0',
+          width: '100%', maxWidth: 460,
+          maxHeight: '90vh', overflowY: 'auto',
+          boxSizing: 'border-box',
+          paddingBottom: 'env(safe-area-inset-bottom, 16px)',
+        }}
+      >
+        {/* Drag handle */}
+        <div style={{ padding: '12px 0 4px', display: 'flex', justifyContent: 'center' }}>
+          <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--gray-300)' }} />
+        </div>
+
+        {/* Header */}
+        <div style={{ padding: '8px 20px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--gray-900)', lineHeight: 1.2 }}>
+              Settings
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 4 }}>
+              NYC Stoop · v{APP_VERSION}
+            </div>
+          </div>
+          <button onClick={onClose} aria-label="Close" style={{
+            background: 'var(--gray-100)', border: 'none', borderRadius: 999,
+            width: 32, height: 32, cursor: 'pointer',
+            fontSize: 16, color: 'var(--gray-500)', lineHeight: 1, flexShrink: 0,
+          }}>✕</button>
+        </div>
+
+        {/* About */}
+        <div style={{ padding: '0 20px 18px' }}>
+          <div style={{
+            fontSize: 13, color: 'var(--gray-600)', lineHeight: 1.6,
+            background: 'var(--gray-50)', padding: '14px 16px', borderRadius: 12,
+          }}>
+            A curated guide to New York City — venues, neighborhoods, nightlife,
+            sights, and a day-by-day trip planner.
+          </div>
+        </div>
+
+        {/* Action rows */}
+        <div style={{ borderTop: '1px solid var(--gray-100)' }}>
+          <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer" style={{ ...rowStyle, textDecoration: 'none' }}>
+            <span style={{ fontSize: 18 }}>🔒</span>
+            <span style={labelStyle}>Privacy policy</span>
+            <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>↗</span>
+          </a>
+          <a href={`mailto:${FEEDBACK_EMAIL}?subject=NYC%20Stoop%20feedback%20(v${APP_VERSION})`}
+             style={{ ...rowStyle, textDecoration: 'none' }}>
+            <span style={{ fontSize: 18 }}>✉️</span>
+            <span style={labelStyle}>Send feedback</span>
+            <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>↗</span>
+          </a>
+          <a href="https://github.com/stevenwang415/nyc-stoop" target="_blank" rel="noopener noreferrer"
+             style={{ ...rowStyle, textDecoration: 'none' }}>
+            <span style={{ fontSize: 18 }}>📂</span>
+            <span style={labelStyle}>Source on GitHub</span>
+            <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>↗</span>
+          </a>
+
+          {/* Clear data — destructive, two-tap confirmation */}
+          {!confirmClear ? (
+            <button onClick={() => setConfirmClear(true)} style={{
+              ...rowStyle, color: '#b91c1c', borderBottom: 'none',
+            }}>
+              <span style={{ fontSize: 18 }}>🗑️</span>
+              <span style={labelStyle}>Clear all data</span>
+              <span style={{ fontSize: 14, color: '#fca5a5' }}>›</span>
+            </button>
+          ) : (
+            <div style={{
+              padding: '16px 20px 18px', background: '#fef2f2',
+              borderTop: '1px solid #fecaca',
+            }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#7f1d1d', marginBottom: 4 }}>
+                Clear all data?
+              </div>
+              <div style={{ fontSize: 12, color: '#991b1b', lineHeight: 1.5, marginBottom: 14 }}>
+                Removes every save, custom place, trip plan, note, and preference
+                from this device. This cannot be undone.
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => setConfirmClear(false)} style={{
+                  flex: 1, padding: '10px 14px', background: 'var(--white)',
+                  border: '1px solid var(--gray-300)', borderRadius: 10,
+                  fontSize: 14, fontWeight: 600, color: 'var(--gray-700)', cursor: 'pointer',
+                }}>Cancel</button>
+                <button onClick={handleClearAllData} style={{
+                  flex: 1, padding: '10px 14px', background: '#dc2626',
+                  border: 'none', borderRadius: 10, color: '#fff',
+                  fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                }}>Yes, clear everything</button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div style={{ padding: '20px 20px 8px', textAlign: 'center' }}>
+          <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>
+            © 2026 NYC Stoop · Built in New York
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   // First-time-user onboarding — versioned key so we can re-show after major updates by bumping the version.
   const [showOnboarding, setShowOnboarding] = useState(() => {
@@ -7240,6 +7535,7 @@ export default function App() {
     })
   }
   const [addPlaceOpen, setAddPlaceOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   const [venueNotes, setVenueNotesRaw] = useState(() => {
     try { return JSON.parse(localStorage.getItem('nyc_venue_notes') || '{}') } catch { return {} }
@@ -7325,7 +7621,7 @@ export default function App() {
 
   function renderExploreScreen() {
     switch (current.screen) {
-      case 'home':      return <HomeScreen push={push} savedItems={savedItems} toggleSave={toggleSave} onSeeAllTonight={() => setActiveTab('tonight')} />
+      case 'home':      return <HomeScreen push={push} savedItems={savedItems} toggleSave={toggleSave} onSeeAllTonight={() => setActiveTab('tonight')} onOpenSettings={() => setSettingsOpen(true)} userVenues={userVenues} />
       case 'domain':    return <DomainScreen domainId={current.domainId} push={push} savedItems={savedItems} />
       case 'topic':     return <TopicScreen topicId={current.topicId} push={push} savedItems={savedItems} />
       case 'venue':     return <VenueScreen venueId={current.venueId} fromTopicId={current.fromTopicId} fromDomainId={current.fromDomainId} push={push} savedItems={savedItems} toggleSave={toggleSave} onViewMap={venueCoords[current.venueId] ? () => { resetExplore(); setMapHighlight(current.venueId); setActiveTab('map') } : null} />
@@ -7334,7 +7630,7 @@ export default function App() {
       case 'venueGroup':return <VenueGroupScreen domainId={current.domainId} groupIndex={current.groupIndex} push={push} savedItems={savedItems} />
       case 'neighborhood': return <NeighborhoodScreen neighborhoodKey={current.neighborhoodKey} subAreaName={current.subAreaName} push={push} savedItems={savedItems} />
       case 'sight':     return <SightScreen sightId={current.sightId} push={push} savedItems={savedItems} toggleSave={toggleSave} />
-      default:          return <HomeScreen push={push} savedItems={savedItems} toggleSave={toggleSave} onSeeAllTonight={() => setActiveTab('tonight')} />
+      default:          return <HomeScreen push={push} savedItems={savedItems} toggleSave={toggleSave} onSeeAllTonight={() => setActiveTab('tonight')} onOpenSettings={() => setSettingsOpen(true)} userVenues={userVenues} />
     }
   }
 
@@ -7402,6 +7698,8 @@ export default function App() {
           onRemove={(id) => removeUserVenue(id)}
         />
       )}
+      {/* Settings modal — opened from the gear icon in the home-header */}
+      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
     </div>
   )
 }
