@@ -1,0 +1,737 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --black: #111111;
+  --white: #ffffff;
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-400: #9ca3af;
+  --gray-500: #6b7280;
+  --gray-600: #4b5563;
+  --gray-700: #374151;
+  --gray-900: #111827;
+  --accent: #1a1a1a;
+  --accent-warm: #c2410c;
+  --surface: #ffffff;
+  --max-width: 480px;
+  --nav-height: 56px;
+}
+
+html, body {
+  height: 100%;
+  background: var(--gray-50);
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: var(--gray-900);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* ── App Shell ─────────────────────────────────────── */
+.app-shell {
+  width: 100%;
+  max-width: var(--max-width);
+  min-height: 100vh;
+  background: var(--white);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  box-shadow: 0 0 40px rgba(0,0,0,0.08);
+}
+
+/* ── Top Nav ─────────────────────────────────────── */
+.top-nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--white);
+  border-bottom: 1px solid var(--gray-100);
+  height: var(--nav-height);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 12px;
+}
+
+.nav-back {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  margin-left: -8px;
+  border-radius: 8px;
+  color: var(--gray-700);
+  font-size: 20px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+.nav-back:hover { background: var(--gray-100); }
+
+.nav-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--gray-900);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-wordmark {
+  font-family: 'Playfair Display', serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--black);
+  letter-spacing: -0.02em;
+}
+
+/* ── Screen ─────────────────────────────────────── */
+
+/* ── Tab content area ─────────────────────────── */
+.tab-content {
+  flex: 1;
+  overflow-y: auto;
+  position: relative;
+}
+
+.screen {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 80px; /* clears 60px bottom nav */
+}
+
+/* ── Hero ─────────────────────────────────────── */
+.hero-img {
+  width: 100%;
+  aspect-ratio: 4/3;
+  object-fit: cover;
+  background: var(--gray-100);
+  display: block;
+}
+
+.hero-img-portrait {
+  aspect-ratio: 3/4;
+  max-height: 380px;
+  object-fit: cover;
+  object-position: top;
+}
+
+/* ── Sections ─────────────────────────────────────── */
+.section {
+  padding: 24px 20px 0;
+}
+
+.section + .section {
+  padding-top: 20px;
+}
+
+.section-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gray-400);
+  margin-bottom: 12px;
+}
+
+/* ── Typography ─────────────────────────────────────── */
+.serif {
+  font-family: 'Playfair Display', serif;
+}
+
+h1.display {
+  font-family: 'Playfair Display', serif;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--black);
+}
+
+h2.display {
+  font-family: 'Playfair Display', serif;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--black);
+}
+
+.tagline {
+  font-size: 15px;
+  color: var(--gray-600);
+  margin-top: 6px;
+  font-style: italic;
+}
+
+.meta {
+  font-size: 13px;
+  color: var(--gray-400);
+  margin-top: 4px;
+}
+
+.body-text {
+  font-size: 16px;
+  line-height: 1.75;
+  color: var(--gray-700);
+}
+
+.body-text p + p {
+  margin-top: 1em;
+}
+
+/* ── Cards ─────────────────────────────────────── */
+.card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+}
+
+.card {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+  width: 100%;
+}
+
+.card:hover, .card:active {
+  border-color: var(--gray-400);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.card-image {
+  width: 100%;
+  aspect-ratio: 16/9;
+  object-fit: cover;
+  background: var(--gray-100);
+  display: block;
+}
+
+.card-body {
+  padding: 14px 16px;
+}
+
+.card-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--gray-900);
+  font-style: normal;
+}
+
+.card-meta {
+  font-size: 13px;
+  color: var(--gray-400);
+  margin-top: 3px;
+}
+
+.card-tagline {
+  font-size: 14px;
+  color: var(--gray-600);
+  margin-top: 6px;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+/* Horizontal scroll cards */
+.card-row {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 4px 20px 12px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.card-row::-webkit-scrollbar { display: none; }
+
+.card-small {
+  flex-shrink: 0;
+  width: 160px;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+.card-small:hover {
+  border-color: var(--gray-400);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.card-small-img {
+  width: 100%;
+  aspect-ratio: 4/3;
+  object-fit: cover;
+  background: var(--gray-100);
+  display: block;
+}
+
+.card-small-body {
+  padding: 10px 12px;
+}
+
+.card-small-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-900);
+  line-height: 1.3;
+}
+
+.card-small-meta {
+  font-size: 12px;
+  color: var(--gray-400);
+  margin-top: 2px;
+}
+
+/* ── Figure card (horizontal) ─────────────────────── */
+.figure-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+  width: 100%;
+}
+.figure-card:hover {
+  border-color: var(--gray-400);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.figure-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: top;
+  background: var(--gray-100);
+  flex-shrink: 0;
+}
+
+.figure-card-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.figure-card-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.figure-card-years {
+  font-size: 13px;
+  color: var(--gray-400);
+  margin-top: 1px;
+}
+
+.figure-card-tagline {
+  font-size: 13px;
+  color: var(--gray-600);
+  margin-top: 4px;
+  font-style: italic;
+  line-height: 1.3;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.figure-card-arrow {
+  font-size: 18px;
+  color: var(--gray-300);
+  flex-shrink: 0;
+}
+
+/* ── Home Screen ─────────────────────────────────── */
+.home-header {
+  padding: 36px 20px 24px;
+  background: var(--black);
+  color: var(--white);
+}
+
+.home-wordmark {
+  font-family: 'Playfair Display', serif;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.home-subtitle {
+  font-size: 15px;
+  color: rgba(255,255,255,0.6);
+  margin-top: 6px;
+}
+
+.domain-card {
+  background: var(--white);
+  border: 1px solid var(--gray-200);
+  border-radius: 16px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: left;
+  width: 100%;
+}
+.domain-card:hover {
+  border-color: var(--gray-400);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+}
+
+.domain-icon {
+  font-size: 32px;
+  margin-bottom: 10px;
+}
+
+.domain-name {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--black);
+  font-family: 'Playfair Display', serif;
+}
+
+.domain-desc {
+  font-size: 14px;
+  color: var(--gray-600);
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
+.coming-soon-section {
+  padding: 24px 20px 0;
+}
+
+.coming-soon-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gray-300);
+  margin-bottom: 12px;
+}
+
+.coming-soon-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pill {
+  padding: 6px 12px;
+  border-radius: 100px;
+  border: 1px solid var(--gray-200);
+  font-size: 13px;
+  color: var(--gray-400);
+  background: var(--gray-50);
+}
+
+/* ── What to Look For ─────────────────────────────── */
+.look-for-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.look-for-item {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.look-for-num {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--black);
+  color: var(--white);
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+
+.look-for-text {
+  font-size: 15px;
+  color: var(--gray-700);
+  line-height: 1.6;
+}
+
+/* ── Venue Card ─────────────────────────────────── */
+.venue-card {
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--gray-200);
+}
+
+.venue-card-header {
+  padding: 16px 18px;
+  color: var(--white);
+}
+
+.venue-name-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(255,255,255,0.2);
+  padding: 3px 8px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.venue-full-name {
+  font-size: 20px;
+  font-weight: 700;
+  font-family: 'Playfair Display', serif;
+  line-height: 1.2;
+}
+
+.venue-neighborhood {
+  font-size: 13px;
+  opacity: 0.8;
+  margin-top: 4px;
+}
+
+.venue-card-body {
+  padding: 16px 18px;
+  background: var(--white);
+}
+
+.venue-detail-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--gray-600);
+  padding: 8px 0;
+  border-bottom: 1px solid var(--gray-100);
+  line-height: 1.4;
+}
+
+.venue-detail-row:last-of-type {
+  border-bottom: none;
+}
+
+.venue-detail-icon {
+  font-size: 16px;
+  width: 20px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.venue-btn {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  background: var(--black);
+  color: var(--white);
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+  border: none;
+  cursor: pointer;
+  border-radius: 10px;
+  margin-top: 14px;
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+.venue-btn:hover { opacity: 0.85; }
+
+.map-btn {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  background: var(--white);
+  color: var(--gray-700);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+  border: 1px solid var(--gray-200);
+  cursor: pointer;
+  border-radius: 10px;
+  margin-top: 8px;
+  text-decoration: none;
+  transition: all 0.15s;
+}
+.map-btn:hover { border-color: var(--gray-400); }
+
+/* ── See Also Nearby ─────────────────────────────── */
+.see-also-block {
+  background: var(--gray-50);
+  padding: 20px;
+  margin-top: 24px;
+}
+
+.see-also-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  margin-bottom: 16px;
+}
+
+.see-also-group {
+  margin-bottom: 20px;
+}
+
+.see-also-group-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-400);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+}
+
+/* ── Topic intro ─────────────────────────────────── */
+.topic-intro {
+  background: var(--black);
+  color: var(--white);
+  padding: 28px 20px;
+}
+
+.topic-years {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.5);
+  margin-bottom: 8px;
+}
+
+.topic-name {
+  font-family: 'Playfair Display', serif;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.topic-description {
+  font-size: 15px;
+  color: rgba(255,255,255,0.75);
+  margin-top: 12px;
+  line-height: 1.7;
+}
+
+.topic-description p + p {
+  margin-top: 0.8em;
+}
+
+/* ── Divider ─────────────────────────────────────── */
+.divider {
+  height: 1px;
+  background: var(--gray-100);
+  margin: 24px 0 0;
+}
+
+/* ── Primer text ─────────────────────────────────── */
+.primer-text {
+  font-size: 16px;
+  line-height: 1.8;
+  color: var(--gray-700);
+}
+
+.primer-text p {
+  margin-bottom: 1.2em;
+}
+
+/* ── Figure hero ─────────────────────────────────── */
+.figure-hero {
+  display: flex;
+  gap: 16px;
+  padding: 24px 20px;
+  align-items: flex-start;
+}
+
+.figure-hero-img {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: top;
+  background: var(--gray-100);
+  flex-shrink: 0;
+  border: 3px solid var(--gray-200);
+}
+
+.figure-hero-text { flex: 1; }
+
+.figure-hero-name {
+  font-family: 'Playfair Display', serif;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--black);
+}
+
+.figure-hero-meta {
+  font-size: 13px;
+  color: var(--gray-400);
+  margin-top: 4px;
+}
+
+.figure-hero-tagline {
+  font-size: 14px;
+  color: var(--gray-600);
+  margin-top: 8px;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+/* ── Work header ─────────────────────────────────── */
+.work-header {
+  padding: 20px 20px 0;
+}
+
+.work-title-year {
+  font-size: 13px;
+  color: var(--gray-400);
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.work-medium {
+  font-size: 13px;
+  color: var(--gray-400);
+  margin-top: 4px;
+}
+
+/* ── Responsive ─────────────────────────────────── */
+@media (min-width: 481px) {
+  .app-shell {
+    margin: 0 auto;
+  }
+}
