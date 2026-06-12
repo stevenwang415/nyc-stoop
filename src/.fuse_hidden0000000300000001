@@ -22,8 +22,6 @@ import { extractShareHash, decodeTrip, buildShareUrl } from './lib/tripShare'
 // Module-level lookup tables. Moved out of this file for cleanliness — see
 // the data files for the actual entries and how to add more.
 import { venueColors, venueCoords } from './data/venueMeta.js'
-// Hero photos for top venues (Wikimedia) — layered over the gradient fallback.
-import { venueImages } from './data/venueImages.js'
 // Bulk-imported user places — merged into userVenues on app boot
 // (idempotent by stable `seed_*` ids so re-runs don't duplicate).
 import { seedUserPlaces } from './data/places.js'
@@ -1032,15 +1030,16 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
             update so users only see each refresh once. */}
         {whatsNewVisible && (
           <div style={{
-            background: 'rgba(61,155,255,0.12)',
-            color: 'var(--ink)',
+            background: 'linear-gradient(90deg, #166534 0%, #15803d 100%)',
+            color: '#fff',
             padding: '8px 14px 8px 16px',
             display: 'flex', alignItems: 'center', gap: 10,
             fontSize: 12, lineHeight: 1.4,
           }}>
+            <span style={{ fontSize: 14, lineHeight: 1, flexShrink: 0 }}>✨</span>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 800, letterSpacing: '0.02em', color: 'var(--ink)' }}>New since you visited</div>
-              <div style={{ fontSize: 11, marginTop: 1, color: 'var(--ink-2)' }}>
+              <div style={{ fontWeight: 800, letterSpacing: '0.02em' }}>New since you visited</div>
+              <div style={{ opacity: 0.9, fontSize: 11, marginTop: 1 }}>
                 {EDITORIAL_LAST_UPDATE_BLURB}
               </div>
             </div>
@@ -1048,33 +1047,44 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
               onClick={dismissWhatsNew}
               aria-label="Dismiss what's new"
               style={{
-                background: 'rgba(29,39,51,0.08)',
+                background: 'rgba(255,255,255,0.15)',
                 border: 'none', borderRadius: 999,
                 width: 22, height: 22,
-                color: 'var(--ink)', fontSize: 11, cursor: 'pointer',
+                color: '#fff', fontSize: 11, cursor: 'pointer',
                 flexShrink: 0, fontFamily: 'inherit',
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
               }}
             >✕</button>
           </div>
         )}
-        {/* ── Light shell top bar — 2×2 menu dots left, 38px avatar right ── */}
-        <div className="top-bar">
-          <button className="menu-dots" onClick={onOpenSettings} aria-label="Menu and settings">
-            <NavIcon name="dots" size={20} />
-          </button>
-          <span className="nav-wordmark">NYC Stoop</span>
-          <button className="avatar-38" onClick={onOpenSettings} aria-label="Profile and settings">
-            <NavIcon name="user" size={18} color="#fff" />
-          </button>
+        <div className="home-header" style={{ position: 'relative' }}>
+          <div className="home-wordmark">NYC Stoop</div>
+          <div className="home-subtitle">A curated guide to what&apos;s on — and the stories behind it.</div>
+          {/* Gear → Settings modal. Top-right, unobtrusive. */}
+          <button
+            onClick={onOpenSettings}
+            aria-label="Settings"
+            style={{
+              position: 'absolute',
+              top: 'calc(env(safe-area-inset-top, 0px) + 24px)',
+              right: 20,
+              background: 'rgba(255,255,255,0.08)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              borderRadius: 999,
+              width: 36, height: 36,
+              color: 'rgba(255,255,255,0.85)',
+              fontSize: 17, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: 0, lineHeight: 1,
+            }}
+          >⚙</button>
         </div>
-        <div style={{ padding: '4px 20px 12px', background: 'var(--canvas)' }}>
+        <div style={{ padding: '12px 20px 10px', background: 'var(--white)', borderBottom: '1px solid var(--gray-100)' }}>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 10,
-            background: 'var(--white)', borderRadius: 16, padding: '11px 14px',
-            boxShadow: '0 4px 14px rgba(29,39,51,.06)',
+            background: 'var(--gray-100)', borderRadius: 12, padding: '10px 14px',
           }}>
-            <span style={{ color: 'var(--ink-3)', flexShrink: 0, display: 'inline-flex' }}><NavIcon name="search" size={17} /></span>
+            <span style={{ fontSize: 16, color: 'var(--gray-400)', flexShrink: 0 }}>🔍</span>
             <input
               type="search"
               placeholder="Search venues, sights, artists…"
@@ -1174,14 +1184,10 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
         <>
           {(() => {
             const domainColors = { jazz: '#C8823A', visual_art: '#5B7FA6', classical_music: '#7B6FA6', theater: '#A65B7B', sports: '#4A8C5C', architecture: '#8C6A4A', history: '#6A6A6A', hip_hop: '#3A3A8C' }
-            // Hero rotation: only picks actually ON tonight (bestDays-aware — fixes
-            // B1: recommending a dark-Monday show), preferring ones with photos so
-            // the first impression always shows a photo.
-            const todayDow = new Date().getDay()
-            const onTonight = tonightPicks.filter(p => !Array.isArray(p.bestDays) || p.bestDays.includes(todayDow))
-            const heroPool = onTonight.length > 0 ? onTonight : tonightPicks
-            const picksWithImages = heroPool.filter(p => p.image)
-            const heroCandidates = picksWithImages.length > 0 ? picksWithImages : heroPool
+            // Hero rotation: if any picks have real photos, rotate only among those so first-impression always shows a photo.
+            // Falls back to all picks if none have images yet.
+            const picksWithImages = tonightPicks.filter(p => p.image)
+            const heroCandidates = picksWithImages.length > 0 ? picksWithImages : tonightPicks
             const heroIndex = heroCandidates.length ? new Date().getDay() % heroCandidates.length : 0
             const heroPick = heroCandidates[heroIndex]
             const heroColor = heroPick ? (domainColors[heroPick.domain] || '#888') : '#888'
@@ -1192,28 +1198,33 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                 {/* ── HERO: tonight's lead pick ── */}
                 {heroPick && (
                   <div style={{ padding: '16px 20px 4px' }}>
-                    {/* Section header — two-line 800 heading + blue See All */}
-                    <div className="section-row" style={{ marginBottom: 14 }}>
-                      <h2 style={{
-                        fontSize: 24, fontWeight: 800, letterSpacing: '-0.02em',
-                        lineHeight: 1.15, color: 'var(--ink)',
+                    {/* Section label row */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-400)' }}>
+                        This Week in NYC
+                      </div>
+                      <button onClick={onSeeAllTonight} style={{
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        fontSize: 12, fontWeight: 600, color: 'var(--gray-500)',
                       }}>
-                        Your Night-Out<br />Inspiration
-                      </h2>
-                      <button className="see-all" onClick={onSeeAllTonight}>See All</button>
+                        See all ›
+                      </button>
+                    </div>
+                    {/* Trust copy — single line, subtle */}
+                    <div style={{ fontSize: 11, color: 'var(--gray-400)', marginBottom: 10, lineHeight: 1.4 }}>
+                      Hand-picked by NYC editors · Refreshed weekly
                     </div>
                     <button
                       onClick={() => push({ screen: 'venue', venueId: heroPick.venueId })}
                       style={{
                         position: 'relative',
-                        width: '100%', height: 300, textAlign: 'left', cursor: 'pointer',
-                        border: 'none', borderRadius: 28,
+                        width: '100%', textAlign: 'left', cursor: 'pointer',
+                        background: 'var(--white)',
+                        border: '1px solid var(--gray-200)', borderRadius: 16,
                         padding: 0,
-                        display: 'block',
-                        boxShadow: 'var(--shadow)',
+                        display: 'flex', flexDirection: 'column',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                         overflow: 'hidden',
-                        // Category-gradient fallback layer — failed photo loads never show black boxes
-                        background: `linear-gradient(135deg, ${heroColor} 0%, ${heroColor}99 100%)`,
                       }}>
                       {/* Save heart — absolute overlay top-right, sits above photo + content */}
                       {(() => {
@@ -1229,78 +1240,103 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                               cursor: 'pointer', userSelect: 'none',
                               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                               width: 34, height: 34, borderRadius: 999,
-                              background: isHeroSaved ? 'rgba(255,77,125,0.15)' : 'rgba(255,255,255,0.92)',
+                              background: isHeroSaved ? '#fee2e2' : 'rgba(0,0,0,0.32)',
                               backdropFilter: isHeroSaved ? 'none' : 'blur(6px)',
-                              color: '#ff4d7d',
+                              color: isHeroSaved ? '#dc2626' : 'rgba(255,255,255,0.96)',
                               fontSize: 18, lineHeight: 1,
-                              boxShadow: isHeroSaved ? '0 1px 4px rgba(255,77,125,0.4)' : 'none',
+                              boxShadow: isHeroSaved ? '0 1px 4px rgba(220,38,38,0.4)' : 'none',
                               transition: 'background 120ms ease, color 120ms ease',
                             }}>
                             {isHeroSaved ? '♥' : '♡'}
                           </span>
                         )
                       })()}
-                      {/* Full-bleed photo over the gradient fallback layer */}
+                      {/* Visual header — real photo if available, gradient + icon as fallback */}
                       {heroPick.image ? (
-                        <img
-                          src={heroPick.image}
-                          alt={heroPick.imageAlt || ''}
-                          loading="eager"
-                          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                        />
+                        <div style={{
+                          position: 'relative',
+                          height: 168,
+                          overflow: 'hidden',
+                          background: '#0a0a0a',
+                        }}>
+                          <img
+                            src={heroPick.image}
+                            alt={heroPick.imageAlt || ''}
+                            loading="eager"
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                          />
+                          {/* Bottom gradient for date-pill readability */}
+                          <div style={{
+                            position: 'absolute', inset: 0,
+                            background: 'linear-gradient(to top, rgba(0,0,0,0.45) 0%, transparent 45%)',
+                            pointerEvents: 'none',
+                          }} />
+                          {/* Date note pinned bottom-right */}
+                          <span style={{
+                            position: 'absolute', right: 14, bottom: 12,
+                            fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.96)',
+                            background: 'rgba(0,0,0,0.32)', backdropFilter: 'blur(6px)',
+                            padding: '5px 11px', borderRadius: 20,
+                            letterSpacing: '0.02em',
+                          }}>
+                            {heroPick.dateNote}
+                          </span>
+                          {/* Tiny domain mark pinned top-left over the photo */}
+                          <span style={{
+                            position: 'absolute', left: 12, top: 12,
+                            fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.96)',
+                            background: 'rgba(0,0,0,0.32)', backdropFilter: 'blur(6px)',
+                            padding: '4px 9px', borderRadius: 20,
+                            letterSpacing: '0.06em', textTransform: 'uppercase',
+                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                          }}>
+                            <span>{heroDomain?.icon || '✨'}</span>
+                            <span>{heroPick.domain.replace('_', ' ')}</span>
+                          </span>
+                        </div>
                       ) : (
-                        <>
+                        <div style={{
+                          position: 'relative',
+                          height: 132,
+                          background: `linear-gradient(135deg, ${heroColor} 0%, ${heroColor}CC 60%, ${heroColor}99 100%)`,
+                          overflow: 'hidden',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
                           <div style={{
                             position: 'absolute', inset: 0,
                             background: 'radial-gradient(circle at 30% 25%, rgba(255,255,255,0.22), transparent 55%)',
                           }} />
                           <div style={{
-                            position: 'absolute', top: '34%', left: 0, right: 0, textAlign: 'center',
+                            position: 'relative',
                             fontSize: 64, lineHeight: 1,
                             filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.18))',
                           }}>
                             {heroDomain?.icon || '✨'}
                           </div>
-                        </>
+                          <span style={{
+                            position: 'absolute', right: 14, bottom: 12,
+                            fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.92)',
+                            background: 'rgba(0,0,0,0.18)', backdropFilter: 'blur(4px)',
+                            padding: '4px 10px', borderRadius: 20,
+                            letterSpacing: '0.02em',
+                          }}>
+                            {heroPick.dateNote}
+                          </span>
+                        </div>
                       )}
-                      {/* Translucent dark byline chip — top-left */}
-                      <span style={{
-                        position: 'absolute', left: 14, top: 14, zIndex: 4,
-                        display: 'inline-flex', alignItems: 'center', gap: 8,
-                        background: 'rgba(20,28,38,.38)', backdropFilter: 'blur(8px)',
-                        WebkitBackdropFilter: 'blur(8px)',
-                        padding: '5px 12px 5px 6px', borderRadius: 999,
-                      }}>
-                        <span style={{
-                          width: 26, height: 26, borderRadius: 999, flexShrink: 0,
-                          background: 'linear-gradient(135deg, #3d9bff, #7b6fd6)',
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 12,
-                        }}>🗽</span>
-                        <span style={{ lineHeight: 1.2 }}>
-                          <span style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#fff' }}>NYC Editors</span>
-                          <span style={{ display: 'block', fontSize: 9.5, fontWeight: 500, color: 'rgba(255,255,255,0.78)' }}>refreshed weekly</span>
-                        </span>
-                      </span>
-                      {/* Frosted white title panel — bottom-left */}
-                      <span style={{
-                        position: 'absolute', left: 14, right: 14, bottom: 14, zIndex: 4,
-                        display: 'block',
-                        background: 'rgba(255,255,255,.82)', backdropFilter: 'blur(10px)',
-                        WebkitBackdropFilter: 'blur(10px)',
-                        borderRadius: 16, padding: '12px 16px',
-                      }}>
-                        <span style={{
-                          display: 'block', fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em',
-                          color: 'var(--ink)', lineHeight: 1.25,
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                        }}>
+                      {/* Content area — domain badge dropped (now lives on the photo as a chip; redundant under) */}
+                      <div style={{ padding: '14px 18px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ fontSize: 19, fontWeight: 800, color: 'var(--gray-900)', lineHeight: 1.25 }}>
                           {heroPick.title}
-                        </span>
-                        <span style={{ display: 'block', fontSize: 12, color: 'var(--ink-2)', marginTop: 2 }}>
-                          {heroPick.dateNote} · {heroDomain?.name || heroPick.domain.replace('_', ' ')}
-                        </span>
-                      </span>
+                        </div>
+                        <div style={{
+                          fontSize: 13, color: 'var(--gray-600)', lineHeight: 1.5, minHeight: 58,
+                          display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                        }}>
+                          {heroPick.blurb}
+                        </div>
+                      </div>
                     </button>
                     {/* Learn-bridge: discreet link to the domain page for context/depth */}
                     {heroDomain && (
@@ -1309,7 +1345,7 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                           onClick={() => push({ screen: 'domain', domainId: heroPick.domain })}
                           style={{
                             background: 'none', border: 'none', cursor: 'pointer',
-                            fontSize: 12, fontWeight: 700, color: 'var(--accent-text)',
+                            fontSize: 12, fontWeight: 600, color: heroColor,
                             padding: '4px 6px',
                             display: 'inline-flex', alignItems: 'center', gap: 4,
                           }}>
@@ -1326,11 +1362,14 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
 
                 {/* ── Moods — vibe-based curation (Just Chilling, Date Night, etc.) ── */}
                 <div style={{ padding: '24px 0 0' }}>
-                  <div className="section-row" style={{ padding: '0 20px', marginBottom: 12 }}>
-                    <h3 style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--ink)' }}>
+                  <div style={{
+                    padding: '0 20px', display: 'flex', alignItems: 'baseline',
+                    justifyContent: 'space-between', marginBottom: 12,
+                  }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-400)' }}>
                       What kind of day?
-                    </h3>
-                    <span style={{ fontSize: 11, color: 'var(--ink-3)', fontWeight: 600 }}>{moods.length} moods</span>
+                    </div>
+                    <span style={{ fontSize: 10, color: 'var(--gray-400)' }}>{moods.length} moods</span>
                   </div>
                   <div style={{
                     display: 'flex', gap: 12, overflowX: 'auto',
@@ -1344,63 +1383,55 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                     <button
                       onClick={() => push({ screen: 'eat' })}
                       style={{
-                        flexShrink: 0, width: 132,
-                        background: 'var(--white)', color: 'var(--ink)',
-                        border: 'none', borderRadius: 22,
-                        padding: 0,
+                        flexShrink: 0, width: 180,
+                        background: '#dc2626', color: '#fff',
+                        border: 'none', borderRadius: 16,
+                        padding: '16px 14px 14px',
                         cursor: 'pointer', textAlign: 'left',
-                        display: 'flex', flexDirection: 'column',
-                        fontFamily: 'inherit', overflow: 'hidden',
-                        boxShadow: '0 6px 18px rgba(29,39,51,0.08)',
+                        display: 'flex', flexDirection: 'column', gap: 8,
+                        fontFamily: 'inherit',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
                       }}
                     >
-                      <span style={{
-                        height: 88, width: '100%',
-                        background: 'linear-gradient(135deg, #ffb088, #f4623a)',
-                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 32,
-                      }}>🍽</span>
-                      <span style={{ padding: '10px 12px 12px', display: 'block' }}>
-                        <span style={{ display: 'block', fontSize: 13, fontWeight: 800, lineHeight: 1.25, letterSpacing: '-0.01em' }}>
+                      <span style={{ fontSize: 26, lineHeight: 1 }}>🍽</span>
+                      <div>
+                        <div style={{ fontSize: 15, fontWeight: 800, lineHeight: 1.2 }}>
                           Where to eat
-                        </span>
-                        <span style={{ display: 'block', fontSize: 10.5, color: 'var(--ink-2)', marginTop: 3, lineHeight: 1.35 }}>
-                          Cuisine · price · area
-                        </span>
-                      </span>
+                        </div>
+                        <div style={{
+                          fontSize: 11, opacity: 0.85, marginTop: 4, lineHeight: 1.4,
+                        }}>
+                          Filter by cuisine, price, neighborhood
+                        </div>
+                      </div>
                     </button>
                     {moods.map(m => (
                       <button
                         key={m.id}
                         onClick={() => push({ screen: 'mood', moodId: m.id })}
                         style={{
-                          flexShrink: 0, width: 132,
-                          background: 'var(--white)', color: 'var(--ink)',
-                          border: 'none', borderRadius: 22,
-                          padding: 0,
+                          flexShrink: 0, width: 180,
+                          background: m.heroColor, color: '#fff',
+                          border: 'none', borderRadius: 16,
+                          padding: '16px 14px 14px',
                           cursor: 'pointer', textAlign: 'left',
-                          display: 'flex', flexDirection: 'column',
-                          fontFamily: 'inherit', overflow: 'hidden',
-                          boxShadow: '0 6px 18px rgba(29,39,51,0.08)',
+                          display: 'flex', flexDirection: 'column', gap: 8,
+                          fontFamily: 'inherit',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
                         }}
                       >
-                        <span style={{
-                          height: 88, width: '100%',
-                          background: `linear-gradient(135deg, ${m.heroColor}, ${m.heroColor}B0)`,
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 32,
-                        }}>{m.emoji}</span>
-                        <span style={{ padding: '10px 12px 12px', display: 'block' }}>
-                          <span style={{
-                            display: 'block', fontSize: 13, fontWeight: 800, lineHeight: 1.25, letterSpacing: '-0.01em',
-                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                          }}>
+                        <span style={{ fontSize: 26, lineHeight: 1 }}>{m.emoji}</span>
+                        <div>
+                          <div style={{ fontSize: 15, fontWeight: 800, lineHeight: 1.2 }}>
                             {m.label}
-                          </span>
-                          <span style={{ display: 'block', fontSize: 10.5, color: 'var(--ink-2)', marginTop: 3, lineHeight: 1.35 }}>
+                          </div>
+                          <div style={{
+                            fontSize: 11, opacity: 0.85, marginTop: 4, lineHeight: 1.4,
+                            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                          }}>
                             {flattenMoodPicks(m).length} picks · {(m.groups || []).length} groups
-                          </span>
-                        </span>
+                          </div>
+                        </div>
                       </button>
                     ))}
                   </div>
@@ -1857,7 +1888,7 @@ function TopicScreen({ topicId, push, savedItems = {} }) {
                         <span aria-label="Saved" style={{
                           position: 'absolute', top: 10, right: 12, zIndex: 2,
                           width: 22, height: 22, borderRadius: '50%',
-                          background: 'rgba(255,77,125,0.15)', color: '#ff4d7d',
+                          background: '#fee2e2', color: '#dc2626',
                           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                           fontSize: 12, lineHeight: 1,
                           boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
@@ -1989,7 +2020,7 @@ function TopicScreen({ topicId, push, savedItems = {} }) {
 // ── Venue Screen ──────────────────────────────────────────────────────────
 function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}, toggleSave = () => {}, onViewMap = null, editorialCallout = null }) {
   const venue = venues[venueId]
-  const colors = venueColors[venueId] || { bg: '#5d6b7c', text: '#fff' }
+  const colors = venueColors[venueId] || { bg: '#111', text: '#fff' }
 
   const fromTopic = fromTopicId ? topics[fromTopicId] : null
   const domainId = fromTopic?.domainId || fromDomainId
@@ -2062,125 +2093,63 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
   return (
     <div className="screen">
 
-      {/* ── Full-bleed hero — photo when we have one, over the category-gradient
-             base layer (so failed loads degrade to gradient, never black);
-             ~45vh of the column, white scrim title, share top-right ── */}
+      {/* ── Colored header ── */}
       <div style={{
+        background: colors.bg,
+        color: colors.text,
+        padding: '28px 20px 22px',
         position: 'relative',
-        height: 'min(45vh, 380px)',
-        minHeight: 250,
-        background: `linear-gradient(135deg, ${colors.bg} 0%, ${colors.bg}B8 100%)`,
-        overflow: 'hidden',
       }}>
-        {(() => {
-          // Photo priority: curated venue photo → first work-at-this-venue image
-          // (covers architecture venues for free) → none (gradient shows).
-          const heroPhoto = venueImages[venueId] || worksHere.find(w => w.imageUrl)?.imageUrl || null
-          return heroPhoto ? (
-            <img
-              src={heroPhoto}
-              alt={venue.name}
-              loading="eager"
-              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-              onError={(e) => { e.currentTarget.style.display = 'none' }}
-            />
-          ) : null
-        })()}
-        {/* Soft highlight + bottom scrim for title legibility */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: 'radial-gradient(circle at 28% 22%, rgba(255,255,255,0.18), transparent 55%)',
-        }} />
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: 'linear-gradient(to top, rgba(20,28,38,0.55) 0%, rgba(20,28,38,0) 55%)',
-        }} />
-        {/* Share — white circular button top-right */}
-        <button
-          onClick={() => {
-            const shareText = `${venue.name}${venue.neighborhood ? ' · ' + venue.neighborhood : ''}`
-            const shareData = { title: venue.name, text: shareText, url: typeof window !== 'undefined' ? window.location.href : '' }
-            if (typeof navigator !== 'undefined' && navigator.share) {
-              navigator.share(shareData).catch(() => {})
-            } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
-              navigator.clipboard.writeText(`${shareText}\n${shareData.url}`).catch(() => {})
-            }
-          }}
-          aria-label="Share venue"
-          style={{
-            position: 'absolute', top: 14, right: 16, zIndex: 3,
-            background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(6px)', border: 'none',
-            borderRadius: 999, width: 40, height: 40,
-            cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            color: 'var(--ink)', lineHeight: 1, fontSize: 15, fontWeight: 700,
-            boxShadow: '0 4px 14px rgba(29,39,51,.15)',
-          }}
-        >↗</button>
-        {/* Title on the scrim */}
-        <div style={{ position: 'absolute', left: 20, right: 20, bottom: 42, zIndex: 2, color: '#fff' }}>
-          <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.12, textShadow: '0 2px 12px rgba(20,28,38,0.4)' }}>
-            {venue.name}
-          </div>
-          {venue.fullName && venue.fullName !== venue.name && (
-            <div style={{ fontSize: 13, opacity: 0.9, marginTop: 4 }}>{venue.fullName}</div>
-          )}
-          <div style={{ fontSize: 13, opacity: 0.85, marginTop: 4 }}>{venue.neighborhood}</div>
+        <div style={{ fontSize: 24, fontWeight: 800, lineHeight: 1.2, marginBottom: 4, paddingRight: 92 }}>
+          {venue.name}
+        </div>
+        {venue.fullName && venue.fullName !== venue.name && (
+          <div style={{ fontSize: 13, opacity: 0.8, marginBottom: 6, paddingRight: 92 }}>{venue.fullName}</div>
+        )}
+        <div style={{ fontSize: 13, opacity: 0.75 }}>📍 {venue.neighborhood}</div>
+        {/* Action buttons — normalized share + save pill pair, top-right */}
+        <div style={{ position: 'absolute', top: 18, right: 16, display: 'flex', gap: 6 }}>
+          <button
+            onClick={() => {
+              const shareText = `${venue.name}${venue.neighborhood ? ' · ' + venue.neighborhood : ''}`
+              const shareData = { title: venue.name, text: shareText, url: typeof window !== 'undefined' ? window.location.href : '' }
+              if (typeof navigator !== 'undefined' && navigator.share) {
+                navigator.share(shareData).catch(() => {})
+              } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                navigator.clipboard.writeText(`${shareText}\n${shareData.url}`).catch(() => {})
+              }
+            }}
+            aria-label="Share venue"
+            style={{
+              background: 'rgba(255,255,255,0.22)', backdropFilter: 'blur(6px)', border: 'none',
+              borderRadius: 999, width: 36, height: 36,
+              cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              color: colors.text, lineHeight: 1, fontSize: 15, fontWeight: 700,
+            }}
+          >↗</button>
+          {(() => {
+            const isSaved = !!savedItems[`venue:${venueId}`]
+            return (
+              <button
+                onClick={() => toggleSave('venue', venueId)}
+                aria-label={isSaved ? 'Remove from saved' : 'Save venue'}
+                style={{
+                  background: isSaved ? '#fee2e2' : 'rgba(255,255,255,0.22)',
+                  backdropFilter: isSaved ? 'none' : 'blur(6px)',
+                  border: 'none',
+                  borderRadius: 999, width: 36, height: 36,
+                  cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  color: isSaved ? '#dc2626' : colors.text,
+                  lineHeight: 1, fontSize: 18,
+                  transition: 'background 120ms ease, color 120ms ease',
+                }}
+              >
+                {isSaved ? '♥' : '♡'}
+              </button>
+            )
+          })()}
         </div>
       </div>
-
-      {/* ── Content sheet — pulled up over the hero, 28px top radius ── */}
-      <div style={{
-        position: 'relative',
-        marginTop: -24,
-        background: 'var(--canvas)',
-        borderRadius: '28px 28px 0 0',
-        paddingTop: 6,
-        zIndex: 3,
-      }}>
-        {/* Pink 52px heart FAB straddling the hero/sheet seam */}
-        {(() => {
-          const isSaved = !!savedItems[`venue:${venueId}`]
-          return (
-            <button
-              onClick={() => toggleSave('venue', venueId)}
-              aria-label={isSaved ? 'Remove from saved' : 'Save venue'}
-              style={{
-                position: 'absolute', top: -26, right: 20, zIndex: 5,
-                background: isSaved ? 'var(--love)' : '#fff',
-                border: 'none',
-                borderRadius: 999, width: 52, height: 52,
-                cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                color: isSaved ? '#fff' : 'var(--love)',
-                lineHeight: 1, fontSize: 24,
-                boxShadow: isSaved ? '0 10px 22px rgba(255,77,125,.45)' : '0 8px 20px rgba(29,39,51,.18)',
-                transition: 'background 120ms ease, color 120ms ease',
-              }}
-            >
-              {isSaved ? '♥' : '♡'}
-            </button>
-          )
-        })()}
-      </div>
-
-      {/* ── Facts row — 3 equal light-gray tiles ── */}
-      {(venue.neighborhood || venue.admissionCost || venue.visitDuration) && (
-        <div style={{ padding: '14px 20px 0' }}>
-          <div className="facts-row">
-            <div className="fact-tile">
-              <div className="fact-label">Area</div>
-              <div className="fact-value">{venue.neighborhood || '—'}</div>
-            </div>
-            <div className="fact-tile">
-              <div className="fact-label">Admission</div>
-              <div className="fact-value">{venue.admissionCost || 'See site'}</div>
-            </div>
-            <div className="fact-tile">
-              <div className="fact-label">Time</div>
-              <div className="fact-value">{venue.visitDuration || 'Flexible'}</div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── Editorial callout — only when arriving from a Tonight pick. Carries the curation voice through. ── */}
       {editorialCallout && (
@@ -2211,25 +2180,23 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
       {venue.nowPlaying && !venue.nowPlaying.isDark && (
         <div style={{ padding: '14px 16px 0' }}>
           <div style={{
-            background: 'var(--white)',
-            borderRadius: 22,
+            background: '#0d1117',
+            borderRadius: 14,
             padding: '16px 18px',
-            boxShadow: '0 6px 18px rgba(29,39,51,0.08)',
           }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-text)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>Playing now</div>
-            <div style={{ fontSize: 19, fontWeight: 800, color: 'var(--ink)', lineHeight: 1.2, marginBottom: 5 }}>{venue.nowPlaying.title}</div>
-            <div style={{ fontSize: 13, color: 'var(--ink-2)', marginBottom: 14, lineHeight: 1.5 }}>{venue.nowPlaying.tagline}</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#4ade80', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>🎭 Playing now</div>
+            <div style={{ fontSize: 19, fontWeight: 800, color: '#fff', lineHeight: 1.2, marginBottom: 5 }}>{venue.nowPlaying.title}</div>
+            <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', marginBottom: 14, lineHeight: 1.5 }}>{venue.nowPlaying.tagline}</div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-              <span style={{ fontSize: 12, color: 'var(--ink-3)', flexShrink: 1 }}>{venue.nowPlaying.through}</span>
+              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', flexShrink: 1 }}>{venue.nowPlaying.through}</span>
               <a
                 href={venue.nowPlaying.bookingUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
-                  background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 700,
-                  padding: '9px 18px', borderRadius: 999, textDecoration: 'none',
+                  background: '#16a34a', color: '#fff', fontSize: 13, fontWeight: 700,
+                  padding: '9px 18px', borderRadius: 8, textDecoration: 'none',
                   flexShrink: 0, display: 'inline-block',
-                  boxShadow: '0 6px 16px rgba(61,155,255,.35)',
                 }}
               >Book tickets →</a>
             </div>
@@ -2358,9 +2325,9 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
         )
       })()}
 
-      {/* ── Character prose — lede with serif drop cap ── */}
+      {/* ── Character prose ── */}
       <div className="section" style={{ paddingTop: 22, paddingBottom: 8 }}>
-        <div className="lede" style={{ fontSize: 15, lineHeight: 1.72, color: 'var(--gray-700)' }}>
+        <div style={{ fontSize: 15, lineHeight: 1.72, color: 'var(--gray-700)' }}>
           {venue.character}
         </div>
       </div>
@@ -2464,7 +2431,7 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
                   toggleSave('venue', venueId)
                   if (!isSaved) { setJustAdded(true); setTimeout(() => setJustAdded(false), 2000) }
                 }}
-                style={isSaved ? { background: 'var(--ink)', boxShadow: 'none', opacity: 0.85 } : {}}
+                style={isSaved ? { background: '#1a1a1a', opacity: 0.75 } : {}}
               >
                 {isSaved ? '✓ Saved to My Trip' : justAdded ? '✓ Added to My Trip!' : '+ Add to My Trip'}
               </button>
@@ -3082,11 +3049,11 @@ function WorkScreen({ workId, push, savedItems = {}, toggleSave = () => {} }) {
                 onClick={() => toggleSave('work', workId)}
                 aria-label={isSaved ? 'Remove from saved' : 'Save work'}
                 style={{
-                  background: isSaved ? 'rgba(255,77,125,0.15)' : 'var(--gray-100)',
+                  background: isSaved ? '#fee2e2' : 'var(--gray-100)',
                   border: 'none',
                   borderRadius: 999, width: 36, height: 36,
                   cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  color: '#ff4d7d',
+                  color: isSaved ? '#dc2626' : 'var(--gray-500)',
                   lineHeight: 1, fontSize: 18,
                   transition: 'background 120ms ease, color 120ms ease',
                 }}
@@ -3352,7 +3319,6 @@ function EatScreen({ push, savedItems = {} }) {
   const [neighborhoods, setNeighborhoods] = React.useState(new Set())
   const [vibes, setVibes]               = React.useState(new Set())
   const [meals, setMeals]               = React.useState(new Set())
-  const [dietary, setDietary]           = React.useState(new Set())
   // Map-based area filter (reuses the same MOOD_MAP_AREAS_GEO regions used by
   // MoodScreen). One borough at a time; selectedArea drives a hard filter on
   // results. Independent of the chip-based `neighborhoods` filter so a user
@@ -3391,8 +3357,6 @@ function EatScreen({ push, savedItems = {} }) {
   const ALL_PRICES = [1, 2, 3, 4]
   const ALL_VIBES = ['date_night', 'casual', 'iconic', 'splurge', 'quick', 'late_night', 'family_friendly', 'hidden_gem']
   const ALL_MEALS = ['breakfast', 'brunch', 'lunch', 'dinner', 'late_night']
-  // Dietary tags mean "good options exist", not a dedicated kitchen.
-  const ALL_DIETARY = ['vegetarian', 'vegan', 'gluten_free']
 
   // Per-restaurant area classification (cached). Lets the map count its badges
   // and the filter pipeline gate on the selected area without redoing lat/lng
@@ -3417,13 +3381,12 @@ function EatScreen({ push, savedItems = {} }) {
       if (neighborhoods.size > 0 && !neighborhoods.has(r.neighborhood)) return
       if (vibes.size > 0 && !(r.vibe || []).some(v => vibes.has(v))) return
       if (meals.size > 0 && !(r.meals || []).some(m => meals.has(m))) return
-      if (dietary.size > 0 && !(r.dietary || []).some(d => dietary.has(d))) return
       const a = restaurantArea.get(r.id)
       if (!a) return
       acc[a.borough][a.areaId] = (acc[a.borough][a.areaId] || 0) + 1
     })
     return acc
-  }, [allRestaurants, restaurantArea, cuisines, prices, neighborhoods, vibes, meals, dietary])
+  }, [allRestaurants, restaurantArea, cuisines, prices, neighborhoods, vibes, meals])
 
   // Walk-in shortcut state. Declared up here because chipFiltered references
   // it; moving the declaration below would put it in the temporal dead zone
@@ -3442,11 +3405,10 @@ function EatScreen({ push, savedItems = {} }) {
       if (neighborhoods.size > 0 && !neighborhoods.has(r.neighborhood)) return false
       if (vibes.size > 0 && !(r.vibe || []).some(v => vibes.has(v))) return false
       if (meals.size > 0 && !(r.meals || []).some(m => meals.has(m))) return false
-      if (dietary.size > 0 && !(r.dietary || []).some(d => dietary.has(d))) return false
       if (walkInOnly && !['walk-in', 'easy'].includes(r.bookingDifficulty)) return false
       return true
     })
-  }, [allRestaurants, cuisines, prices, neighborhoods, vibes, meals, dietary, walkInOnly])
+  }, [allRestaurants, cuisines, prices, neighborhoods, vibes, meals, walkInOnly])
 
   // Final result set adds the map-area filter on top of the chip filters.
   const filtered = React.useMemo(() => {
@@ -3492,12 +3454,11 @@ function EatScreen({ push, savedItems = {} }) {
     setNeighborhoods(new Set())
     setVibes(new Set())
     setMeals(new Set())
-    setDietary(new Set())
     setMapArea(null)
     setWalkInOnly(false)
   }
 
-  const activeFilterCount = cuisines.size + prices.size + neighborhoods.size + vibes.size + meals.size + dietary.size + (mapArea ? 1 : 0) + (walkInOnly ? 1 : 0)
+  const activeFilterCount = cuisines.size + prices.size + neighborhoods.size + vibes.size + meals.size + (mapArea ? 1 : 0) + (walkInOnly ? 1 : 0)
 
   // Cuisine emoji map — purely cosmetic on the cuisine pills.
   // Keep these in sync with ALL_CUISINES above. Unknown cuisines fall back to 🍽.
@@ -3510,9 +3471,6 @@ function EatScreen({ push, savedItems = {} }) {
   function fmtPrice(p)      { return '$'.repeat(p) }
   function fmtVibe(v)       { return v.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) }
   function fmtMeal(m)       { return m.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) }
-  function fmtDietary(d)    {
-    return { vegetarian: 'Vegetarian-friendly', vegan: 'Vegan options', gluten_free: 'Gluten-free options' }[d] || d
-  }
   function fmtBooking(b) {
     const map = {
       'walk-in':    { label: 'Walk-in OK', color: '#15803d' },
@@ -3584,7 +3542,7 @@ function EatScreen({ push, savedItems = {} }) {
   // the user has expressed any intent. Reset when filter state changes.
   const [showAllResults, setShowAllResults] = React.useState(false)
   const VISIBLE_LIMIT = 3
-  React.useEffect(() => { setShowAllResults(false) }, [cuisines, prices, neighborhoods, vibes, meals, dietary, mapArea, walkInOnly])
+  React.useEffect(() => { setShowAllResults(false) }, [cuisines, prices, neighborhoods, vibes, meals, mapArea, walkInOnly])
 
   return (
     <div className="screen">
@@ -3857,16 +3815,6 @@ function EatScreen({ push, savedItems = {} }) {
             <Pill key={m} active={meals.has(m)} onClick={() => toggleIn(setMeals, m)}>{fmtMeal(m)}</Pill>
           ))}
         </FilterRow>
-        <FilterRow label="Dietary" count={dietary.size}>
-          {ALL_DIETARY.map(d => (
-            <Pill key={d} active={dietary.has(d)} onClick={() => toggleIn(setDietary, d)}>{fmtDietary(d)}</Pill>
-          ))}
-        </FilterRow>
-        {dietary.size > 0 && (
-          <div style={{ padding: '2px 20px 0', fontSize: 10.5, color: 'var(--gray-500)', lineHeight: 1.4 }}>
-            Dietary tags mean solid options exist, not a dedicated kitchen — always confirm with the restaurant for allergies.
-          </div>
-        )}
         {/* Clear-filters footer inside drawer. Result count lives in the
             drawer toggle header now to keep this section focused. */}
         {activeFilterCount > 0 && (
@@ -3940,7 +3888,7 @@ function EatScreen({ push, savedItems = {} }) {
                           fontSize: 15, fontWeight: 800, color: 'var(--gray-900)', lineHeight: 1.2,
                           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                         }}>{r.name}</span>
-                        {isSaved && <span style={{ fontSize: 13, color: '#ff4d7d', flexShrink: 0 }}>♥</span>}
+                        {isSaved && <span style={{ fontSize: 13, color: '#dc2626', flexShrink: 0 }}>♥</span>}
                       </div>
                       <div style={{
                         fontSize: 11, color: 'var(--gray-500)', marginBottom: 4,
@@ -5108,7 +5056,7 @@ function NeighborhoodScreen({ neighborhoodKey, subAreaName, push, savedItems = {
                       {s.name}
                       {isSaved && (
                         <span style={{
-                          fontSize: 10, fontWeight: 700, color: '#ff4d7d', background: 'rgba(255,77,125,0.15)',
+                          fontSize: 10, fontWeight: 700, color: '#dc2626', background: '#fee2e2',
                           padding: '1px 6px', borderRadius: 999,
                         }}>♥</span>
                       )}
@@ -5278,11 +5226,11 @@ function SightScreen({ sightId, push, savedItems = {}, toggleSave = () => {} }) 
             onClick={() => toggleSave('sight', sight.id)}
             aria-label={isSaved ? 'Remove from saved' : 'Save sight'}
             style={{
-              background: isSaved ? 'rgba(255,77,125,0.15)' : 'rgba(255,255,255,0.22)',
+              background: isSaved ? '#fee2e2' : 'rgba(255,255,255,0.22)',
               backdropFilter: isSaved ? 'none' : 'blur(6px)', border: 'none',
               borderRadius: 999, width: 36, height: 36,
               cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              color: isSaved ? '#ff4d7d' : colors.text, lineHeight: 1, fontSize: 18,
+              color: isSaved ? '#dc2626' : colors.text, lineHeight: 1, fontSize: 18,
               transition: 'background 120ms ease, color 120ms ease',
             }}
           >
@@ -5436,7 +5384,7 @@ function SavedDot({ saved, style }) {
     <span aria-label="Saved" style={{
       position: 'absolute', top: 8, right: 8, zIndex: 2,
       width: 20, height: 20, borderRadius: '50%',
-      background: 'rgba(255,77,125,0.15)', color: '#ff4d7d',
+      background: '#fee2e2', color: '#dc2626',
       fontSize: 11, lineHeight: 1,
       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
       boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
@@ -5493,7 +5441,7 @@ function VenueTapCard({ venue, onPress, isSaved = false }) {
           position: 'absolute', top: 10, right: 12, zIndex: 2,
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
           width: 22, height: 22, borderRadius: 999,
-          background: 'rgba(255,77,125,0.15)', color: '#ff4d7d',
+          background: '#fee2e2', color: '#dc2626',
           fontSize: 12, lineHeight: 1,
           boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
         }}>♥</span>
@@ -5626,110 +5574,54 @@ function VenueCard({ venue }) {
 // ── App Root ──────────────────────────────────────────────────────────────
 
 // ── Bottom Navigation Bar ─────────────────────────────────────────────────
-// Single stroked icon system (1.8px stroke, Lucide-style inline SVGs).
-// No emoji as UI icons — emoji stay allowed inside content only.
-const NAV_ICON_PATHS = {
-  compass:  <><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></>,
-  mapPin:   <><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></>,
-  utensils: <><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></>,
-  moon:     <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>,
-  bookmark: <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>,
-  bell:     <><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></>,
-  user:     <><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></>,
-  plus:     <><path d="M5 12h14"/><path d="M12 5v14"/></>,
-  search:   <><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></>,
-  dots:     <><circle cx="9" cy="9" r="1.4"/><circle cx="15" cy="9" r="1.4"/><circle cx="9" cy="15" r="1.4"/><circle cx="15" cy="15" r="1.4"/></>,
-  logOut:   <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></>,
-  download: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></>,
-  lock:     <><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>,
-  mail:     <><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></>,
-  code:     <><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></>,
-  trash:    <><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></>,
-  key:      <><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></>,
-}
-// Icons that read correctly when solid-filled. Multi-part icons (compass,
-// map-pin, utensils) turn into blobs when filled — those signal "active" with
-// a heavier stroke instead.
-const NAV_ICON_FILLABLE = new Set(['bookmark', 'moon', 'bell'])
-function NavIcon({ name, size = 22, color = 'currentColor', fill = 'none' }) {
-  const wantsFill = fill !== 'none' && NAV_ICON_FILLABLE.has(name)
-  const active = fill !== 'none'
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={wantsFill ? color : 'none'}
-      stroke={color} strokeWidth={active && !wantsFill ? 2.4 : 1.8} strokeLinecap="round" strokeLinejoin="round"
-      style={{ display: 'block' }} aria-hidden="true">
-      {NAV_ICON_PATHS[name]}
-    </svg>
-  )
-}
-
 function BottomNav({ activeTab, onTabPress, savedCount, onAddPlace }) {
-  // Floating bar on blurred white. Eat keeps the prized center slot (it
-  // replaced Add after the UX eval) but is styled as the 48px blue circle
-  // with a blue glow — the bar's single accent-colored action.
+  // Bottom nav reorganized after UX eval: Eat replaces Add in primary slot
+  // because (a) Eat is a primary use case both first-timers and residents
+  // want without digging, and (b) Add is a power-user concept new users
+  // would never tap. Add lives in My Trip header as a secondary entry.
   const tabs = [
-    { id: 'explore', icon: 'compass',  label: 'Explore' },
-    { id: 'map',     icon: 'mapPin',   label: 'Map' },
-    { id: 'eat',     icon: 'utensils', label: 'Eat', isCenter: true },
-    { id: 'tonight', icon: 'moon',     label: 'Tonight' },
-    { id: 'saved',   icon: 'bookmark', label: 'My Trip' },
+    { id: 'explore', icon: '🧭', label: 'Explore' },
+    { id: 'map',     icon: '📍', label: 'Map' },
+    { id: 'eat',     icon: '🍴', label: 'Eat' },
+    { id: 'tonight', icon: '🌙', label: 'This Week' },
+    { id: 'saved',   icon: '🗓️', label: 'My Trip' },
   ]
   return (
     <div style={{
       position: 'fixed', bottom: 0,
       left: '50%', transform: 'translateX(-50%)',
       width: '100%', maxWidth: 430,
-      height: 'calc(64px + env(safe-area-inset-bottom, 0px))',
+      // Total height = 60px nav row + iPhone home-indicator inset.
+      // paddingBottom pushes the row content above the indicator so taps still land.
+      height: 'calc(60px + env(safe-area-inset-bottom, 0px))',
       paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-      background: 'rgba(255,255,255,0.82)',
-      backdropFilter: 'blur(12px)',
-      WebkitBackdropFilter: 'blur(12px)',
-      borderTop: '1px solid rgba(29,39,51,0.06)',
-      boxShadow: '0 -8px 28px rgba(29,39,51,0.08)',
+      background: 'var(--white)',
+      borderTop: '1px solid var(--gray-200)',
       display: 'flex', zIndex: 200,
     }}>
-      {tabs.map(({ id, icon, label, isCenter }) => {
-        const active = activeTab === id
+      {tabs.map(({ id, icon, label, isAction }) => {
+        const active = activeTab === id && !isAction
         const badge = id === 'saved' && savedCount > 0 ? savedCount : null
-        if (isCenter) {
-          return (
-            <button key={id} onClick={() => onTabPress(id)} aria-label={label} style={{
-              flex: 1, display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center',
-              background: 'none', border: 'none', cursor: 'pointer',
-              position: 'relative',
-            }}>
-              <span style={{
-                width: 48, height: 48, borderRadius: 999,
-                background: 'var(--accent)',
-                boxShadow: '0 10px 22px rgba(61,155,255,.45)',
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                marginTop: -18,
-                border: '4px solid rgba(255,255,255,0.9)',
-              }}>
-                <NavIcon name={icon} size={21} color="#fff" />
-              </span>
-              <span style={{ fontSize: 10, fontWeight: 700, marginTop: 3, color: active ? 'var(--ink)' : 'var(--gray-500)' }}>{label}</span>
-            </button>
-          )
-        }
+        const handleClick = isAction ? () => onAddPlace?.() : () => onTabPress(id)
+        // Note: isAction kept in the tab schema in case we want to bring back
+        // a + button later; with Eat replacing Add no tab uses it right now.
         return (
-          <button key={id} onClick={() => onTabPress(id)} style={{
+          <button key={id} onClick={handleClick} style={{
             flex: 1, display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center', gap: 3,
+            alignItems: 'center', justifyContent: 'center', gap: 2,
             background: 'none', border: 'none', cursor: 'pointer',
-            color: active ? 'var(--ink)' : 'var(--ink-3)',
+            color: active ? 'var(--gray-900)' : isAction ? 'var(--gray-600)' : 'var(--gray-400)',
             position: 'relative',
           }}>
-            <NavIcon name={icon} size={22} fill={active ? 'solid' : 'none'} />
-            <span style={{ fontSize: 10, fontWeight: active ? 700 : 500, color: active ? 'var(--ink)' : 'var(--gray-500)' }}>{label}</span>
+            <span style={{ fontSize: 20, lineHeight: 1 }}>{icon}</span>
+            <span style={{ fontSize: 10, fontWeight: active ? 700 : isAction ? 600 : 400 }}>{label}</span>
             {badge && (
               <span style={{
-                position: 'absolute', top: 7, right: '50%', transform: 'translateX(18px)',
-                background: 'var(--love)', color: '#fff',
+                position: 'absolute', top: 5, right: '50%', transform: 'translateX(16px)',
+                background: '#dc2626', color: '#fff',
                 fontSize: 10, fontWeight: 800, padding: '2px 6px', borderRadius: 999, minWidth: 18,
                 textAlign: 'center', lineHeight: 1.1,
-                boxShadow: '0 1px 3px rgba(255,77,125,0.4)',
+                boxShadow: '0 1px 3px rgba(220,38,38,0.4)',
                 border: '1.5px solid var(--white)',
               }}>{badge > 99 ? '99+' : badge}</span>
             )}
@@ -5741,22 +5633,15 @@ function BottomNav({ activeTab, onTabPress, savedCount, onAddPlace }) {
 }
 
 // ── Map Screen ────────────────────────────────────────────────────────────
-// Pin colors now use the SAME category palette as the Explore / Tonight
-// chips and tags, so colors mean the same thing app-wide. A legend on the
-// map decodes them.
 const MAP_DOMAIN_COLORS = {
-  visual_art:     '#5B7FA6',
-  jazz:           '#C8823A',
-  classical_music:'#7B6FA6',
-  sports:         '#4A8C5C',
-  architecture:   '#8C6A4A',
-  theater:        '#A65B7B',
-  history:        '#6A6A6A',
-  hip_hop:        '#3A3A8C',
-}
-const MAP_DOMAIN_LEGEND_LABELS = {
-  visual_art: 'Art', jazz: 'Jazz', classical_music: 'Classical', sports: 'Sports',
-  architecture: 'Architecture', theater: 'Theater', history: 'History', hip_hop: 'Hip-Hop',
+  visual_art:     '#1a56db',
+  jazz:           '#0369a1',
+  classical_music:'#854d0e',
+  sports:         '#dc2626',
+  architecture:   '#059669',
+  theater:        '#7c3aed',
+  history:        '#92400e',
+  hip_hop:         '#b45309',
 }
 
 const MAP_FILTERS = [
@@ -5799,12 +5684,9 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
       zoom: 12,
       zoomControl: false,
     })
-    // Light Carto Positron basemap — matches the app's pastel UI far better
-    // than default OSM raster and makes the category pin colors pop.
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: 'abcd',
-      maxZoom: 19,
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 18,
     }).addTo(map)
     L.control.zoom({ position: 'bottomright' }).addTo(map)
     mapInstanceRef.current = map
@@ -5828,19 +5710,19 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
       const color = MAP_DOMAIN_COLORS[info.domain] || '#666'
       const isSaved = !!savedItems[`venue:${venueId}`]
 
-      // Saved venues: bigger, pink outline ring, full opacity to pop on the map
+      // Saved venues: bigger, red outline ring, full opacity to pop on the map
       const marker = L.circleMarker([info.lat, info.lng], isSaved ? {
         radius: 11,
         fillColor: color,
-        color: '#ff4d7d',
+        color: '#dc2626',
         weight: 3,
         fillOpacity: 1,
       } : {
         radius: 8,
         fillColor: color,
         color: '#fff',
-        weight: 2.5, // thicker white halo so muted category colors stay glanceable on the light basemap
-        fillOpacity: 0.95,
+        weight: 2,
+        fillOpacity: 0.9,
       })
       marker.on('click', () => setSelectedVenueId(venueId))
       marker.bindTooltip(venue.name + (isSaved ? ' ♥' : ''), { permanent: false, direction: 'top', offset: [0, -8] })
@@ -5893,37 +5775,6 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
       {/* Map */}
       <div ref={mapContainerRef} style={{ flex: 1, minHeight: 0 }} />
 
-      {/* Legend — decodes the category pin colors; collapses to the active
-          category when a filter is applied. Hidden while a venue card is open. */}
-      {!selVenue && (
-        <div style={{
-          position: 'absolute', bottom: 12, left: 12, zIndex: 1000,
-          background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(8px)',
-          WebkitBackdropFilter: 'blur(8px)',
-          borderRadius: 14, padding: '8px 12px',
-          boxShadow: '0 6px 18px rgba(29,39,51,0.14)',
-          maxWidth: 150,
-        }}>
-          <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--ink-3)', marginBottom: 4 }}>
-            Legend
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {Object.entries(MAP_DOMAIN_COLORS)
-              .filter(([d]) => filter === 'all' || filter === d)
-              .map(([d, c]) => (
-                <div key={d} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ width: 9, height: 9, borderRadius: 999, background: c, border: '1.5px solid #fff', boxShadow: '0 0 0 1px rgba(29,39,51,0.12)', flexShrink: 0 }} />
-                  <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--ink)' }}>{MAP_DOMAIN_LEGEND_LABELS[d] || d}</span>
-                </div>
-              ))}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, paddingTop: 4, borderTop: '1px solid var(--gray-100)' }}>
-              <span style={{ width: 9, height: 9, borderRadius: 999, background: '#fff', border: '2px solid var(--love)', flexShrink: 0 }} />
-              <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--ink)' }}>Saved</span>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Selected venue card */}
       {selVenue && (
         <div style={{
@@ -5948,8 +5799,8 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
                     marginLeft: 'auto',
                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                     width: 28, height: 28, borderRadius: 999,
-                    background: isSaved ? 'rgba(255,77,125,0.15)' : 'var(--gray-100)',
-                    color: '#ff4d7d',
+                    background: isSaved ? '#fee2e2' : 'var(--gray-100)',
+                    color: isSaved ? '#dc2626' : 'var(--gray-500)',
                     border: 'none', cursor: 'pointer',
                     fontSize: 15, lineHeight: 1,
                     transition: 'background 120ms ease, color 120ms ease',
@@ -6028,7 +5879,7 @@ const TONIGHT_DOMAIN_LABELS = {
   hip_hop:         'Hip-Hop',
 }
 
-function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onViewSaved = () => {}, onViewMap = null }) {
+function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onViewSaved = () => {} }) {
   const [tonightFilter, setTonightFilter] = React.useState('all')
 
   // Day-of-week tab — default to today. Lets residents preview what's
@@ -6119,23 +5970,11 @@ function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onV
 
   return (
     <div className="screen" style={{ paddingBottom: 80 }}>
-      {/* ── Header — light shell: big heading + day·time·count subline + Map view link ── */}
+      {/* ── Header — branding consistent with Explore + live current-time line ── */}
       <div className="home-header">
-        <div className="section-row">
-          {/* Heading follows the selected day so previewing Wednesday never says "Tonight" */}
-          <div className="home-wordmark">
-            {dayIdx === todayIdx ? 'Tonight' : `${['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][dayIdx]} night`}
-          </div>
-          {onViewMap && (
-            <button className="see-all" onClick={onViewMap}>Map view</button>
-          )}
-        </div>
-        <div className="home-subtitle">
-          {dayIdx === todayIdx
-            ? `${dayName} · ${displayHour}:${minute} ${ampm} · ${counts.all} idea${counts.all !== 1 ? 's' : ''}`
-            : `${counts.all} idea${counts.all !== 1 ? 's' : ''} on that night`}
-        </div>
-        <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 6, lineHeight: 1.4 }}>
+        <div className="home-wordmark">NYC Stoop</div>
+        <div className="home-subtitle">{timeAnchor}</div>
+        <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 6, lineHeight: 1.4 }}>
           Hand-picked by NYC editors · Refreshed weekly
         </div>
         {/* Saved-count link — appears only when there's at least 1 save. Jumps to Saved tab. */}
@@ -6144,8 +5983,8 @@ function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onV
             marginTop: 10,
             display: 'inline-flex', alignItems: 'center', gap: 6,
             padding: '6px 12px', borderRadius: 999,
-            background: 'rgba(255,77,125,0.12)', border: '1px solid rgba(255,77,125,0.35)',
-            color: '#d6336c', fontSize: 12, fontWeight: 700,
+            background: '#fee2e2', border: '1px solid #fecaca',
+            color: '#b91c1c', fontSize: 12, fontWeight: 700,
             cursor: 'pointer',
           }}>
             <span style={{ fontSize: 13, lineHeight: 1 }}>♥</span>
@@ -6307,26 +6146,26 @@ function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onV
                   const domainObj = domains[pick.domain]
                   return (
                     <button key={pick.id} onClick={() => onNavigate({ venueId: pick.venueId, workId: pick.workId, blurb: pick.blurb })} style={{
-                      width: '100%', background: 'var(--white)', border: 'none',
-                      borderRadius: 22, padding: 12, cursor: 'pointer', textAlign: 'left',
-                      display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 12,
+                      width: '100%', height: 132, background: 'var(--white)', border: '1px solid var(--gray-200)',
+                      borderRadius: 14, padding: 0, cursor: 'pointer', textAlign: 'left',
+                      display: 'flex', flexDirection: 'row', alignItems: 'stretch',
                       overflow: 'hidden',
-                      boxShadow: '0 6px 18px rgba(29,39,51,0.07)',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
                     }}>
-                      {/* 84px square thumbnail — photo over category-gradient fallback layer */}
+                      {/* Thumbnail — real image if available, colored fallback w/ emoji otherwise. Fills card height for uniform rhythm. */}
                       <div style={{
                         flexShrink: 0,
-                        width: 84, height: 84,
-                        borderRadius: 16,
-                        background: `linear-gradient(135deg, ${tint} 0%, ${tint}99 100%)`,
-                        position: 'relative', overflow: 'hidden',
+                        width: 132,
+                        height: '100%',
+                        background: pick.image ? '#0a0a0a' : `linear-gradient(135deg, ${tint} 0%, ${tint}CC 100%)`,
+                        position: 'relative',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                       }}>
                         {pick.image ? (
                           <img src={pick.image} alt={pick.imageAlt || ''} loading="lazy"
-                            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                         ) : (
-                          <span style={{ fontSize: 30, lineHeight: 1, filter: 'drop-shadow(0 1px 4px rgba(0,0,0,0.18))' }}>
+                          <span style={{ fontSize: 36, lineHeight: 1, filter: 'drop-shadow(0 1px 4px rgba(0,0,0,0.18))' }}>
                             {domainObj?.icon || '✨'}
                           </span>
                         )}
@@ -6335,7 +6174,8 @@ function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onV
                       {/* Content area */}
                       <div style={{
                         flex: 1, minWidth: 0,
-                        display: 'flex', flexDirection: 'column', gap: 3,
+                        padding: '10px 12px 10px 14px',
+                        display: 'flex', flexDirection: 'column', gap: 4,
                       }}>
                         {/* Top row: domain badge + heart (now a proper pill button) */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -6380,8 +6220,8 @@ function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onV
                               cursor: 'pointer', userSelect: 'none',
                               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                               width: 30, height: 30, borderRadius: 999,
-                              background: isSaved ? 'rgba(255,77,125,0.15)' : 'var(--gray-100)',
-                              color: '#ff4d7d',
+                              background: isSaved ? '#fee2e2' : 'var(--gray-100)',
+                              color: isSaved ? '#dc2626' : 'var(--gray-500)',
                               fontSize: 17, lineHeight: 1,
                               transition: 'background 120ms ease, color 120ms ease',
                             }}>
@@ -6389,30 +6229,35 @@ function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onV
                           </span>
                         </div>
 
-                        {/* Time line — blue, bold, leads the card per spec (text-safe accent) */}
-                        <div style={{
-                          fontSize: 12, fontWeight: 700, color: 'var(--accent-text)', minWidth: 0,
-                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                        }}>{pick.dateNote}</div>
-
                         {/* Title — clamped to 2 lines so card stays scannable */}
                         <div style={{
-                          fontSize: 14.5, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.3,
+                          fontSize: 15, fontWeight: 800, color: 'var(--gray-900)', lineHeight: 1.3,
                           display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
                           overflow: 'hidden',
                         }}>{pick.title}</div>
+
+                        {/* dateNote — "when" of a Tonight card, in domain accent color */}
+                        <div style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 5,
+                          fontSize: 12, fontWeight: 600, color: tint, minWidth: 0,
+                        }}>
+                          <span style={{ fontSize: 11, lineHeight: 1, flexShrink: 0 }}>🕐</span>
+                          <span style={{
+                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0,
+                          }}>{pick.dateNote}</span>
+                        </div>
 
                         {/* Trip-planner metadata: neighborhood · price · duration. Muted single line. */}
                         {(() => {
                           const neighborhood = venues[pick.venueId]?.neighborhood
                           const bits = []
-                          if (neighborhood) bits.push(neighborhood)
+                          if (neighborhood) bits.push(`📍 ${neighborhood}`)
                           if (pick.price) bits.push(pick.price)
                           if (pick.duration) bits.push(pick.duration)
                           if (bits.length === 0) return null
                           return (
                             <div style={{
-                              fontSize: 11.5, color: 'var(--ink-2)', lineHeight: 1.3,
+                              fontSize: 11, color: 'var(--gray-500)', lineHeight: 1.3,
                               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                               minWidth: 0,
                             }}>
@@ -7834,59 +7679,26 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
           Saved Plans
         </div>
 
-        {/* Empty state — single, count-aware block (collapsed the old stacked
-            "No plans yet" + "Nothing saved yet" pair) + 3-step how-it-works row */}
-        {!_snap && (() => {
-          // Hearts + imported/custom places, without double-counting user_venue
-          // entries that live in both savedItems and userVenues.
-          const totalSaved =
-            Object.values(savedItems || {}).filter(s => s.type !== 'user_venue').length +
-            Object.keys(userVenues || {}).length
-          return (
-            <div style={{ textAlign: 'center', padding: '14px 0 8px' }}>
-              <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: '-0.01em', color: 'var(--ink)', marginBottom: 6 }}>
-                {totalSaved > 0
-                  ? `You have ${totalSaved} saved place${totalSaved !== 1 ? 's' : ''} — build tonight's plan`
-                  : 'Save a few places, then build tonight’s plan'}
-              </div>
-              {/* 3-step how-it-works row */}
-              <div style={{
-                display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8,
-                margin: '14px 0 18px',
-              }}>
-                {[
-                  { n: 1, label: 'Save places', sub: 'Tap the heart on anything' },
-                  { n: 2, label: 'Pick your days', sub: 'Set trip length below' },
-                  { n: 3, label: 'Get a plan', sub: 'We route your day' },
-                ].map(step => (
-                  <div key={step.n} style={{
-                    background: 'var(--gray-100)', borderRadius: 16, padding: '12px 8px',
-                  }}>
-                    <div style={{
-                      width: 24, height: 24, borderRadius: 999, margin: '0 auto 6px',
-                      background: 'var(--accent)', color: '#fff',
-                      fontSize: 12, fontWeight: 800,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>{step.n}</div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)' }}>{step.label}</div>
-                    <div style={{ fontSize: 10.5, color: 'var(--ink-2)', marginTop: 2, lineHeight: 1.3 }}>{step.sub}</div>
-                  </div>
-                ))}
-              </div>
-              <button
-                onClick={() => schedulingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                style={{
-                  background: 'var(--accent)', color: '#fff', border: 'none',
-                  borderRadius: 999, padding: '13px 32px',
-                  fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                  boxShadow: '0 6px 16px rgba(61,155,255,.35)',
-                }}
-              >
-                Build tonight&rsquo;s plan
-              </button>
+        {/* Empty state */}
+        {!_snap && (
+          <div style={{ textAlign: 'center', padding: '20px 0 8px' }}>
+            <div style={{ fontSize: 38, marginBottom: 10 }}>🗓️</div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--gray-800)', marginBottom: 6 }}>No plans yet</div>
+            <div style={{ fontSize: 13, color: 'var(--gray-500)', lineHeight: 1.6, maxWidth: 260, margin: '0 auto 20px' }}>
+              Head over to scheduling and start planning your trip.
             </div>
-          )
-        })()}
+            <button
+              onClick={() => schedulingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              style={{
+                background: 'var(--gray-900)', color: '#fff', border: 'none',
+                borderRadius: 12, padding: '13px 32px',
+                fontSize: 14, fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              Start Scheduling
+            </button>
+          </div>
+        )}
 
         {/* Saved plan card */}
         {_snap && (
@@ -10776,7 +10588,7 @@ function AddPlaceModal({ onClose, userVenues, onAdd, onRemove }) {
           {/* Error */}
           {error && (
             <div style={{
-              fontSize: 12, color: '#ff4d7d', background: 'rgba(255,77,125,0.15)',
+              fontSize: 12, color: '#dc2626', background: '#fee2e2',
               padding: '8px 12px', borderRadius: 8,
             }}>
               {error}
@@ -10834,25 +10646,23 @@ const inputStyle = {
 // ── Onboarding Modal — three-slide welcome flow shown on first app open ──
 function OnboardingModal({ onDismiss }) {
   const [slide, setSlide] = React.useState(0)
-  // Light slides matching the app's design language — each gets one accent
-  // tint used for the emoji tile gradient and the eyebrow.
   const slides = [
     {
-      tint: '#3d9bff',
+      bg: 'linear-gradient(150deg, #1e3a8a 0%, #2563eb 60%, #3b82f6 100%)',
       emoji: '🗽',
-      eyebrow: 'NYC STOOP',
+      eyebrow: 'NYC TONIGHT',
       title: "Discover what's on,\ntonight in New York.",
       body: 'A curated guide to jazz clubs, museums, theater, architecture — hand-picked by NYC editors, refreshed weekly.',
     },
     {
-      tint: '#ff4d7d',
+      bg: 'linear-gradient(150deg, #be185d 0%, #dc2626 60%, #ec4899 100%)',
       emoji: '♥',
       eyebrow: 'BUILD A WISH LIST',
       title: 'Save what catches\nyour eye.',
-      body: 'Tap the pink heart on any venue, pick, or museum. Your saves collect quietly across every screen.',
+      body: 'Tap the heart on any venue, pick, or museum. Your saves collect quietly across every screen.',
     },
     {
-      tint: '#4A8C5C',
+      bg: 'linear-gradient(150deg, #047857 0%, #059669 60%, #14b8a6 100%)',
       emoji: '🗓️',
       eyebrow: 'PLAN YOUR DAYS',
       title: 'Turn saves into a\nsmart itinerary.',
@@ -10864,61 +10674,57 @@ function OnboardingModal({ onDismiss }) {
 
   return (
     <div style={{
-      // Constrained to the same column width as the app shell (UX fix) —
-      // previously stretched edge-to-edge on desktop.
-      position: 'fixed', top: 0, bottom: 0, zIndex: 1000,
-      left: '50%', transform: 'translateX(-50%)',
-      width: '100%', maxWidth: 430,
-      background: 'var(--canvas)',
-      color: 'var(--ink)',
+      position: 'fixed', inset: 0, zIndex: 1000,
+      background: current.bg,
+      transition: 'background 380ms ease',
+      color: '#fff',
       display: 'flex', flexDirection: 'column',
       // iOS safe-area aware
       paddingTop: 'env(safe-area-inset-top, 0px)',
       paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-      overflow: 'hidden',
     }}>
+      {/* Soft radial highlight for depth */}
+      <div style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none',
+        background: 'radial-gradient(circle at 30% 20%, rgba(255,255,255,0.18), transparent 55%)',
+      }} />
+
       {/* Top bar: Skip link (hidden on last slide so the only CTA is "Let's go") */}
       <div style={{ position: 'relative', padding: '18px 20px 0', display: 'flex', justifyContent: 'flex-end', minHeight: 44 }}>
         {!isLast && (
           <button onClick={onDismiss} style={{
-            background: 'var(--white)',
-            border: 'none', color: 'var(--ink-2)',
+            background: 'rgba(255,255,255,0.18)', backdropFilter: 'blur(8px)',
+            border: 'none', color: 'rgba(255,255,255,0.95)',
             padding: '8px 14px', borderRadius: 999,
             fontSize: 13, fontWeight: 700, cursor: 'pointer',
             letterSpacing: '0.02em',
-            boxShadow: '0 4px 14px rgba(29,39,51,.08)',
           }}>Skip</button>
         )}
       </div>
 
-      {/* Slide body — emoji tile + headline + body */}
+      {/* Slide body — centered emoji + headline + body */}
       <div style={{
         position: 'relative', flex: 1,
         display: 'flex', flexDirection: 'column',
         alignItems: 'center', justifyContent: 'center',
-        padding: '0 32px', textAlign: 'center', gap: 20,
+        padding: '0 32px', textAlign: 'center', gap: 22,
       }}>
-        {/* Emoji on a 28px-radius gradient tile — same card language as the app */}
         <span style={{
-          width: 132, height: 132, borderRadius: 28,
-          background: `linear-gradient(135deg, ${current.tint} 0%, ${current.tint}99 100%)`,
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 64, lineHeight: 1, color: '#fff',
-          boxShadow: `0 18px 40px ${current.tint}55`,
-          transition: 'background 380ms ease, box-shadow 380ms ease',
+          fontSize: 96, lineHeight: 1,
+          filter: 'drop-shadow(0 10px 28px rgba(0,0,0,0.28))',
         }}>{current.emoji}</span>
         <div style={{
           fontSize: 11, fontWeight: 800, letterSpacing: '0.14em',
-          color: 'var(--gray-500)', marginTop: 6,
+          color: 'rgba(255,255,255,0.78)',
         }}>{current.eyebrow}</div>
         <div style={{
-          fontSize: 28, fontWeight: 800, lineHeight: 1.2, letterSpacing: '-0.02em',
-          maxWidth: 320, whiteSpace: 'pre-line', color: 'var(--ink)',
+          fontSize: 28, fontWeight: 800, lineHeight: 1.2, letterSpacing: '-0.012em',
+          maxWidth: 320, whiteSpace: 'pre-line',
         }}>
           {current.title}
         </div>
         <div style={{
-          fontSize: 15, lineHeight: 1.55, color: 'var(--ink-2)',
+          fontSize: 15, lineHeight: 1.55, color: 'rgba(255,255,255,0.92)',
           maxWidth: 320,
         }}>
           {current.body}
@@ -10939,22 +10745,22 @@ function OnboardingModal({ onDismiss }) {
               aria-label={`Go to slide ${i + 1}`}
               style={{
                 width: i === slide ? 24 : 8, height: 8, borderRadius: 999,
-                background: i === slide ? 'var(--accent)' : 'var(--gray-300)',
+                background: i === slide ? 'rgba(255,255,255,0.96)' : 'rgba(255,255,255,0.4)',
                 border: 'none', cursor: 'pointer', padding: 0,
                 transition: 'width 240ms ease, background 240ms ease',
               }} />
           ))}
         </div>
 
-        {/* Primary CTA — blue action pill with the accent glow */}
+        {/* Primary CTA */}
         <button onClick={() => isLast ? onDismiss() : setSlide(slide + 1)} style={{
           width: '100%', maxWidth: 340,
-          background: 'var(--accent)', color: '#fff',
-          border: 'none', borderRadius: 999,
+          background: 'var(--white)', color: '#111',
+          border: 'none', borderRadius: 14,
           padding: '15px 24px',
           fontSize: 15, fontWeight: 800,
           cursor: 'pointer',
-          boxShadow: '0 10px 22px rgba(61,155,255,.45)',
+          boxShadow: '0 6px 20px rgba(0,0,0,0.22)',
           letterSpacing: '-0.005em',
         }}>
           {isLast ? "Let's go →" : 'Next'}
@@ -11236,7 +11042,7 @@ function SettingsModal({
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               }}
             >
-              <span style={{ display: 'inline-flex' }}><NavIcon name="key" size={16} /></span>
+              <span style={{ fontSize: 16 }}>🔑</span>
               <span>Sign in / Create account</span>
             </button>
             <div style={{ fontSize: 11, color: 'var(--gray-500)', textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
@@ -11260,31 +11066,31 @@ function SettingsModal({
         <div style={{ borderTop: '1px solid var(--gray-100)' }}>
           {user && (
             <button onClick={handleSignOut} style={rowStyle}>
-              <span style={{ display: 'inline-flex', color: 'var(--gray-500)' }}><NavIcon name="logOut" size={18} /></span>
+              <span style={{ fontSize: 18 }}>↩</span>
               <span style={labelStyle}>Sign out</span>
               <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>›</span>
             </button>
           )}
           {/* One-time bulk import for places already saved in Google Maps */}
           <button onClick={() => { onClose?.(); onImportTakeout?.() }} style={rowStyle}>
-            <span style={{ display: 'inline-flex', color: 'var(--gray-500)' }}><NavIcon name="download" size={18} /></span>
+            <span style={{ fontSize: 18 }}>📥</span>
             <span style={labelStyle}>Import from Google Maps</span>
             <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>›</span>
           </button>
           <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer" style={{ ...rowStyle, textDecoration: 'none' }}>
-            <span style={{ display: 'inline-flex', color: 'var(--gray-500)' }}><NavIcon name="lock" size={18} /></span>
+            <span style={{ fontSize: 18 }}>🔒</span>
             <span style={labelStyle}>Privacy policy</span>
             <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>↗</span>
           </a>
           <a href={`mailto:${FEEDBACK_EMAIL}?subject=NYC%20Stoop%20feedback%20(v${APP_VERSION})`}
              style={{ ...rowStyle, textDecoration: 'none' }}>
-            <span style={{ display: 'inline-flex', color: 'var(--gray-500)' }}><NavIcon name="mail" size={18} /></span>
+            <span style={{ fontSize: 18 }}>✉️</span>
             <span style={labelStyle}>Send feedback</span>
             <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>↗</span>
           </a>
           <a href="https://github.com/stevenwang415/nyc-stoop" target="_blank" rel="noopener noreferrer"
              style={{ ...rowStyle, textDecoration: 'none' }}>
-            <span style={{ display: 'inline-flex', color: 'var(--gray-500)' }}><NavIcon name="code" size={18} /></span>
+            <span style={{ fontSize: 18 }}>📂</span>
             <span style={labelStyle}>Source on GitHub</span>
             <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>↗</span>
           </a>
@@ -11294,7 +11100,7 @@ function SettingsModal({
             <button onClick={() => setConfirmClear(true)} style={{
               ...rowStyle, color: '#b91c1c', borderBottom: 'none',
             }}>
-              <span style={{ display: 'inline-flex' }}><NavIcon name="trash" size={18} /></span>
+              <span style={{ fontSize: 18 }}>🗑️</span>
               <span style={labelStyle}>Clear local data</span>
               <span style={{ fontSize: 14, color: '#fca5a5' }}>›</span>
             </button>
@@ -11456,49 +11262,24 @@ function SharedTripView({ trip, onAdopt, onDismiss }) {
 
 export default function App() {
   // ── Shared-trip view state ──────────────────────────────────────────────
-  // If the URL is /#/t/<encoded>, we render a read-only preview so a
-  // recipient can see the sender's itinerary without it overwriting
+  // If the URL is /#/t/<encoded>, we render a read-only PlanScreen so a
+  // recipient can preview the sender's itinerary without it overwriting
   // their own saves. They can adopt it via the "Copy to my trip" CTA.
   const [sharedTrip, setSharedTrip] = useState(() => {
     if (typeof window === 'undefined') return null
     const enc = extractShareHash(window.location.hash)
     return enc ? decodeTrip(enc) : null
   })
-  function dismissSharedTrip() {
-    setSharedTrip(null)
-    try { window.history.replaceState(null, '', window.location.pathname + window.location.search) } catch {}
-  }
-
-  // ── Password-reset deep link (?reset_token=…) ───────────────────────────
-  const [resetToken, setResetToken] = useState(() => {
-    if (typeof window === 'undefined') return null
-    try { return new URLSearchParams(window.location.search).get('reset_token') } catch { return null }
-  })
-  function clearResetToken() {
-    setResetToken(null)
-    try { window.history.replaceState(null, '', window.location.pathname + window.location.hash) } catch {}
-  }
-
-  // ── Auth — token + user cached in localStorage by ./auth/api ────────────
-  const [user, setUserState] = useState(() => getUser())
   useEffect(() => {
-    if (!getToken()) return
-    // Refresh the cached profile from the server; sign out silently on 401.
-    fetchMe()
-      .then(u => { authSetUser(u); setUserState(u) })
-      .catch(() => {})
+    function onHashChange() {
+      const enc = extractShareHash(window.location.hash)
+      setSharedTrip(enc ? decodeTrip(enc) : null)
+    }
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
   }, [])
-  function handleSignedIn(token, u) {
-    authSetToken(token)
-    authSetUser(u)
-    setUserState(u)
-  }
-  function handleSignedOut() {
-    authSignOut()
-    setUserState(null)
-  }
 
-  // ── First-time-user onboarding — versioned key so we can re-show after major updates ──
+  // First-time-user onboarding — versioned key so we can re-show after major updates by bumping the version.
   const [showOnboarding, setShowOnboarding] = useState(() => {
     try { return !localStorage.getItem('nyc_onboarded_v1') }
     catch { return false }
@@ -11516,29 +11297,38 @@ export default function App() {
     catch { return {} }
   })
 
-  // User-added places — separate from curated venues so we can visually
-  // distinguish them and keep editorial data clean.
+  // User-added places — separate from curated venues so we can visually distinguish them
+  // ("your picks" vs editorial picks) and so the editorial venue data stays clean.
   const [userVenues, setUserVenues] = useState(() => {
     try { return JSON.parse(localStorage.getItem('nyc_user_venues') || '{}') }
     catch { return {} }
   })
 
-  // Merge bulk-imported seed places (data/places.js) on boot — idempotent by
-  // stable seed_* ids so re-runs / new devices don't duplicate.
-  useEffect(() => {
-    setUserVenues(prev => {
-      let changed = false
-      const next = { ...prev }
-      ;(seedUserPlaces || []).forEach(p => {
-        if (p?.id && !next[p.id]) {
-          next[p.id] = { savedAt: Date.now(), ...p }
-          changed = true
-        }
+  // ── Seed-place bootstrap (opt-in only) ──────────────────────────────────
+  // src/data/places.js (seedUserPlaces) still ships ~62 places from Steve's
+  // Google Maps export, but we no longer auto-merge them. A first-time visitor
+  // (Sarah from Seattle, etc.) opening the app would otherwise see an
+  // "Imported from Google Maps · 62 places" section they never created.
+  // To re-import the seed set, the user can call `window.__importSeedPlaces()`
+  // from devtools, or we'll wire a Settings button when there's enough demand.
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.__importSeedPlaces = () => {
+      let imported
+      try { imported = new Set(JSON.parse(localStorage.getItem('nyc_seed_imported') || '[]')) }
+      catch { imported = new Set() }
+      const toAdd = seedUserPlaces.filter(p => !imported.has(p.id))
+      if (toAdd.length === 0) { console.log('All seed places already imported'); return }
+      setUserVenues(prev => {
+        const next = { ...prev }
+        toAdd.forEach(p => { if (!next[p.id]) next[p.id] = { ...p, savedAt: Date.now() } })
+        try { localStorage.setItem('nyc_user_venues', JSON.stringify(next)) } catch {}
+        return next
       })
-      if (!changed) return prev
-      try { localStorage.setItem('nyc_user_venues', JSON.stringify(next)) } catch {}
-      return next
-    })
+      toAdd.forEach(p => imported.add(p.id))
+      try { localStorage.setItem('nyc_seed_imported', JSON.stringify([...imported])) } catch {}
+      console.log(`Imported ${toAdd.length} seed places`)
+    }
   }, [])
 
   function addUserVenue(data) {
@@ -11548,7 +11338,8 @@ export default function App() {
       try { localStorage.setItem('nyc_user_venues', JSON.stringify(next)) } catch {}
       return next
     })
-    // Auto-save so it shows in the saved count + My Trip right away.
+    // Auto-save into savedItems so it shows up in the saved count, My Trip tab,
+    // and gets included in the itinerary right away.
     setSavedItems(prev => {
       const key = `user_venue:${id}`
       const next = { ...prev, [key]: { type: 'user_venue', id, savedAt: Date.now() } }
@@ -11563,6 +11354,7 @@ export default function App() {
       try { localStorage.setItem('nyc_user_venues', JSON.stringify(rest)) } catch {}
       return rest
     })
+    // Also remove the auto-saved entry so the place fully disappears from the trip.
     setSavedItems(prev => {
       const key = `user_venue:${id}`
       if (!prev[key]) return prev
@@ -11571,10 +11363,58 @@ export default function App() {
       return rest
     })
   }
-
   const [addPlaceOpen, setAddPlaceOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [importOpen, setImportOpen]     = useState(false)
+  // Google Takeout bulk-import modal — separate state so it can be opened
+  // directly from Settings without keeping Settings open behind it.
+  const [importTakeoutOpen, setImportTakeoutOpen] = useState(false)
+
+  // ── Auth state ────────────────────────────────────────────────────────
+  // Hydrate from localStorage on mount; refresh from /auth/me in the background
+  // so a server-side display-name change (or revoked token) reflects on next launch.
+  const [currentUser, setCurrentUser] = useState(() => getUser())
+
+  useEffect(() => {
+    if (!getToken()) return
+    let cancelled = false
+    fetchMe().then(u => { if (!cancelled) { authSetUser(u); setCurrentUser(u) } })
+      .catch(err => {
+        // 401 → token was revoked or expired. Silently clear local creds.
+        if (err?.status === 401) { authSignOut(); setCurrentUser(null) }
+      })
+    return () => { cancelled = true }
+  }, [])
+
+  function handleSignedIn(token, user) {
+    authSetToken(token)
+    authSetUser(user)
+    setCurrentUser(user)
+  }
+  function handleSignedOut() {
+    authSignOut()
+    setCurrentUser(null)
+  }
+  function handleUserChange(user) {
+    authSetUser(user)
+    setCurrentUser({ ...user })
+  }
+
+  // ── Password-reset URL handler ────────────────────────────────────────
+  // Detect ?reset_token=… on initial load. When present, render the
+  // ResetPasswordScreen instead of the normal app — finishing the flow signs
+  // the user in and clears the URL param.
+  const [resetToken, setResetToken] = useState(() => {
+    try { return new URL(window.location.href).searchParams.get('reset_token') || null }
+    catch { return null }
+  })
+  function dismissResetToken() {
+    setResetToken(null)
+    try {
+      const url = new URL(window.location.href)
+      url.searchParams.delete('reset_token')
+      window.history.replaceState({}, '', url.toString())
+    } catch {}
+  }
 
   const [venueNotes, setVenueNotesRaw] = useState(() => {
     try { return JSON.parse(localStorage.getItem('nyc_venue_notes') || '{}') } catch { return {} }
@@ -11591,7 +11431,7 @@ export default function App() {
   const [mapSel,       setMapSel]       = useState(null)
   const [mapHighlight, setMapHighlight] = useState(null)
   const [tonightSel,   setTonightSel]   = useState(null)
-  const [savedSel,     setSavedSel]     = useState(null)
+  const [savedSel,   setSavedSel]   = useState(null)
 
   function toggleSave(type, id) {
     setSavedItems(prev => {
@@ -11599,34 +11439,9 @@ export default function App() {
       const key = `${type}:${id}`
       if (next[key]) delete next[key]
       else next[key] = { type, id, savedAt: Date.now() }
-      try { localStorage.setItem('nyc_saved', JSON.stringify(next)) } catch {}
+      localStorage.setItem('nyc_saved', JSON.stringify(next))
       return next
     })
-  }
-
-  // Adopt a shared trip: merge its stops into saves (non-destructive), copy
-  // trip length / start date if present, then land on My Trip.
-  function adoptSharedTrip() {
-    if (!sharedTrip) return
-    setSavedItems(prev => {
-      const next = { ...prev }
-      ;(sharedTrip.ids || []).forEach(key => {
-        const [type, id] = key.split(':')
-        if (!type || !id || next[key]) return
-        if (type === 'venue'  && !venues[id]) return
-        if (type === 'work'   && !works[id]) return
-        if (type === 'sight'  && !ALL_SIGHTS[id]) return
-        next[key] = { type, id, savedAt: Date.now() }
-      })
-      try { localStorage.setItem('nyc_saved', JSON.stringify(next)) } catch {}
-      return next
-    })
-    try {
-      if (sharedTrip.days)  localStorage.setItem('nyc_trip_days', JSON.stringify(sharedTrip.days))
-      if (sharedTrip.start) localStorage.setItem('nyc_trip_start_date', sharedTrip.start)
-    } catch {}
-    dismissSharedTrip()
-    setActiveTab('saved')
   }
 
   function handleTabPress(tab) {
@@ -11634,7 +11449,8 @@ export default function App() {
       if (tab === 'explore') resetExplore()
       if (tab === 'map')     setMapSel(null)
       if (tab === 'tonight') setTonightSel(null)
-      if (tab === 'saved')   setSavedSel(null)
+      if (tab === 'saved')   { setSavedSel(null) }
+      // 'eat' has no inner selection state — re-tapping just stays put.
     } else {
       setActiveTab(tab)
     }
@@ -11654,11 +11470,11 @@ export default function App() {
       case 'venueGroup':return domains[current.domainId]?.venueGroups?.[current.groupIndex]?.label
       case 'neighborhood': return current.subAreaName || NEIGHBORHOOD_GROUPS.find(g => g.key === current.neighborhoodKey)?.label || 'Neighborhood'
       case 'sight':     return ALL_SIGHTS[current.sightId]?.name || 'Sight'
+      case 'mood':      return moodById[current.moodId]?.label || 'Mood'
+      case 'eat':       return 'Where to eat'
       case 'venue':     return venues[current.venueId]?.name
       case 'figure':    return figures[current.figureId]?.name
       case 'work':      return works[current.workId]?.title
-      case 'mood':      return moodById?.[current.moodId]?.label || 'Moods'
-      case 'eat':       return 'Where to Eat'
       default:          return 'NYC Stoop'
     }
   }
@@ -11676,11 +11492,14 @@ export default function App() {
     }
     if (activeTab === 'saved' && savedSel) {
       const { type, id } = savedSel
-      const title = type === 'venue' ? venues[id]?.name : type === 'work' ? works[id]?.title : type === 'sight' ? ALL_SIGHTS[id]?.name : figures[id]?.name
+      const title = type === 'venue' ? venues[id]?.name : type === 'work' ? works[id]?.title : figures[id]?.name
       return { isHome: false, canGoBack: true, onBack: () => setSavedSel(null), title: title || '' }
     }
     if (activeTab === 'saved') {
       return { isHome: false, canGoBack: false, onBack: null, title: 'My Trip' }
+    }
+    if (activeTab === 'eat') {
+      return { isHome: false, canGoBack: false, onBack: null, title: 'Where to eat' }
     }
     return { isHome: true, canGoBack: false, onBack: null, title: '' }
   }
@@ -11702,7 +11521,7 @@ export default function App() {
     }
   }
 
-  // Dispatch the active tab's screen
+  // dispatch the active tab's screen
   function renderTabContent() {
     switch (activeTab) {
       case 'explore':
@@ -11711,9 +11530,6 @@ export default function App() {
       case 'map':
         if (mapSel) return <VenueScreen venueId={mapSel} fromTopicId={null} fromDomainId={venueCoords[mapSel]?.domain} push={pushToExplore} savedItems={savedItems} toggleSave={toggleSave} />
         return <MapScreen onSelectVenue={setMapSel} highlight={mapHighlight} onClearHighlight={() => setMapHighlight(null)} savedItems={savedItems} toggleSave={toggleSave} />
-
-      case 'eat':
-        return <EatScreen push={pushToExplore} savedItems={savedItems} />
 
       case 'tonight':
         if (tonightSel) {
@@ -11724,7 +11540,6 @@ export default function App() {
           savedItems={savedItems}
           toggleSave={toggleSave}
           onViewSaved={() => setActiveTab('saved')}
-          onViewMap={() => setActiveTab('map')}
           onNavigate={({ venueId, workId, blurb }) => {
             if (venueId) setTonightSel({ screen: 'venue', id: venueId, blurb })
             else if (workId) setTonightSel({ screen: 'work', id: workId, blurb })
@@ -11737,46 +11552,75 @@ export default function App() {
           if (type === 'venue')  return <VenueScreen venueId={id} fromTopicId={null} fromDomainId={null} push={pushToExplore} savedItems={savedItems} toggleSave={toggleSave} onViewMap={venueCoords[id] ? () => { setMapHighlight(id); setActiveTab('map') } : null} />
           if (type === 'work')   return <WorkScreen  workId={id}  push={pushToExplore} savedItems={savedItems} toggleSave={toggleSave} />
           if (type === 'figure') return <FigureScreen figureId={id} push={pushToExplore} savedItems={savedItems} toggleSave={toggleSave} />
-          if (type === 'sight')  return <SightScreen sightId={id} push={pushToExplore} savedItems={savedItems} toggleSave={toggleSave} />
         }
-        return (
-          <PlanErrorBoundary>
-            <PlanScreen
-              savedItems={savedItems}
-              toggleSave={toggleSave}
-              onSelectSaved={setSavedSel}
-              venueNotes={venueNotes}
-              setVenueNote={setVenueNote}
-              userVenues={userVenues}
-              removeUserVenue={removeUserVenue}
-              addUserVenue={addUserVenue}
-              addPlaceFromHeader={() => setAddPlaceOpen(true)}
-            />
-          </PlanErrorBoundary>
-        )
+        return <PlanErrorBoundary><PlanScreen savedItems={savedItems} toggleSave={toggleSave} onSelectSaved={setSavedSel} venueNotes={venueNotes} setVenueNote={setVenueNote} userVenues={userVenues} removeUserVenue={removeUserVenue} addUserVenue={addUserVenue} addPlaceFromHeader={() => setAddPlaceOpen(true)} /></PlanErrorBoundary>
+
+      case 'eat':
+        // Tapping a restaurant card hops into Explore via pushToExplore so the
+        // back stack behaves consistently with how Map/Tonight detail navigation
+        // already works.
+        return <EatScreen push={pushToExplore} savedItems={savedItems} />
 
       default:
         return renderExploreScreen()
     }
   }
 
-  // ── Special full-screen routes — bail out before the tab shell ──────────
+  const tnp = topNavProps()
+
+  // Password reset link → render only the reset screen. After success the
+  // ResetPasswordScreen calls handleSignedIn and we drop back to the app.
   if (resetToken) {
     return (
       <div className="app-shell">
         <ResetPasswordScreen
           token={resetToken}
-          onSuccess={({ token, user: u }) => { handleSignedIn(token, u); clearResetToken() }}
-          onCancel={clearResetToken}
+          onSuccess={({ token, user }) => { handleSignedIn(token, user); dismissResetToken() }}
+          onCancel={dismissResetToken}
         />
       </div>
     )
   }
-  if (sharedTrip) {
-    return <SharedTripView trip={sharedTrip} onAdopt={adoptSharedTrip} onDismiss={dismissSharedTrip} />
-  }
 
-  const tnp = topNavProps()
+  // Shared-trip view (someone opened a /#/t/<encoded> URL). Show a read-only
+  // overlay with an option to either copy the trip into the recipient's own
+  // saves, or dismiss and use the app normally.
+  if (sharedTrip) {
+    return (
+      <SharedTripView
+        trip={sharedTrip}
+        onAdopt={() => {
+          // Merge shared IDs into savedItems. We don't overwrite existing
+          // saves; we just add missing ones. tripDates carry over too.
+          setSavedItems(prev => {
+            const next = { ...prev }
+            sharedTrip.ids.forEach(key => {
+              if (!next[key]) {
+                const [type, id] = key.split(':')
+                if (type && id) next[key] = { type, id, savedAt: Date.now() }
+              }
+            })
+            try { localStorage.setItem('nyc_saved', JSON.stringify(next)) } catch {}
+            return next
+          })
+          if (sharedTrip.start) {
+            try { localStorage.setItem('nyc_trip_start_date', sharedTrip.start) } catch {}
+          }
+          if (sharedTrip.days) {
+            try { localStorage.setItem('nyc_trip_days', JSON.stringify(sharedTrip.days)) } catch {}
+          }
+          // Clear the share hash and land on My Trip
+          window.history.replaceState(null, '', window.location.pathname + window.location.search)
+          setSharedTrip(null)
+          setActiveTab('saved')
+        }}
+        onDismiss={() => {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search)
+          setSharedTrip(null)
+        }}
+      />
+    )
+  }
 
   return (
     <div className="app-shell">
@@ -11790,7 +11634,7 @@ export default function App() {
         savedCount={Object.keys(savedItems).length}
         onAddPlace={() => setAddPlaceOpen(true)}
       />
-      {/* First-time-user onboarding overlay */}
+      {/* First-time-user onboarding overlay — shown only when the version key is absent in localStorage. */}
       {showOnboarding && <OnboardingModal onDismiss={dismissOnboarding} />}
       {/* Add-place modal — user-added venues, kept separate from curated data */}
       {addPlaceOpen && (
@@ -11801,26 +11645,27 @@ export default function App() {
           onRemove={(id) => removeUserVenue(id)}
         />
       )}
-      {/* Google Takeout / paste-list bulk import */}
-      {importOpen && (
-        <ImportTakeoutModal
-          onClose={() => setImportOpen(false)}
-          onImport={(items) => {
-            (items || []).forEach(item => addUserVenue(item))
-            setImportOpen(false)
-            setActiveTab('saved')
-          }}
-        />
-      )}
-      {/* Settings modal — opened from the avatar / menu in the top bar */}
+      {/* Settings modal — opened from the gear icon in the home-header */}
       {settingsOpen && (
         <SettingsModal
           onClose={() => setSettingsOpen(false)}
-          user={user}
+          user={currentUser}
           onSignedIn={handleSignedIn}
           onSignedOut={handleSignedOut}
-          onUserChange={(u) => setUserState(u)}
-          onImportTakeout={() => setImportOpen(true)}
+          onUserChange={handleUserChange}
+          onImportTakeout={() => setImportTakeoutOpen(true)}
+        />
+      )}
+      {/* Google Maps import modal (Takeout file OR paste names) */}
+      {importTakeoutOpen && (
+        <ImportTakeoutModal
+          onClose={() => setImportTakeoutOpen(false)}
+          onImport={(items) => {
+            // Bulk-create user_venues. addUserVenue already auto-saves each
+            // into savedItems, so the imported batch shows up immediately in
+            // the saved list and the trip planner.
+            items.forEach(it => addUserVenue(it))
+          }}
         />
       )}
     </div>

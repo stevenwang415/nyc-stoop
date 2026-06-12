@@ -3,9 +3,16 @@
 //     drives grouping on the Tonight tab
 //   - dateNote: short, time-anchored copy — always starts with a time frame
 //     ("Tonight", "Today", "Weekdays", "Game schedule", etc.)
+//   - bestDays: array of day numbers (0=Sun…6=Sat) when this pick is on/open.
+//     Used by the day-of-week tabs on the This Week screen. If absent, the
+//     pick is treated as 7-days-a-week. Listed explicitly when there's a real
+//     gap (Broadway dark Mondays, museum closed days, weekday-only sites).
 //   - image / imageAlt / imageCredit: hero/thumbnail image
 //     All photos sourced from Unsplash (Unsplash license — free for commercial use, no attribution required)
 //     Credit string is kept for editorial good practice.
+//
+// Day-of-week notation we standardize on across editorial code:
+//   0 = Sun, 1 = Mon, 2 = Tue, 3 = Wed, 4 = Thu, 5 = Fri, 6 = Sat
 export const tonightPicks = [
   {
     id: 'pick_vanguard',
@@ -15,6 +22,9 @@ export const tonightPicks = [
     venueId: 'village_vanguard',
     workId: null,
     timeOfDay: 'evening',
+    // Vanguard runs sets every night of the week — explicit so the day-of-week
+    // tabs always show it, including the Monday Jazz Orchestra residency.
+    bestDays: [0, 1, 2, 3, 4, 5, 6],
     dateNote: "Tonight · Doors 8pm",
     price: '~$40 cover',
     duration: '~75 min',
@@ -31,6 +41,7 @@ export const tonightPicks = [
     workId: null,
     timeOfDay: 'daytime',
     dateNote: "Today · Open until 5:30pm (Fri 8pm)",
+    // MoMA is open daily; no bestDays restriction.
     price: '$30',
     duration: '2–4 h',
     image: '/img/moma.jpg',
@@ -45,7 +56,9 @@ export const tonightPicks = [
     venueId: 'richard_rodgers_theatre',
     workId: 'hamilton_2015',
     timeOfDay: 'evening',
-    dateNote: "Tonight · 7pm curtain",
+    dateNote: "Tue–Sun · 7pm curtain (dark Mondays)",
+    // Broadway convention: most shows are dark on Mondays.
+    bestDays: [0, 2, 3, 4, 5, 6],
     price: 'From $150',
     duration: '2h 45m',
     image: '/img/hamilton.jpg',
@@ -106,6 +119,8 @@ export const tonightPicks = [
     workId: null,
     timeOfDay: 'daytime',
     dateNote: "Weekdays · 9am–5pm",
+    // Federal Hall National Memorial is a weekdays-only NPS site.
+    bestDays: [1, 2, 3, 4, 5],
     price: 'Free',
     duration: '~1 h walk',
     image: '/img/federal_hall.jpg',
@@ -120,7 +135,10 @@ export const tonightPicks = [
     venueId: 'met',
     workId: null,
     timeOfDay: 'evening',
-    dateNote: "Tonight · Open until 9pm (Fri–Sat)",
+    dateNote: "Fri–Sat · Open until 9pm (other days close 5pm)",
+    // Met is open daily; the evening-light editorial pick only works on the
+    // two nights it stays open late — so for the dusk experience, bias to Fri/Sat.
+    bestDays: [5, 6],
     price: '$30',
     duration: '2–4 h',
     image: '/img/met.jpg',

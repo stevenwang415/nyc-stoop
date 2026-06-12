@@ -4,32 +4,52 @@
   padding: 0;
 }
 
+/* ── Design tokens — light, airy, photo-forward (redesign v2) ──
+   Legacy --gray-* names are kept but remapped onto the new blue-gray
+   ink scale so the 1,100+ inline styles in App.jsx inherit the reskin. */
 :root {
-  --black: #111111;
+  --ink:    #1d2733;  /* primary text */
+  --ink-2:  #5d6b7c;  /* secondary text */
+  --ink-3:  #9aa6b4;  /* tertiary text, large sizes only */
+  --canvas: #e9eef4;  /* soft blue-gray page background */
+  --card:   #ffffff;
+  --accent: #3d9bff;  /* blue — action FILLS: pills, FAB, glows, large text */
+  --accent-text: #1576d1; /* darker action blue for text < 18px (≥4.5:1 on white) */
+  --love:   #ff4d7d;  /* pink — ONLY hearts/saves */
+  --shadow: 0 10px 28px rgba(29,39,51,.12);
+  --shadow-accent: 0 10px 22px rgba(61,155,255,.45);
+
+  /* Legacy aliases → new palette */
+  --black: #1d2733;
   --white: #ffffff;
-  --gray-50: #f9fafb;
-  --gray-100: #f3f4f6;
-  --gray-200: #e5e7eb;
-  --gray-400: #9ca3af;
-  --gray-500: #6b7280;
-  --gray-600: #4b5563;
-  --gray-700: #374151;
-  --gray-900: #111827;
-  --accent: #1a1a1a;
-  --accent-warm: #c2410c;
+  --gray-50:  #f4f7fa;
+  --gray-100: #edf1f6;
+  --gray-200: #dfe6ee;
+  --gray-300: #c3cdd8;
+  --gray-400: #9aa6b4;
+  --gray-500: #65717f; /* darkened for ≥4.5:1 small-text compliance */
+  --gray-600: #5d6b7c;
+  --gray-700: #455363;
+  --gray-800: #2b3848;
+  --gray-900: #1d2733;
+  --accent-warm: #3d9bff;
   --surface: #ffffff;
   --max-width: 480px;
   --nav-height: 56px;
 }
 
+/* Hide in-app scrollbars everywhere (UX fix) */
+* { scrollbar-width: none; }
+*::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
 html, body {
   height: 100%;
-  background: var(--gray-50);
+  background: var(--canvas);
 }
 
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  color: var(--gray-900);
+  color: var(--ink);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
@@ -46,22 +66,21 @@ body {
   width: 100%;
   max-width: var(--max-width);
   min-height: 100vh;
-  background: var(--white);
+  background: var(--canvas);
   display: flex;
   flex-direction: column;
   position: relative;
-  box-shadow: 0 0 40px rgba(0,0,0,0.08);
+  box-shadow: var(--shadow);
 }
 
 /* ── Top Nav ─────────────────────────────────────── */
-/* Adds safe-area-inset-top so the iPhone status bar / Dynamic Island doesn't
-   overlap the nav row. The status-bar area becomes part of the nav background
-   so it looks intentional. */
 .top-nav {
   position: sticky;
   top: 0;
   z-index: 100;
-  background: var(--white);
+  background: rgba(255,255,255,0.86);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--gray-100);
   min-height: calc(var(--nav-height) + env(safe-area-inset-top, 0px));
   padding-top: env(safe-area-inset-top, 0px);
@@ -73,26 +92,30 @@ body {
 }
 
 .nav-back {
-  background: none;
+  background: var(--white);
   border: none;
   cursor: pointer;
-  padding: 8px;
-  margin-left: -8px;
-  border-radius: 8px;
-  color: var(--gray-700);
-  font-size: 20px;
+  width: 40px;
+  height: 40px;
+  margin-left: -4px;
+  border-radius: 999px;
+  color: var(--ink);
+  font-size: 18px;
   line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 4px 14px rgba(29,39,51,.10);
   transition: background 0.15s;
+  flex-shrink: 0;
 }
 .nav-back:hover { background: var(--gray-100); }
 
 .nav-title {
   font-size: 15px;
-  font-weight: 600;
-  color: var(--gray-900);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--ink);
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -100,14 +123,72 @@ body {
 }
 
 .nav-wordmark {
-  font-family: 'Playfair Display', serif;
   font-size: 18px;
-  font-weight: 700;
-  color: var(--black);
+  font-weight: 800;
+  color: var(--ink);
   letter-spacing: -0.02em;
 }
 
-/* ── Screen ─────────────────────────────────────── */
+/* ── Light top bar (Explore / Tonight / My Trip) ── */
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(14px + env(safe-area-inset-top, 0px)) 20px 10px;
+  background: var(--canvas);
+}
+
+/* 2×2 menu dots button */
+.menu-dots {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: none;
+  background: var(--white);
+  box-shadow: 0 4px 14px rgba(29,39,51,.08);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink);
+  flex-shrink: 0;
+}
+
+.avatar-38 {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #3d9bff, #7b6fd6);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+}
+
+/* Section header + blue "See All" link */
+.section-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.see-all {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-text);
+  flex-shrink: 0;
+  padding: 4px 0;
+}
 
 /* ── Tab content area ─────────────────────────── */
 .tab-content {
@@ -119,9 +200,7 @@ body {
 .screen {
   flex: 1;
   overflow-y: auto;
-  /* Clears 60px bottom nav + the iPhone home-indicator inset so content
-     doesn't get cut off behind it. */
-  padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
 }
 
 /* ── Hero ─────────────────────────────────────── */
@@ -154,7 +233,7 @@ body {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--gray-400);
+  color: var(--ink-3);
   margin-bottom: 12px;
 }
 
@@ -164,32 +243,30 @@ body {
 }
 
 h1.display {
-  font-family: 'Playfair Display', serif;
   font-size: 28px;
-  font-weight: 700;
-  line-height: 1.2;
+  font-weight: 800;
+  line-height: 1.15;
   letter-spacing: -0.02em;
-  color: var(--black);
+  color: var(--ink);
 }
 
 h2.display {
-  font-family: 'Playfair Display', serif;
   font-size: 22px;
-  font-weight: 700;
-  line-height: 1.25;
-  color: var(--black);
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--ink);
 }
 
 .tagline {
   font-size: 15px;
-  color: var(--gray-600);
+  color: var(--ink-2);
   margin-top: 6px;
-  font-style: italic;
 }
 
 .meta {
   font-size: 13px;
-  color: var(--gray-400);
+  color: var(--ink-3);
   margin-top: 4px;
 }
 
@@ -212,20 +289,20 @@ h2.display {
 }
 
 .card {
-  background: var(--white);
-  border: 1px solid var(--gray-200);
-  border-radius: 12px;
+  background: var(--card);
+  border: none;
+  border-radius: 22px;
   overflow: hidden;
   cursor: pointer;
   transition: all 0.15s ease;
   text-align: left;
   width: 100%;
+  box-shadow: 0 4px 16px rgba(29,39,51,.07);
 }
 
 .card:hover, .card:active {
-  border-color: var(--gray-400);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  box-shadow: var(--shadow);
 }
 
 .card-image {
@@ -242,22 +319,21 @@ h2.display {
 
 .card-name {
   font-size: 16px;
-  font-weight: 600;
-  color: var(--gray-900);
+  font-weight: 700;
+  color: var(--ink);
   font-style: normal;
 }
 
 .card-meta {
   font-size: 13px;
-  color: var(--gray-400);
+  color: var(--ink-3);
   margin-top: 3px;
 }
 
 .card-tagline {
   font-size: 14px;
-  color: var(--gray-600);
+  color: var(--ink-2);
   margin-top: 6px;
-  font-style: italic;
   line-height: 1.4;
 }
 
@@ -272,20 +348,23 @@ h2.display {
 }
 .card-row::-webkit-scrollbar { display: none; }
 
+.hide-scrollbar::-webkit-scrollbar { display: none; }
+.hide-scrollbar { scrollbar-width: none; }
+
 .card-small {
   flex-shrink: 0;
   width: 160px;
-  background: var(--white);
-  border: 1px solid var(--gray-200);
-  border-radius: 10px;
+  background: var(--card);
+  border: none;
+  border-radius: 16px;
   overflow: hidden;
   cursor: pointer;
   transition: all 0.15s ease;
   text-align: left;
+  box-shadow: 0 4px 14px rgba(29,39,51,.07);
 }
 .card-small:hover {
-  border-color: var(--gray-400);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  box-shadow: var(--shadow);
 }
 
 .card-small-img {
@@ -302,14 +381,14 @@ h2.display {
 
 .card-small-name {
   font-size: 13px;
-  font-weight: 600;
-  color: var(--gray-900);
+  font-weight: 700;
+  color: var(--ink);
   line-height: 1.3;
 }
 
 .card-small-meta {
   font-size: 12px;
-  color: var(--gray-400);
+  color: var(--ink-3);
   margin-top: 2px;
 }
 
@@ -319,18 +398,18 @@ h2.display {
   align-items: center;
   gap: 14px;
   padding: 14px 16px;
-  background: var(--white);
-  border: 1px solid var(--gray-200);
-  border-radius: 12px;
+  background: var(--card);
+  border: none;
+  border-radius: 16px;
   cursor: pointer;
   transition: all 0.15s ease;
   text-align: left;
   width: 100%;
+  box-shadow: 0 4px 14px rgba(29,39,51,.06);
 }
 .figure-card:hover {
-  border-color: var(--gray-400);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  box-shadow: var(--shadow);
 }
 
 .figure-avatar {
@@ -350,21 +429,20 @@ h2.display {
 
 .figure-card-name {
   font-size: 16px;
-  font-weight: 600;
-  color: var(--gray-900);
+  font-weight: 700;
+  color: var(--ink);
 }
 
 .figure-card-years {
   font-size: 13px;
-  color: var(--gray-400);
+  color: var(--ink-3);
   margin-top: 1px;
 }
 
 .figure-card-tagline {
   font-size: 13px;
-  color: var(--gray-600);
+  color: var(--ink-2);
   margin-top: 4px;
-  font-style: italic;
   line-height: 1.3;
   overflow: hidden;
   display: -webkit-box;
@@ -378,42 +456,40 @@ h2.display {
   flex-shrink: 0;
 }
 
-/* ── Home Screen ─────────────────────────────────── */
-/* The home-header sits at the very top on screens that hide the TopNav
-   (Home, Tonight, My Trip). Add the iPhone status-bar inset to padding-top
-   so content doesn't slide under the notch / Dynamic Island. */
+/* ── Home / tab headers — light shell (was black) ── */
 .home-header {
-  padding: calc(36px + env(safe-area-inset-top, 0px)) 20px 24px;
-  background: var(--black);
-  color: var(--white);
+  padding: calc(16px + env(safe-area-inset-top, 0px)) 20px 18px;
+  background: var(--canvas);
+  color: var(--ink);
 }
 
 .home-wordmark {
-  font-family: 'Playfair Display', serif;
-  font-size: 32px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--ink);
 }
 
 .home-subtitle {
-  font-size: 15px;
-  color: rgba(255,255,255,0.6);
+  font-size: 14px;
+  color: var(--ink-2);
   margin-top: 6px;
 }
 
 .domain-card {
-  background: var(--white);
-  border: 1px solid var(--gray-200);
-  border-radius: 16px;
+  background: var(--card);
+  border: none;
+  border-radius: 22px;
   padding: 20px;
   cursor: pointer;
   transition: all 0.15s;
   text-align: left;
   width: 100%;
+  box-shadow: 0 4px 14px rgba(29,39,51,.06);
 }
 .domain-card:hover {
-  border-color: var(--gray-400);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  box-shadow: var(--shadow);
 }
 
 .domain-icon {
@@ -423,14 +499,14 @@ h2.display {
 
 .domain-name {
   font-size: 20px;
-  font-weight: 700;
-  color: var(--black);
-  font-family: 'Playfair Display', serif;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ink);
 }
 
 .domain-desc {
   font-size: 14px;
-  color: var(--gray-600);
+  color: var(--ink-2);
   margin-top: 6px;
   line-height: 1.5;
 }
@@ -459,7 +535,7 @@ h2.display {
   border-radius: 100px;
   border: 1px solid var(--gray-200);
   font-size: 13px;
-  color: var(--gray-400);
+  color: var(--ink-3);
   background: var(--gray-50);
 }
 
@@ -481,7 +557,7 @@ h2.display {
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: var(--black);
+  background: var(--accent);
   color: var(--white);
   font-size: 12px;
   font-weight: 700;
@@ -499,9 +575,11 @@ h2.display {
 
 /* ── Venue Card ─────────────────────────────────── */
 .venue-card {
-  border-radius: 16px;
+  border-radius: 22px;
   overflow: hidden;
-  border: 1px solid var(--gray-200);
+  border: none;
+  box-shadow: 0 4px 16px rgba(29,39,51,.08);
+  background: var(--card);
 }
 
 .venue-card-header {
@@ -517,14 +595,14 @@ h2.display {
   text-transform: uppercase;
   background: rgba(255,255,255,0.2);
   padding: 3px 8px;
-  border-radius: 4px;
+  border-radius: 6px;
   margin-bottom: 8px;
 }
 
 .venue-full-name {
   font-size: 20px;
-  font-weight: 700;
-  font-family: 'Playfair Display', serif;
+  font-weight: 800;
+  letter-spacing: -0.02em;
   line-height: 1.2;
 }
 
@@ -536,7 +614,7 @@ h2.display {
 
 .venue-card-body {
   padding: 16px 18px;
-  background: var(--white);
+  background: var(--card);
 }
 
 .venue-detail-row {
@@ -544,7 +622,7 @@ h2.display {
   align-items: flex-start;
   gap: 10px;
   font-size: 14px;
-  color: var(--gray-600);
+  color: var(--ink-2);
   padding: 8px 0;
   border-bottom: 1px solid var(--gray-100);
   line-height: 1.4;
@@ -565,37 +643,38 @@ h2.display {
   display: block;
   width: 100%;
   padding: 14px;
-  background: var(--black);
+  background: var(--accent);
   color: var(--white);
   font-size: 15px;
-  font-weight: 600;
+  font-weight: 700;
   text-align: center;
   border: none;
   cursor: pointer;
-  border-radius: 10px;
+  border-radius: 999px;
   margin-top: 14px;
   text-decoration: none;
   transition: opacity 0.15s;
+  box-shadow: 0 6px 16px rgba(61,155,255,.35);
 }
-.venue-btn:hover { opacity: 0.85; }
+.venue-btn:hover { opacity: 0.9; }
 
 .map-btn {
   display: block;
   width: 100%;
   padding: 12px;
-  background: var(--white);
+  background: var(--gray-100);
   color: var(--gray-700);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   text-align: center;
-  border: 1px solid var(--gray-200);
+  border: none;
   cursor: pointer;
-  border-radius: 10px;
+  border-radius: 999px;
   margin-top: 8px;
   text-decoration: none;
   transition: all 0.15s;
 }
-.map-btn:hover { border-color: var(--gray-400); }
+.map-btn:hover { background: var(--gray-200); }
 
 /* ── See Also Nearby ─────────────────────────────── */
 .see-also-block {
@@ -620,17 +699,18 @@ h2.display {
 .see-also-group-label {
   font-size: 12px;
   font-weight: 600;
-  color: var(--gray-400);
+  color: var(--ink-3);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin-bottom: 8px;
 }
 
-/* ── Topic intro ─────────────────────────────────── */
+/* ── Topic intro — light (was black) ──────────────── */
 .topic-intro {
-  background: var(--black);
-  color: var(--white);
+  background: var(--card);
+  color: var(--ink);
   padding: 28px 20px;
+  border-bottom: 1px solid var(--gray-100);
 }
 
 .topic-years {
@@ -638,26 +718,67 @@ h2.display {
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(255,255,255,0.5);
+  color: var(--ink-3);
   margin-bottom: 8px;
 }
 
 .topic-name {
-  font-family: 'Playfair Display', serif;
   font-size: 30px;
-  font-weight: 700;
+  font-weight: 800;
+  letter-spacing: -0.02em;
   line-height: 1.15;
+  color: var(--ink);
 }
 
 .topic-description {
   font-size: 15px;
-  color: rgba(255,255,255,0.75);
+  color: var(--ink-2);
   margin-top: 12px;
   line-height: 1.7;
 }
 
 .topic-description p + p {
   margin-top: 0.8em;
+}
+
+/* ── Lede with serif drop cap (Detail screens) ───── */
+.lede::first-letter {
+  font-family: 'Playfair Display', serif;
+  font-size: 46px;
+  font-weight: 800;
+  float: left;
+  line-height: 0.85;
+  padding: 4px 8px 0 0;
+  color: var(--ink);
+}
+
+/* ── Facts row — 3 equal light-gray tiles ────────── */
+.facts-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.fact-tile {
+  background: var(--gray-100);
+  border-radius: 16px;
+  padding: 10px 12px;
+  min-width: 0;
+}
+.fact-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--gray-500);
+}
+.fact-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-top: 2px;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ── Divider ─────────────────────────────────────── */
@@ -694,30 +815,30 @@ h2.display {
   object-position: top;
   background: var(--gray-100);
   flex-shrink: 0;
-  border: 3px solid var(--gray-200);
+  border: 3px solid var(--white);
+  box-shadow: 0 4px 14px rgba(29,39,51,.12);
 }
 
 .figure-hero-text { flex: 1; }
 
 .figure-hero-name {
-  font-family: 'Playfair Display', serif;
   font-size: 24px;
-  font-weight: 700;
+  font-weight: 800;
+  letter-spacing: -0.02em;
   line-height: 1.2;
-  color: var(--black);
+  color: var(--ink);
 }
 
 .figure-hero-meta {
   font-size: 13px;
-  color: var(--gray-400);
+  color: var(--ink-3);
   margin-top: 4px;
 }
 
 .figure-hero-tagline {
   font-size: 14px;
-  color: var(--gray-600);
+  color: var(--ink-2);
   margin-top: 8px;
-  font-style: italic;
   line-height: 1.4;
 }
 
@@ -728,14 +849,14 @@ h2.display {
 
 .work-title-year {
   font-size: 13px;
-  color: var(--gray-400);
+  color: var(--ink-3);
   margin-bottom: 6px;
   font-weight: 500;
 }
 
 .work-medium {
   font-size: 13px;
-  color: var(--gray-400);
+  color: var(--ink-3);
   margin-top: 4px;
 }
 

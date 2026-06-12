@@ -19,6 +19,18 @@ vite.config.ts.timestamp-*
 .env.test.local
 .env.production.local
 
+# ── Python (backend/) ──
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.mypy_cache
+.ruff_cache
+*.egg-info
+
 # ── deploy ──
 .vercel
 
