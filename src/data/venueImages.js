@@ -47,6 +47,42 @@ export const venueImages = {
   // ── Theaters / Harlem ──
   apollo_theater_hh:wm('Apollo Theater, Harlem (2012).jpg'),
   public_theater:   wm('Public Theater (48064377872).jpg'),
+
+  // ── Architecture / skyscrapers ──
+  empire_state:           wm('Empire-State-Building.JPG'),
+  chrysler_building:      wm('Chrysler Building 01.JPG'),
+  flatiron_building:      wm('Flatiron Building.JPG'),
+  woolworth_building:     wm('NY woolworth building.JPG'),
+  rockefeller_center:     wm('30 Rockefeller Plaza New York City RCA GE Building.jpg'),
+  seagram_building:       wm('Seagrambuilding (cropped).JPG'),
+  grand_central_terminal: wm('GrandCentralTerminal.JPG'),
+  nypl_schwarzman:        wm('Newyorkpubliclibrary.jpg'),
+  un_headquarters:        wm('United Nations Headquarters.JPG'),
+
+  // ── Churches / historic civic landmarks ──
+  st_patricks:            wm("St Patrick's cathedral NY.jpg"),
+  trinity_church_nyc:     wm('Trinity Church NYC 004b.JPG'),
+  brooklyn_bridge_arch:   wm('Brooklyn Bridge as seen from FDR Drive in Manhattan.JPG'),
+  federal_hall:           wm('Federal Hall and George Washington statue in New York City.JPG'),
+  fraunces_tavern:        wm('Fraunces Tavern.JPG'),
+  ellis_island:           wm('Ellis Island National Museum of Immigration.jpg'),
+
+  // ── Parks / public spaces ──
+  bryant_park:            wm('Bryant Park jeh.JPG'),
+  washington_square_park: wm('Washington Square Arch 03.JPG'),
+  battery_park:           wm('Battery Park.JPG'),
+  times_square:           wm('Buildings in Times Square.JPG'),
+  statue_of_liberty:      wm('Statue of Liberty 3, New York City.jpg'),
+  staten_island_ferry_terminal: wm('SI Ferry Docking Manhattan.JPG'),
+  chelsea_market:         wm('Chesea Market from south.jpg'),
+
+  // ── Museums ──
+  amnh:                   wm('USA-NYC-American Museum of Natural History.JPG'),
+  intrepid_museum:        wm('USS Intrepid (CV-11) (29973892203).jpg'),
+  brooklyn_childrens_museum: wm("Brooklyn Children's Museum.JPG"),
+
+  // ── Food / markets ──
+  katzs:                  wm('KatzGentrificationLES.JPG'),
 }
 
 export default venueImages

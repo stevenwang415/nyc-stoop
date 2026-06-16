@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { tonightPicks } from './data/tonight.js'
-import { moods, moodById, flattenMoodPicks } from './data/moods.js'
+import { moods, moodById, flattenMoodPicks, ACTIVITIES, ACTIVITY_ORDER } from './data/moods.js'
+import { userPicks, mapsUrl } from './data/userPicks.js'
 import {
   domains, topics, figures, works, venues,
   getWorksByFigure, getWorksAtVenue, getSeeAlsoNearby,
@@ -16,7 +17,8 @@ import {
 import { AuthModal, ResetPasswordScreen } from './auth/components.jsx'
 // Google Places search — used by AddStopToDayModal to let users add places
 // that aren't in our curated catalog. Falls back gracefully if the key is unset.
-import { isGooglePlacesAvailable, searchGooglePlaces, getGooglePlaceDetails } from './lib/googlePlaces'
+import { isGooglePlacesAvailable, searchGooglePlaces, getGooglePlaceDetails, getPlacePhotoByName } from './lib/googlePlaces'
+import { fetchThisWeek, eventMapsUrl, eventSearchUrl } from './lib/nycEvents'
 import { parseTakeoutFile } from './lib/googleTakeout'
 import { extractShareHash, decodeTrip, buildShareUrl } from './lib/tripShare'
 // Module-level lookup tables. Moved out of this file for cleanliness — see
@@ -34,6 +36,7 @@ import { seedUserPlaces } from './data/places.js'
 // ── User-place categories — for user-added venues (kept separate from editorial domains) ──
 const USER_PLACE_CATEGORIES = [
   { id: 'food',      label: 'Food',           emoji: '🍴' },
+  { id: 'coffee',    label: 'Coffee',         emoji: '☕' },
   { id: 'drinks',    label: 'Drinks',         emoji: '🍷' },
   { id: 'music',     label: 'Music',          emoji: '🎵' },
   { id: 'art',       label: 'Art / Museum',   emoji: '🎨' },
@@ -956,6 +959,237 @@ function TopNav({ title, canGoBack, onBack, isHome }) {
 const EDITORIAL_LAST_UPDATED = '2026-06-12'  // 12 Broadway shows + restaurant database
 const EDITORIAL_LAST_UPDATE_BLURB = '6 blockbuster Broadway shows, 15 new restaurants in Eat, illustrated borough maps for Moods.'
 
+// ── BottomSheet — draggable detail drawer ──────────────────────────────────
+// Slides up from the bottom to a "peek" height; the user drags the grabber (or
+// taps it) to expand to full-screen and scroll, or drags down to dismiss.
+// Pointer-events based (works for touch + mouse). Self-unmounts after closing.
+function BottomSheet({ open, onClose, children }) {
+  const [mounted, setMounted] = React.useState(open)
+  const [mode, setMode] = React.useState('peek')   // 'peek' | 'full'
+  const [drag, setDrag] = React.useState(0)         // live px offset while dragging
+  const [dragging, setDragging] = React.useState(false)
+  const startY = React.useRef(0)
+  const moved = React.useRef(0)
+
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 800
+  const SHEET_H = Math.round(vh * 0.92)
+  const PEEK_VISIBLE = Math.round(vh * 0.54)
+  const peekOffset = Math.max(0, SHEET_H - PEEK_VISIBLE)  // translateY when peeking
+
+  React.useEffect(() => {
+    if (open) { setMounted(true); setMode('peek'); setDrag(0) }
+    else { const t = setTimeout(() => setMounted(false), 280); return () => clearTimeout(t) }
+  }, [open])
+
+  if (!mounted && !open) return null
+
+  const base = mode === 'full' ? 0 : peekOffset
+  let translate = open ? Math.max(0, Math.min(base + drag, SHEET_H + 60)) : SHEET_H + 60
+
+  const onDown = (e) => { setDragging(true); startY.current = e.clientY; moved.current = 0; e.currentTarget.setPointerCapture?.(e.pointerId) }
+  const onMove = (e) => { if (!dragging) return; const dy = e.clientY - startY.current; moved.current = dy; setDrag(dy) }
+  const onUp = () => {
+    if (!dragging) return
+    setDragging(false)
+    const finalT = base + drag
+    const wasTap = Math.abs(moved.current) < 6
+    setDrag(0)
+    if (wasTap) { setMode(mode === 'peek' ? 'full' : 'peek'); return }
+    if (finalT > peekOffset + 140) onClose?.()          // dragged well below peek → dismiss
+    else if (finalT < peekOffset * 0.55) setMode('full') // dragged up → full
+    else setMode('peek')
+  }
+
+  return (
+    <div aria-hidden={!open} style={{ position: 'fixed', inset: 0, zIndex: 1000, pointerEvents: open ? 'auto' : 'none' }}>
+      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(13,18,25,0.45)', opacity: open ? 1 : 0, transition: 'opacity 260ms ease' }} />
+      <div style={{
+        position: 'absolute', left: 0, right: 0, bottom: 0, height: SHEET_H,
+        maxWidth: 480, margin: '0 auto', background: 'var(--white)',
+        borderTopLeftRadius: 22, borderTopRightRadius: 22,
+        boxShadow: '0 -12px 44px rgba(13,18,25,0.30)',
+        transform: `translateY(${translate}px)`,
+        transition: dragging ? 'none' : 'transform 280ms cubic-bezier(0.32,0.72,0,1)',
+        display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      }}>
+        <div onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}
+          style={{ padding: '10px 0 8px', cursor: 'grab', flexShrink: 0, touchAction: 'none' }}>
+          <div style={{ width: 40, height: 5, borderRadius: 999, background: 'var(--gray-300)', margin: '0 auto' }} />
+        </div>
+        <div style={{ overflowY: mode === 'full' ? 'auto' : 'hidden', flex: 1, WebkitOverflowScrolling: 'touch' }}>
+          {children}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── EventDetail — fact-only detail shown inside the BottomSheet ──────────────
+// NYC Open Data gives us facts (name/when/where) but no description, so the
+// blurb here is our OWN generic, category-based copy — never source text.
+function EventDetail({ event }) {
+  if (!event) return null
+  const e = event
+  const WD = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const MO = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+  const fullWhen = (() => {
+    if (e.source === 'market') return [e.days && `Every ${e.days}`, e.hours].filter(Boolean).join(' · ') || 'Weekly'
+    const d = e.date
+    const base = `${WD[d.getDay()]}, ${MO[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`
+    const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0
+    const tm = hasTime ? ` · ${(d.getHours() % 12) || 12}${d.getMinutes() ? ':' + String(d.getMinutes()).padStart(2, '0') : ''}${d.getHours() < 12 ? 'am' : 'pm'}` : ''
+    return base + tm
+  })()
+  const BLURB = {
+    'Farmers market': 'A neighborhood greenmarket — local farms selling produce, bread, and flowers. Bring a tote; many locations accept EBT/SNAP.',
+    'Parade': 'A street parade — expect crowds, music, and rolling street closures nearby. Arrive early for a good vantage point.',
+    'Block party': 'A block closed to traffic for music, food, and neighbors hanging out.',
+    'Sidewalk sale': 'Local shops and vendors selling out on the sidewalk — good for a browse.',
+    'Street festival': 'Food vendors, stalls, and music along a closed-off stretch of street.',
+    'Street event': 'An outdoor street event — expect activity and possible street closures in the area.',
+    'Event': 'A public event at this location. Check the time and head over.',
+    'Plaza event': 'Programmed events in a public plaza — performances, activities, or community programming.',
+    'Health fair': 'A community health fair — free screenings, information, and resources.',
+    'Gathering': 'A community gathering at this location.',
+    'Race / tour': 'An athletic race or tour — roads or paths along the route may be closed to traffic.',
+  }
+  const Row = ({ icon, children }) => (
+    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 10 }}>
+      <span style={{ fontSize: 15, lineHeight: 1.4, flexShrink: 0 }}>{icon}</span>
+      <span style={{ fontSize: 13.5, color: 'var(--ink)', lineHeight: 1.45 }}>{children}</span>
+    </div>
+  )
+  const open = (url) => { if (url) { try { window.open(url, '_blank', 'noopener') } catch (err) {} } }
+  const addToCalendar = () => {
+    if (e.source === 'market' || !(e.date instanceof Date) || isNaN(e.date.getTime())) return
+    const d = e.date
+    const z = (n) => String(n).padStart(2, '0')
+    const day = (x) => `${x.getFullYear()}${z(x.getMonth() + 1)}${z(x.getDate())}`
+    const stamp = (x) => `${day(x)}T${z(x.getHours())}${z(x.getMinutes())}00`
+    const esc = (s) => String(s || '').replace(/([,;\\])/g, '\\$1').replace(/\n/g, '\\n')
+    const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0
+    const dt = hasTime
+      ? `DTSTART:${stamp(d)}\r\nDTEND:${stamp(new Date(d.getTime() + 2 * 3600 * 1000))}`
+      : `DTSTART;VALUE=DATE:${day(d)}\r\nDTEND;VALUE=DATE:${day(new Date(d.getTime() + 86400000))}`
+    const loc = esc([e.locationFull || e.location, e.borough, 'New York, NY'].filter(Boolean).join(', '))
+    const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//NYC Stoop//Events//EN', 'BEGIN:VEVENT',
+      `UID:${e.id}@nyc-stoop`, dt, `SUMMARY:${esc(e.title)}`, `LOCATION:${loc}`,
+      'DESCRIPTION:Saved from NYC Stoop', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n')
+    try {
+      const url = URL.createObjectURL(new Blob([ics], { type: 'text/calendar;charset=utf-8' }))
+      const a = document.createElement('a')
+      a.href = url; a.download = (e.title || 'event').replace(/[^a-z0-9]+/gi, '_').slice(0, 40) + '.ics'
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 2000)
+    } catch (err) {}
+  }
+  const primaryUrl = e.ticketUrl || eventSearchUrl(e)
+  const primaryLabel = e.ticketUrl ? 'Get tickets →' : 'Find official details →'
+  const sourceLine = e.source === 'ticketmaster'
+    ? 'Source: Ticketmaster — full lineup and tickets on their page.'
+    : 'From NYC’s public event permits — tap “Find official details” for the organizer’s page.'
+  return (
+    <div style={{ padding: '0 20px 36px' }}>
+      {e.image ? (
+        <div style={{ height: 150, borderRadius: 18, overflow: 'hidden', marginBottom: 16, background: `linear-gradient(135deg, ${e.color}, ${e.color}B0)` }}>
+          <img src={e.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        </div>
+      ) : (
+        <div style={{ height: 120, borderRadius: 18, background: `linear-gradient(135deg, ${e.color}, ${e.color}B0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 52, marginBottom: 16 }}>{e.emoji}</div>
+      )}
+      <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: e.color, marginBottom: 6 }}>{e.kindLabel}</div>
+      <h2 style={{ fontSize: 22, fontWeight: 800, lineHeight: 1.22, color: 'var(--ink)', margin: '0 0 16px' }}>{e.title}</h2>
+      <Row icon="📅">{fullWhen}</Row>
+      <Row icon="📍">{[e.locationFull || e.location, e.borough].filter(Boolean).join(' · ')}</Row>
+      {e.priceText && <Row icon="🎟️">{e.priceText}</Row>}
+      <div style={{ fontSize: 13.5, color: 'var(--ink-2)', lineHeight: 1.55, margin: '14px 0 18px' }}>
+        {BLURB[e.kindLabel] || 'A public event in NYC. Check the time and location and head over.'}
+      </div>
+      <button onClick={() => open(primaryUrl)}
+        style={{ width: '100%', border: 'none', borderRadius: 999, padding: '14px', background: 'var(--accent)', color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', boxShadow: 'var(--shadow-accent)' }}>
+        {primaryLabel}
+      </button>
+      <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+        <button onClick={() => open(eventMapsUrl(e))} style={{ flex: 1, border: '1.5px solid var(--gray-200)', borderRadius: 999, padding: '12px', background: 'var(--white)', color: 'var(--ink)', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>📍 Directions</button>
+        {e.source !== 'market' && (
+          <button onClick={addToCalendar} style={{ flex: 1, border: '1.5px solid var(--gray-200)', borderRadius: 999, padding: '12px', background: 'var(--white)', color: 'var(--ink)', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>📅 Add to calendar</button>
+        )}
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--ink-3)', lineHeight: 1.5, marginTop: 16 }}>
+        {sourceLine}
+      </div>
+    </div>
+  )
+}
+
+// ── This Week in NYC — live events from NYC Open Data (src/lib/nycEvents.js) ──
+// Lazily fetches this week's permitted events (street fairs, festivals, parades,
+// markets) + recurring farmers markets, straight from the browser. Shows only
+// facts (name, when, where) and links out to a map; never copies source copy.
+// Hides itself entirely if the feed is empty or fails, so it can't render broken.
+function ThisWeekSection() {
+  const [state, setState] = React.useState({ loading: true, items: [] })
+  const [selected, setSelected] = React.useState(null)
+  React.useEffect(() => {
+    let alive = true
+    fetchThisWeek()
+      .then(({ events, markets }) => {
+        if (!alive) return
+        const items = [...events.slice(0, 8), ...markets.slice(0, 6)].slice(0, 12)
+        setState({ loading: false, items })
+      })
+      .catch(() => { if (alive) setState({ loading: false, items: [] }) })
+    return () => { alive = false }
+  }, [])
+
+  const { loading, items } = state
+  if (!loading && items.length === 0) return null
+
+  const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const whenLabel = (e) => {
+    if (e.source === 'market') return e.days ? `Every ${e.days.split(/[,&]/)[0].trim()}` : 'Weekly'
+    const d = e.date, t0 = new Date(); t0.setHours(0, 0, 0, 0)
+    const diff = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - t0) / 86400000)
+    const day = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : `${WD[d.getDay()]} ${MO[d.getMonth()]} ${d.getDate()}`
+    const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0
+    const tm = hasTime ? ` · ${(d.getHours() % 12) || 12}${d.getMinutes() ? ':' + String(d.getMinutes()).padStart(2, '0') : ''}${d.getHours() < 12 ? 'am' : 'pm'}` : ''
+    return day + tm
+  }
+
+  return (
+    <div style={{ padding: '16px 0 4px' }}>
+      <div className="section-row" style={{ padding: '0 20px', marginBottom: 12 }}>
+        <h2 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.15, color: 'var(--ink)' }}>This Week<br />in NYC</h2>
+      </div>
+      <div className="hide-scrollbar" style={{ display: 'flex', gap: 12, overflowX: 'auto', padding: '0 20px 4px', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
+        {loading
+          ? [0, 1, 2].map(i => <div key={i} style={{ flexShrink: 0, width: 210, height: 150, borderRadius: 20, background: 'var(--gray-100)' }} />)
+          : items.map(e => (
+            <button key={e.id} onClick={() => setSelected(e)}
+              style={{ flexShrink: 0, width: 210, border: 'none', borderRadius: 20, overflow: 'hidden', background: 'var(--white)', boxShadow: '0 6px 18px rgba(29,39,51,0.08)', cursor: 'pointer', textAlign: 'left', padding: 0, fontFamily: 'inherit', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ position: 'relative', height: 60, background: `linear-gradient(135deg, ${e.color}, ${e.color}B0)`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 14px', flexShrink: 0, overflow: 'hidden' }}>
+                {e.image && <img src={e.image} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
+                {e.image && <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(13,18,25,0.55), rgba(13,18,25,0.05))' }} />}
+                <span style={{ position: 'relative', fontSize: 24, lineHeight: 1 }}>{e.image ? '' : e.emoji}</span>
+                <span style={{ position: 'relative', fontSize: 9.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.97)' }}>{e.kindLabel}</span>
+              </div>
+              <div style={{ padding: '10px 12px 12px', flex: 1 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--ink)', lineHeight: 1.25, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{e.title}</div>
+                <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--accent-text)', marginTop: 6 }}>{whenLabel(e)}</div>
+                <div style={{ fontSize: 11, color: 'var(--ink-2)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{[e.location, e.borough].filter(Boolean).join(' · ')}</div>
+              </div>
+            </button>
+          ))}
+      </div>
+      <div style={{ fontSize: 10.5, color: 'var(--ink-3)', padding: '6px 20px 0' }}>Live from NYC Open Data · updates daily</div>
+      <BottomSheet open={!!selected} onClose={() => setSelected(null)}>
+        <EventDetail event={selected} />
+      </BottomSheet>
+    </div>
+  )
+}
+
 function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, onOpenSettings = () => {}, userVenues = {} }) {
   const [query, setQuery] = useState('')
   // Last-visit ribbon — show what changed since the user's previous open.
@@ -1189,136 +1423,11 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
             const carouselPicks = tonightPicks.filter(p => p.id !== heroPick?.id).slice(0, 4)
             return (
               <>
-                {/* ── HERO: tonight's lead pick ── */}
-                {heroPick && (
-                  <div style={{ padding: '16px 20px 4px' }}>
-                    {/* Section header — two-line 800 heading + blue See All */}
-                    <div className="section-row" style={{ marginBottom: 14 }}>
-                      <h2 style={{
-                        fontSize: 24, fontWeight: 800, letterSpacing: '-0.02em',
-                        lineHeight: 1.15, color: 'var(--ink)',
-                      }}>
-                        Your Night-Out<br />Inspiration
-                      </h2>
-                      <button className="see-all" onClick={onSeeAllTonight}>See All</button>
-                    </div>
-                    <button
-                      onClick={() => push({ screen: 'venue', venueId: heroPick.venueId })}
-                      style={{
-                        position: 'relative',
-                        width: '100%', height: 300, textAlign: 'left', cursor: 'pointer',
-                        border: 'none', borderRadius: 28,
-                        padding: 0,
-                        display: 'block',
-                        boxShadow: 'var(--shadow)',
-                        overflow: 'hidden',
-                        // Category-gradient fallback layer — failed photo loads never show black boxes
-                        background: `linear-gradient(135deg, ${heroColor} 0%, ${heroColor}99 100%)`,
-                      }}>
-                      {/* Save heart — absolute overlay top-right, sits above photo + content */}
-                      {(() => {
-                        const isHeroSaved = !!savedItems?.[`venue:${heroPick.venueId}`]
-                        return (
-                          <span
-                            role="button"
-                            tabIndex={-1}
-                            aria-label={isHeroSaved ? 'Remove from saved' : 'Save'}
-                            onClick={(e) => { e.stopPropagation(); toggleSave?.('venue', heroPick.venueId) }}
-                            style={{
-                              position: 'absolute', top: 12, right: 12, zIndex: 5,
-                              cursor: 'pointer', userSelect: 'none',
-                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                              width: 34, height: 34, borderRadius: 999,
-                              background: isHeroSaved ? 'rgba(255,77,125,0.15)' : 'rgba(255,255,255,0.92)',
-                              backdropFilter: isHeroSaved ? 'none' : 'blur(6px)',
-                              color: '#ff4d7d',
-                              fontSize: 18, lineHeight: 1,
-                              boxShadow: isHeroSaved ? '0 1px 4px rgba(255,77,125,0.4)' : 'none',
-                              transition: 'background 120ms ease, color 120ms ease',
-                            }}>
-                            {isHeroSaved ? '♥' : '♡'}
-                          </span>
-                        )
-                      })()}
-                      {/* Full-bleed photo over the gradient fallback layer */}
-                      {heroPick.image ? (
-                        <img
-                          src={heroPick.image}
-                          alt={heroPick.imageAlt || ''}
-                          loading="eager"
-                          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-                        />
-                      ) : (
-                        <>
-                          <div style={{
-                            position: 'absolute', inset: 0,
-                            background: 'radial-gradient(circle at 30% 25%, rgba(255,255,255,0.22), transparent 55%)',
-                          }} />
-                          <div style={{
-                            position: 'absolute', top: '34%', left: 0, right: 0, textAlign: 'center',
-                            fontSize: 64, lineHeight: 1,
-                            filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.18))',
-                          }}>
-                            {heroDomain?.icon || '✨'}
-                          </div>
-                        </>
-                      )}
-                      {/* Translucent dark byline chip — top-left */}
-                      <span style={{
-                        position: 'absolute', left: 14, top: 14, zIndex: 4,
-                        display: 'inline-flex', alignItems: 'center', gap: 8,
-                        background: 'rgba(20,28,38,.38)', backdropFilter: 'blur(8px)',
-                        WebkitBackdropFilter: 'blur(8px)',
-                        padding: '5px 12px 5px 6px', borderRadius: 999,
-                      }}>
-                        <span style={{
-                          width: 26, height: 26, borderRadius: 999, flexShrink: 0,
-                          background: 'linear-gradient(135deg, #3d9bff, #7b6fd6)',
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 12,
-                        }}>🗽</span>
-                        <span style={{ lineHeight: 1.2 }}>
-                          <span style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#fff' }}>NYC Editors</span>
-                          <span style={{ display: 'block', fontSize: 9.5, fontWeight: 500, color: 'rgba(255,255,255,0.78)' }}>refreshed weekly</span>
-                        </span>
-                      </span>
-                      {/* Frosted white title panel — bottom-left */}
-                      <span style={{
-                        position: 'absolute', left: 14, right: 14, bottom: 14, zIndex: 4,
-                        display: 'block',
-                        background: 'rgba(255,255,255,.82)', backdropFilter: 'blur(10px)',
-                        WebkitBackdropFilter: 'blur(10px)',
-                        borderRadius: 16, padding: '12px 16px',
-                      }}>
-                        <span style={{
-                          display: 'block', fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em',
-                          color: 'var(--ink)', lineHeight: 1.25,
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                        }}>
-                          {heroPick.title}
-                        </span>
-                        <span style={{ display: 'block', fontSize: 12, color: 'var(--ink-2)', marginTop: 2 }}>
-                          {heroPick.dateNote} · {heroDomain?.name || heroPick.domain.replace('_', ' ')}
-                        </span>
-                      </span>
-                    </button>
-                    {/* Learn-bridge: discreet link to the domain page for context/depth */}
-                    {heroDomain && (
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-                        <button
-                          onClick={() => push({ screen: 'domain', domainId: heroPick.domain })}
-                          style={{
-                            background: 'none', border: 'none', cursor: 'pointer',
-                            fontSize: 12, fontWeight: 700, color: 'var(--accent-text)',
-                            padding: '4px 6px',
-                            display: 'inline-flex', alignItems: 'center', gap: 4,
-                          }}>
-                          Read about {heroDomain.name.toLowerCase()} →
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
+                {/* ── This Week in NYC — live events, the new top section ── */}
+                <ThisWeekSection />
+
+                {/* Night-Out Inspiration hero removed — "This Week in NYC" (above)
+                    is the home lead now; nightlife lives in the Tonight tab. */}
 
                 {/* "More for tonight" carousel removed — the Tonight tab in the
                     bottom nav already surfaces the full set of picks, so showing
@@ -1337,38 +1446,7 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                     padding: '0 20px 4px',
                     WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none',
                   }} className="hide-scrollbar">
-                    {/* Eat card lives in this scroller alongside the moods —
-                        it's the most common dining question and deserves a
-                        first-row slot. Routes to the filterable EatScreen
-                        (not a mood, but visually a sibling card). */}
-                    <button
-                      onClick={() => push({ screen: 'eat' })}
-                      style={{
-                        flexShrink: 0, width: 132,
-                        background: 'var(--white)', color: 'var(--ink)',
-                        border: 'none', borderRadius: 22,
-                        padding: 0,
-                        cursor: 'pointer', textAlign: 'left',
-                        display: 'flex', flexDirection: 'column',
-                        fontFamily: 'inherit', overflow: 'hidden',
-                        boxShadow: '0 6px 18px rgba(29,39,51,0.08)',
-                      }}
-                    >
-                      <span style={{
-                        height: 88, width: '100%',
-                        background: 'linear-gradient(135deg, #ffb088, #f4623a)',
-                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 32,
-                      }}>🍽</span>
-                      <span style={{ padding: '10px 12px 12px', display: 'block' }}>
-                        <span style={{ display: 'block', fontSize: 13, fontWeight: 800, lineHeight: 1.25, letterSpacing: '-0.01em' }}>
-                          Where to eat
-                        </span>
-                        <span style={{ display: 'block', fontSize: 10.5, color: 'var(--ink-2)', marginTop: 3, lineHeight: 1.35 }}>
-                          Cuisine · price · area
-                        </span>
-                      </span>
-                    </button>
+                    {/* "Where to eat" card removed — Eat has its own bottom-nav tab. */}
                     {moods.map(m => (
                       <button
                         key={m.id}
@@ -3359,6 +3437,9 @@ function EatScreen({ push, savedItems = {} }) {
   // can combine them (e.g., West Village + Italian + $$).
   const [mapBorough, setMapBorough]   = React.useState('manhattan')
   const [mapArea, setMapArea]         = React.useState(null)
+  // "Near me" — geolocated area filter, independent of the chip filters.
+  const [nearArea, setNearArea]       = React.useState(null)   // {borough, areaId, label} | null
+  const [geoStatus, setGeoStatus]     = React.useState('idle') // idle | locating | denied
   // Reset area when flipping boroughs — selecting "Harlem" while viewing
   // Brooklyn would be invisible.
   React.useEffect(() => { setMapArea(null) }, [mapBorough])
@@ -3448,14 +3529,27 @@ function EatScreen({ push, savedItems = {} }) {
     })
   }, [allRestaurants, cuisines, prices, neighborhoods, vibes, meals, dietary, walkInOnly])
 
-  // Final result set adds the map-area filter on top of the chip filters.
+  // Final result set adds the "Near me" area filter on top of the chip filters.
   const filtered = React.useMemo(() => {
-    if (!mapArea) return chipFiltered
+    if (!nearArea) return chipFiltered
     return chipFiltered.filter(r => {
       const a = restaurantArea.get(r.id)
-      return a && a.borough === mapBorough && a.areaId === mapArea
+      return a && a.borough === nearArea.borough && a.areaId === nearArea.areaId
     })
-  }, [chipFiltered, mapArea, mapBorough, restaurantArea])
+  }, [chipFiltered, nearArea, restaurantArea])
+  // "Near me" — browser geolocation → our area. Outside coverage clears the
+  // filter with a note; denial disables the chip.
+  const handleNearMeEat = async () => {
+    if (geoStatus === 'denied' || geoStatus === 'locating') return
+    setGeoStatus('locating')
+    try {
+      const { lat, lng } = await getUserLocation()
+      const w = classifyLatLngToArea(lat, lng)
+      setGeoStatus('idle')
+      if (w) { const lbl = (MOOD_MAP_AREAS[w.borough] || []).find(a => a.id === w.areaId)?.label || w.areaId; setNearArea({ borough: w.borough, areaId: w.areaId, label: lbl }) }
+      else { setNearArea(null); alert("You're outside Manhattan & Brooklyn — showing all areas.") }
+    } catch (e) { setGeoStatus('denied') }
+  }
 
   // Reference-map pins (colored by area) — built from chip-filtered set so the
   // map keeps showing alternatives even after a map area is selected.
@@ -3497,7 +3591,7 @@ function EatScreen({ push, savedItems = {} }) {
     setWalkInOnly(false)
   }
 
-  const activeFilterCount = cuisines.size + prices.size + neighborhoods.size + vibes.size + meals.size + dietary.size + (mapArea ? 1 : 0) + (walkInOnly ? 1 : 0)
+  const activeFilterCount = cuisines.size + prices.size + neighborhoods.size + vibes.size + meals.size + dietary.size + (nearArea ? 1 : 0) + (walkInOnly ? 1 : 0)
 
   // Cuisine emoji map — purely cosmetic on the cuisine pills.
   // Keep these in sync with ALL_CUISINES above. Unknown cuisines fall back to 🍽.
@@ -3508,6 +3602,8 @@ function EatScreen({ push, savedItems = {} }) {
   }
   function fmtCuisine(c)    { return `${CUISINE_EMOJI[c] || '🍽'} ${c}` }
   function fmtPrice(p)      { return '$'.repeat(p) }
+  // Quantified price bands (approx per person) so users see ranges, not just $ symbols.
+  function priceRange(p)    { return { 1: '$10–20', 2: '$20–40', 3: '$40–80', 4: '$80+' }[p] || '' }
   function fmtVibe(v)       { return v.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) }
   function fmtMeal(m)       { return m.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) }
   function fmtDietary(d)    {
@@ -3536,16 +3632,6 @@ function EatScreen({ push, savedItems = {} }) {
       }}>{children}</button>
     )
   }
-
-  // Today's pick — one editorial highlight, rotated by day-of-year so the
-  // same date always shows the same restaurant. Rendered as a single-line
-  // bar (not a full card) so it doesn't push filters below the fold.
-  const featuredToday = React.useMemo(() => {
-    if (allRestaurants.length === 0) return null
-    const d = new Date()
-    const dayOfYear = Math.floor((d - new Date(d.getFullYear(), 0, 0)) / 86400000)
-    return allRestaurants[dayOfYear % allRestaurants.length]
-  }, [allRestaurants])
 
   // Quick picks redesigned after user feedback: previously every preset was
   // a vibe-row duplicate (Date Night, Splurge, Casual…) which felt redundant.
@@ -3576,7 +3662,7 @@ function EatScreen({ push, savedItems = {} }) {
 
   // Filter drawer state — moved off-screen by default so users see results
   // first. They tap "Filters" when they're ready to narrow.
-  const [filtersExpanded, setFiltersExpanded] = React.useState(false)
+  const [filtersExpanded, setFiltersExpanded] = React.useState(true)
   // Map starts collapsed.
   const [mapExpanded, setMapExpanded] = React.useState(false)
   // Default to a short list when no filters are active — 19 stacked cards
@@ -3584,7 +3670,7 @@ function EatScreen({ push, savedItems = {} }) {
   // the user has expressed any intent. Reset when filter state changes.
   const [showAllResults, setShowAllResults] = React.useState(false)
   const VISIBLE_LIMIT = 3
-  React.useEffect(() => { setShowAllResults(false) }, [cuisines, prices, neighborhoods, vibes, meals, dietary, mapArea, walkInOnly])
+  React.useEffect(() => { setShowAllResults(false) }, [cuisines, prices, neighborhoods, vibes, meals, dietary, nearArea, walkInOnly])
 
   return (
     <div className="screen">
@@ -3617,39 +3703,6 @@ function EatScreen({ push, savedItems = {} }) {
           {allRestaurants.length} restaurants · {new Set(allRestaurants.map(r => r.cuisine)).size} cuisines
         </div>
       </div>
-
-      {/* Today's pick — one-line bar, not a full card. Tappable, leads to
-          the venue detail. Kept above filters so it lands first but stays
-          out of the way for users who came here to filter. */}
-      {featuredToday && (
-        <button
-          onClick={() => push({ screen: 'venue', venueId: featuredToday.id })}
-          style={{
-            width: '100%', background: 'var(--white)',
-            border: 'none', borderBottom: '1px solid var(--gray-100)',
-            padding: '10px 20px',
-            display: 'flex', alignItems: 'center', gap: 10,
-            cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
-          }}
-        >
-          <span style={{
-            fontSize: 9, fontWeight: 800, letterSpacing: '0.07em', textTransform: 'uppercase',
-            color: '#92400e', background: '#fef3c7', padding: '3px 7px', borderRadius: 4,
-            flexShrink: 0,
-          }}>✨ Today</span>
-          <span style={{
-            fontSize: 13, fontWeight: 700, color: 'var(--gray-900)',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            minWidth: 0, flexShrink: 1,
-          }}>{featuredToday.name}</span>
-          <span style={{
-            fontSize: 11, color: 'var(--gray-500)',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            minWidth: 0, flex: 1,
-          }}>· {featuredToday.cuisine} · {fmtPrice(featuredToday.price)} · {featuredToday.neighborhood}</span>
-          <span style={{ fontSize: 13, color: 'var(--gray-300)', flexShrink: 0 }}>›</span>
-        </button>
-      )}
 
       {/* Quick picks — distinct multi-state shortcuts that aren't already
           one-chip filters. Walk-in tonight has no chip equivalent; Cheap
@@ -3701,7 +3754,7 @@ function EatScreen({ push, savedItems = {} }) {
           <span style={{
             fontSize: 12, fontWeight: 700, color: 'var(--gray-700)', letterSpacing: '0.04em',
           }}>
-            {filtersExpanded ? 'Hide filters' : 'Filters & map'}
+            {filtersExpanded ? 'Hide filters' : 'Filters'}
           </span>
           {activeFilterCount > 0 && (
             <span style={{
@@ -3722,113 +3775,6 @@ function EatScreen({ push, savedItems = {} }) {
       </div>
 
       {filtersExpanded && (<>
-      <div style={{ background: 'var(--white)', borderBottom: '1px solid var(--gray-100)' }}>
-        <button
-          onClick={() => setMapExpanded(o => !o)}
-          style={{
-            width: '100%', background: 'none', border: 'none',
-            padding: '11px 20px', cursor: 'pointer', textAlign: 'left',
-            display: 'flex', alignItems: 'center', gap: 8,
-            fontFamily: 'inherit',
-          }}
-        >
-          <span style={{ fontSize: 14 }}>🗺️</span>
-          <span style={{
-            fontSize: 12, fontWeight: 700,
-            color: mapArea ? 'var(--gray-900)' : 'var(--gray-600)',
-            letterSpacing: '0.04em',
-          }}>
-            {mapArea
-              ? `Map · ${(MOOD_MAP_AREAS[mapBorough] || []).find(a => a.id === mapArea)?.label || mapArea}`
-              : (mapExpanded ? 'Hide map' : 'Filter by area on the map')}
-          </span>
-          <span style={{
-            marginLeft: 'auto', fontSize: 13, color: 'var(--gray-400)',
-            transition: 'transform 180ms', transform: mapExpanded ? 'rotate(180deg)' : 'rotate(0)',
-          }}>⌄</span>
-        </button>
-        {mapExpanded && (
-        <div style={{ padding: '4px 20px 12px' }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8,
-        }}>
-          <div style={{
-            flex: 1,
-            fontSize: 10, fontWeight: 700, letterSpacing: '0.06em',
-            textTransform: 'uppercase', color: 'var(--gray-500)',
-          }}>
-            Tap an area to filter results
-          </div>
-          {/* Borough toggle */}
-          <div style={{ display: 'flex', gap: 4 }}>
-            {[
-              { id: 'manhattan', label: 'Manhattan' },
-              { id: 'brooklyn',  label: 'Brooklyn' },
-            ].map(b => {
-              const active = mapBorough === b.id
-              return (
-                <button key={b.id} onClick={() => setMapBorough(b.id)} style={{
-                  padding: '4px 10px',
-                  background: active ? 'var(--gray-900)' : 'var(--gray-100)',
-                  color: active ? '#fff' : 'var(--gray-600)',
-                  border: 'none', borderRadius: 999, cursor: 'pointer',
-                  fontFamily: 'inherit', fontSize: 11, fontWeight: active ? 700 : 600,
-                }}>
-                  {b.label}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-        <BoroughAreaMap
-          borough={mapBorough}
-          countsByArea={restaurantCountsByArea}
-          selectedArea={mapArea}
-          onSelectArea={setMapArea}
-          height={420}
-        />
-        {/* Real geographic map below the schematic — pins for every restaurant
-            that passes the chip filters. Dimmed when outside the selected
-            area; the schematic above is the filter, this one is orientation. */}
-        {restaurantPins.length > 0 && (
-          <div style={{ marginTop: 12 }}>
-            <div style={{
-              fontSize: 10, fontWeight: 700, letterSpacing: '0.06em',
-              textTransform: 'uppercase', color: 'var(--gray-500)',
-              marginBottom: 6,
-            }}>
-              {mapArea
-                ? `Where they actually are · ${restaurantPins.filter(p => p.areaId === mapArea).length} in selected area`
-                : `Where they actually are · ${restaurantPins.length} restaurants`}
-            </div>
-            <BoroughReferenceMap
-              borough={mapBorough}
-              pins={restaurantPins}
-              selectedArea={mapArea}
-              height={240}
-            />
-          </div>
-        )}
-        {mapArea && (
-          <div style={{
-            marginTop: 8, padding: '8px 12px',
-            background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 10,
-            fontSize: 12, color: '#92400e',
-            display: 'flex', alignItems: 'center', gap: 8,
-          }}>
-            <span style={{ flex: 1, fontWeight: 600 }}>
-              Filtering to {(MOOD_MAP_AREAS[mapBorough] || []).find(a => a.id === mapArea)?.label || mapArea}
-            </span>
-            <button onClick={() => setMapArea(null)} style={{
-              background: 'transparent', border: 'none', cursor: 'pointer',
-              fontFamily: 'inherit', fontSize: 11, fontWeight: 700, color: '#92400e',
-              textDecoration: 'underline', padding: '2px 4px',
-            }}>Clear</button>
-          </div>
-        )}
-        </div>
-        )}
-      </div>
 
       {/* Filter sections */}
       <div style={{ padding: '14px 0 4px', background: 'var(--white)', borderBottom: '1px solid var(--gray-100)' }}>
@@ -3839,14 +3785,20 @@ function EatScreen({ push, savedItems = {} }) {
         </FilterRow>
         <FilterRow label="Price" count={prices.size}>
           {ALL_PRICES.map(p => (
-            <Pill key={p} active={prices.has(p)} onClick={() => toggleIn(setPrices, p)}>{fmtPrice(p)}</Pill>
+            <Pill key={p} active={prices.has(p)} onClick={() => toggleIn(setPrices, p)}>{fmtPrice(p)} · {priceRange(p)}</Pill>
           ))}
         </FilterRow>
-        <FilterRow label="Where" count={neighborhoods.size}>
+        <FilterRow label="Where" count={neighborhoods.size + (nearArea ? 1 : 0)}>
+          <Pill active={!!nearArea} onClick={nearArea ? () => setNearArea(null) : handleNearMeEat} style={geoStatus === 'denied' ? { opacity: 0.5 } : {}}>
+            📍 {geoStatus === 'locating' ? 'Locating…' : nearArea ? `Near me · ${nearArea.label}` : geoStatus === 'denied' ? 'Location off' : 'Near me'}
+          </Pill>
           {allNeighborhoods.map(n => (
             <Pill key={n} active={neighborhoods.has(n)} onClick={() => toggleIn(setNeighborhoods, n)}>{n}</Pill>
           ))}
         </FilterRow>
+        <div style={{ padding: '2px 20px 0', fontSize: 10.5, color: 'var(--gray-500)', lineHeight: 1.4 }}>
+          {geoStatus === 'denied' ? 'Location is off — enable it in your browser to use Near me.' : 'Tap “Near me” to filter by your location — we only use it to find nearby spots, and you can say no.'}
+        </div>
         <FilterRow label="Vibe" count={vibes.size}>
           {ALL_VIBES.map(v => (
             <Pill key={v} active={vibes.has(v)} onClick={() => toggleIn(setVibes, v)}>{fmtVibe(v)}</Pill>
@@ -3947,7 +3899,7 @@ function EatScreen({ push, savedItems = {} }) {
                         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                       }}>
                         <span style={{ fontWeight: 700, color: 'var(--gray-700)' }}>{r.cuisine}</span>
-                        {' · '}<span style={{ fontWeight: 700, color: 'var(--gray-700)' }}>{fmtPrice(r.price)}</span>
+                        {' · '}<span style={{ fontWeight: 700, color: 'var(--gray-700)' }}>{priceRange(r.price)}</span>
                         {' · '}{r.neighborhood}
                       </div>
                       {(r.mustOrder || []).length > 0 && (
@@ -4031,21 +3983,53 @@ function FilterRow({ label, count, children }) {
 // Bounds for classifying a lat/lng into an area live in classifyLatLngToArea.
 const MOOD_MAP_AREAS = {
   manhattan: [
-    { id: 'harlem',       label: 'Harlem',         sub: '+ Morningside',          rect: { x: 70, y: 20,  w: 200, h: 50 },  color: '#7c3aed' },
-    { id: 'uws',          label: 'Upper West',     sub: 'AMNH · Lincoln Sq north', rect: { x: 70, y: 70,  w: 100, h: 90 },  color: '#0369a1' },
-    { id: 'ues',          label: 'Upper East',     sub: 'Met · Guggenheim · 92Y', rect: { x: 170, y: 70, w: 100, h: 90 },  color: '#d97706' },
-    { id: 'lincoln',      label: 'Lincoln Square', sub: 'David Geffen · Met Opera', rect: { x: 70, y: 160, w: 200, h: 40 },  color: '#15803d' },
-    { id: 'midtown',      label: 'Midtown',        sub: 'MoMA · Carnegie · Broadway', rect: { x: 70, y: 200, w: 200, h: 80 },  color: '#1d4ed8' },
-    { id: 'chelsea',      label: 'Chelsea',        sub: 'High Line · Chelsea Market', rect: { x: 70, y: 280, w: 200, h: 60 },  color: '#059669' },
-    { id: 'west_village', label: 'West Village',   sub: '+ Greenwich · East Village', rect: { x: 70, y: 340, w: 200, h: 60 },  color: '#9d174d' },
-    { id: 'lower',        label: 'Lower Manhattan', sub: '+ Tribeca · SoHo · LES',  rect: { x: 70, y: 400, w: 200, h: 80 },  color: '#92400e' },
+    { id: 'uptown',   label: 'Uptown',          sub: 'Harlem · Morningside · East Harlem', color: '#8aa873' },
+    { id: 'uws',      label: 'Upper West Side',  sub: 'AMNH · Lincoln Center',              color: '#c2a24e' },
+    { id: 'ues',      label: 'Upper East Side',  sub: 'Met · Guggenheim · 92Y',             color: '#cc7d92' },
+    { id: 'mw',       label: 'Midtown West',     sub: 'Theatre District · Times Sq',        color: '#7e93c4' },
+    { id: 'me',       label: 'Midtown East',     sub: 'Grand Central · MoMA · UN',          color: '#c98aa0' },
+    { id: 'chelsea',  label: 'Chelsea',          sub: 'High Line · Chelsea Market',         color: '#9b86c4' },
+    { id: 'gramercy', label: 'Gramercy',         sub: 'Flatiron · NoMad · Murray Hill',     color: '#b8a64e' },
+    { id: 'wv',       label: 'West Village',     sub: 'Greenwich Village · SoHo',           color: '#6fae8e' },
+    { id: 'ev',       label: 'East Village',     sub: 'East Village · Lower East Side',     color: '#9aaa5e' },
+    { id: 'lower',    label: 'Lower Manhattan',  sub: 'Tribeca · WTC · Chinatown · FiDi',   color: '#c89a6a' },
   ],
   brooklyn: [
-    { id: 'bk_north',     label: 'North BK',       sub: 'Williamsburg · Bushwick',  rect: { x: 70, y: 30,  w: 100, h: 140 }, color: '#0369a1' },
-    { id: 'bk_downtown',  label: 'DUMBO + Downtown', sub: 'Brooklyn Hts · Cobble Hill', rect: { x: 170, y: 30, w: 100, h: 140 }, color: '#92400e' },
-    { id: 'bk_central',   label: 'Central BK',     sub: 'Park Slope · Crown Hts',    rect: { x: 70, y: 170, w: 100, h: 140 }, color: '#15803d' },
-    { id: 'bk_south',     label: 'South BK',       sub: 'Coney Island · Red Hook',   rect: { x: 170, y: 170, w: 100, h: 140 }, color: '#9d174d' },
+    { id: 'bk_greenpoint',    label: 'Greenpoint',        sub: 'North BK · waterfront', color: '#6fae8e' },
+    { id: 'bk_williamsburg',  label: 'Williamsburg',      sub: 'North BK · waterfront', color: '#7e93c4' },
+    { id: 'bk_dumbo',         label: 'DUMBO',             sub: 'Waterfront',            color: '#c89a6a' },
+    { id: 'bk_downtown',      label: 'Downtown Brooklyn', sub: 'Downtown',              color: '#c2a24e' },
+    { id: 'bk_clinton',       label: 'Clinton Hill',      sub: 'Brownstone',            color: '#cc7d92' },
+    { id: 'bk_prospect_hts',  label: 'Prospect Heights',  sub: 'Central',               color: '#9b86c4' },
+    { id: 'bk_park_slope',    label: 'Park Slope',        sub: 'West of the park',      color: '#8aa873' },
+    { id: 'bk_crown_hts',     label: 'Crown Heights',     sub: 'Central',               color: '#c98aa0' },
+    { id: 'bk_prospect_park', label: 'Prospect Park',     sub: 'Parkland',              color: '#7cc285' },
   ],
+}
+
+// Brooklyn neighborhood boundaries (real-ish, [lat,lng] rings) for the 9 mapped
+// areas. Used by classifyLatLngToArea via point-in-polygon so a coordinate lands
+// in the same shape drawn on the Brooklyn map. Points outside all 9 (Bushwick,
+// Bed-Stuy, Red Hook, Gowanus, …) are intentionally unmapped → "Anywhere" only.
+const BK_AREA_POLYS = {
+  bk_greenpoint:   [[40.7385,-73.9605],[40.7392,-73.9505],[40.7360,-73.9360],[40.7268,-73.9338],[40.7240,-73.9440],[40.7248,-73.9560],[40.7295,-73.9612]],
+  bk_williamsburg: [[40.7248,-73.9560],[40.7240,-73.9440],[40.7130,-73.9335],[40.7000,-73.9408],[40.7008,-73.9560],[40.7085,-73.9680],[40.7180,-73.9668],[40.7222,-73.9620]],
+  bk_dumbo:        [[40.7042,-73.9942],[40.7047,-73.9852],[40.7005,-73.9848],[40.7000,-73.9935]],
+  bk_downtown:     [[40.7000,-73.9908],[40.6988,-73.9802],[40.6900,-73.9786],[40.6888,-73.9888],[40.6955,-73.9922]],
+  bk_clinton:      [[40.6975,-73.9702],[40.6970,-73.9585],[40.6800,-73.9600],[40.6805,-73.9722]],
+  bk_prospect_hts: [[40.6815,-73.9742],[40.6808,-73.9632],[40.6720,-73.9655],[40.6735,-73.9742]],
+  bk_park_slope:   [[40.6852,-73.9840],[40.6800,-73.9742],[40.6700,-73.9772],[40.6605,-73.9810],[40.6620,-73.9908],[40.6772,-73.9892]],
+  bk_crown_hts:    [[40.6790,-73.9632],[40.6785,-73.9292],[40.6618,-73.9272],[40.6608,-73.9540],[40.6662,-73.9632]],
+  bk_prospect_park:[[40.6742,-73.9705],[40.6700,-73.9610],[40.6608,-73.9622],[40.6532,-73.9682],[40.6602,-73.9742],[40.6702,-73.9730]],
+}
+// Ray-casting point-in-polygon. ring is [[lat,lng],…].
+function pointInPoly(lat, lng, ring) {
+  let inside = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const yi = ring[i][0], xi = ring[i][1], yj = ring[j][0], xj = ring[j][1]
+    if (((yi > lat) !== (yj > lat)) && (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)) inside = !inside
+  }
+  return inside
 }
 
 // Classify a (lat, lng) into one of our schematic areas, or null if outside
@@ -4053,26 +4037,47 @@ const MOOD_MAP_AREAS = {
 // against the venueCoords entries in this codebase; they're approximate.
 function classifyLatLngToArea(lat, lng) {
   if (typeof lat !== 'number' || typeof lng !== 'number') return null
-  // Manhattan — broadly lat 40.70–40.88, lng -74.02 to -73.91
-  if (lat >= 40.70 && lat <= 40.88 && lng >= -74.02 && lng <= -73.91) {
-    if (lat > 40.800) return { borough: 'manhattan', areaId: 'harlem' }
-    if (lat >= 40.770) {
-      // Lincoln Center cluster (narrow lat band, west of Park Ave)
-      if (lng < -73.975 && lat < 40.780) return { borough: 'manhattan', areaId: 'lincoln' }
-      if (lng >= -73.970) return { borough: 'manhattan', areaId: 'ues' }
-      return { borough: 'manhattan', areaId: 'uws' }
+
+  // Manhattan and Brooklyn share latitudes along the East River (Lower Manhattan
+  // sits directly opposite DUMBO / Williamsburg / Greenpoint), so a plain lat/lng
+  // box can't separate them — the previous version let the Brooklyn waterfront
+  // fall through into Manhattan's box and surface under "Lower Manhattan". We now
+  // split on the river: Manhattan is WEST of `riverLng`, Brooklyn EAST. The river
+  // angles east as it runs north, so below ~14th St we follow a sloped line; above
+  // it we hold near Manhattan's far-east avenues (so Alphabet City / Stuy Town stay
+  // Manhattan while Williamsburg / Greenpoint correctly read Brooklyn).
+  const riverLng = lat <= 40.715 ? (-74.000 + 0.867 * (lat - 40.700)) : -73.968
+
+  // ── Brooklyn — checked FIRST so the waterfront isn't swallowed by Manhattan's
+  //    box. Brooklyn = south of Manhattan's tip, OR east of the river. The
+  //    lng >= -74.015 floor keeps harbor islands (Liberty, Ellis) out of Brooklyn.
+  //    Within Brooklyn we point-in-polygon against the 9 mapped neighborhoods;
+  //    anything in Brooklyn but outside them (Bushwick, Bed-Stuy, Red Hook, …) is
+  //    intentionally unmapped (null) so it only surfaces under "Anywhere". ──
+  if (lat >= 40.55 && lat <= 40.74 && lng >= -74.015 && lng <= -73.83) {
+    const inBrooklyn = lat < 40.700 ? true : (lng > riverLng)
+    if (inBrooklyn) {
+      for (const areaId in BK_AREA_POLYS) {
+        if (pointInPoly(lat, lng, BK_AREA_POLYS[areaId])) return { borough: 'brooklyn', areaId }
+      }
+      return null
     }
-    if (lat >= 40.745) return { borough: 'manhattan', areaId: 'midtown' }
-    if (lat >= 40.735) return { borough: 'manhattan', areaId: 'chelsea' }
-    if (lat >= 40.720) return { borough: 'manhattan', areaId: 'west_village' }
-    return { borough: 'manhattan', areaId: 'lower' }
   }
-  // Brooklyn — lat 40.55–40.74, lng -74.05 to -73.83
-  if (lat >= 40.55 && lat <= 40.74 && lng >= -74.05 && lng <= -73.83) {
-    if (lat < 40.66) return { borough: 'brooklyn', areaId: 'bk_south' }
-    if (lat >= 40.70 && lng > -73.99) return { borough: 'brooklyn', areaId: 'bk_north' }
-    if (lat >= 40.69 && lng <= -73.99) return { borough: 'brooklyn', areaId: 'bk_downtown' }
-    return { borough: 'brooklyn', areaId: 'bk_central' }
+
+  // ── Manhattan — broadly lat 40.70–40.88, lng -74.02 to -73.91 ──
+  if (lat >= 40.70 && lat <= 40.88 && lng >= -74.02 && lng <= -73.91) {
+    // Uptown — Harlem, Morningside Heights, East Harlem
+    if (lat >= 40.795) return { borough: 'manhattan', areaId: 'uptown' }
+    // Central Park belt — Upper West vs Upper East, split across the park
+    if (lat >= 40.768) return { borough: 'manhattan', areaId: lng < -73.970 ? 'uws' : 'ues' }
+    // Midtown — West (Theatre District) vs East (Grand Central), split ~5th–6th Ave
+    if (lat >= 40.745) return { borough: 'manhattan', areaId: lng < -73.978 ? 'mw' : 'me' }
+    // Chelsea (west) vs Gramercy/Flatiron (east)
+    if (lat >= 40.735) return { borough: 'manhattan', areaId: lng < -73.994 ? 'chelsea' : 'gramercy' }
+    // The Villages — West (Greenwich/West Village/SoHo) vs East (East Village/LES)
+    if (lat >= 40.718) return { borough: 'manhattan', areaId: lng < -73.992 ? 'wv' : 'ev' }
+    // Lower Manhattan — Tribeca, WTC, Chinatown, Financial District
+    return { borough: 'manhattan', areaId: 'lower' }
   }
   return null
 }
@@ -4089,6 +4094,53 @@ function classifyPickToArea(pick) {
     const s = ALL_SIGHTS[pick.id]
     return s ? classifyLatLngToArea(s.lat, s.lng) : null
   }
+  return null
+}
+
+// Browser geolocation → Promise<{ lat, lng }>. The "allow location" prompt is
+// the browser's own native dialog; we just call this. Rejects on denial,
+// unsupported, or timeout — callers disable "Near me" in those cases.
+function getUserLocation() {
+  return new Promise((resolve, reject) => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) { reject(new Error('unsupported')); return }
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      err => reject(err),
+      { enableHighAccuracy: false, timeout: 9000, maximumAge: 300000 }
+    )
+  })
+}
+
+// Best-effort map a free-text neighborhood (from the Add-a-place picker or an
+// import) onto a mood-map area, so user places without coordinates still land
+// in the right neighborhood. Returns { borough, areaId } or null.
+function neighborhoodToArea(s) {
+  if (!s || typeof s !== 'string') return null
+  const t = s.toLowerCase()
+  const has = (...ks) => ks.some(k => t.includes(k))
+  // Brooklyn — only the 9 mapped neighborhoods. Others (Bed-Stuy, Bushwick, Fort
+  // Greene, Gowanus, Red Hook, Cobble/Carroll, …) intentionally return null so
+  // they surface under "Anywhere", never in a wrong area. Order: 'prospect park'
+  // before 'prospect heights' so the park doesn't capture the neighborhood.
+  if (has('greenpoint')) return { borough: 'brooklyn', areaId: 'bk_greenpoint' }
+  if (has('williamsburg')) return { borough: 'brooklyn', areaId: 'bk_williamsburg' }
+  if (has('dumbo')) return { borough: 'brooklyn', areaId: 'bk_dumbo' }
+  if (has('downtown brooklyn')) return { borough: 'brooklyn', areaId: 'bk_downtown' }
+  if (has('clinton hill')) return { borough: 'brooklyn', areaId: 'bk_clinton' }
+  if (has('prospect park')) return { borough: 'brooklyn', areaId: 'bk_prospect_park' }
+  if (has('prospect heights')) return { borough: 'brooklyn', areaId: 'bk_prospect_hts' }
+  if (has('park slope')) return { borough: 'brooklyn', areaId: 'bk_park_slope' }
+  if (has('crown heights')) return { borough: 'brooklyn', areaId: 'bk_crown_hts' }
+  if (has('harlem', 'morningside', 'washington heights', 'inwood')) return { borough: 'manhattan', areaId: 'uptown' }
+  if (has('upper west', 'lincoln square')) return { borough: 'manhattan', areaId: 'uws' }
+  if (has('upper east', 'yorkville', 'carnegie hill')) return { borough: 'manhattan', areaId: 'ues' }
+  if (has('hell', 'times square', 'theater', 'theatre', 'midtown west', 'garment', 'koreatown', 'k-town', 'korea way')) return { borough: 'manhattan', areaId: 'mw' }
+  if (has('murray hill', 'turtle bay', 'midtown east', 'midtown')) return { borough: 'manhattan', areaId: 'me' }
+  if (has('chelsea', 'meatpacking', 'hudson yards')) return { borough: 'manhattan', areaId: 'chelsea' }
+  if (has('gramercy', 'flatiron', 'nomad', 'kips', 'union square')) return { borough: 'manhattan', areaId: 'gramercy' }
+  if (has('west village', 'greenwich', 'soho', 'noho')) return { borough: 'manhattan', areaId: 'wv' }
+  if (has('east village', 'lower east', 'alphabet', 'nolita', 'little italy')) return { borough: 'manhattan', areaId: 'ev' }
+  if (has('tribeca', 'financial', 'fidi', 'chinatown', 'battery', 'wall street', 'lower manhattan', 'seaport')) return { borough: 'manhattan', areaId: 'lower' }
   return null
 }
 
@@ -4109,44 +4161,131 @@ function classifyPickToArea(pick) {
 const MOOD_MAP_SVG = {
   manhattan: {
     viewBox: '0 0 360 620',
-    // Adjacent landmasses drawn faintly behind the island for orientation.
+    // Central Park anchor + river labels. Adjacent boroughs intentionally omitted —
+    // they live on the dedicated Map tab; the mood card keeps the island clean.
     adjacent: [
-      { kind: 'land', label: 'NJ',   d: 'M 0,150 L 75,180 L 75,580 L 0,580 Z',           labelAt: [37, 380] },
-      { kind: 'land', label: 'BK',   d: 'M 270,440 L 360,460 L 360,620 L 250,620 Z',     labelAt: [310, 540] },
-      { kind: 'land', label: 'QNS',  d: 'M 290,160 L 360,150 L 360,440 L 270,440 Z',     labelAt: [325, 290] },
-      // Central Park sits between UWS and UES as a clear green strip.
-      { kind: 'park', label: 'C.P.', d: 'M 168,205 L 195,205 L 195,320 L 168,320 Z',     labelAt: [181, 268] },
-      // Hudson + East River labels in the water
-      { kind: 'water-label', label: 'Hudson R.', at: [42, 250], rotate: -75 },
-      { kind: 'water-label', label: 'East R.',   at: [280, 350], rotate: -70 },
+      { kind: 'park', label: 'C.P.', d: 'M 170,182 L 192,182 L 192,310 L 170,310 Z', labelAt: [181, 250] },
+      { kind: 'water-label', label: 'Hudson R.', at: [72, 330], rotate: -78 },
+      { kind: 'water-label', label: 'East R.',   at: [292, 330], rotate: 78 },
     ],
     areas: [
-      { id: 'harlem',       color: '#7c3aed', label: 'HARLEM',       points: '128,80 240,80 248,200 120,200',                    labelAt: [184, 145] },
-      { id: 'uws',          color: '#0369a1', label: 'UPPER WEST',   points: '120,200 168,205 168,290 113,290',                  labelAt: [142, 248], labelSize: 10 },
-      { id: 'ues',          color: '#d97706', label: 'UPPER EAST',   points: '195,205 248,200 256,320 195,320',                  labelAt: [225, 262], labelSize: 10 },
-      { id: 'lincoln',      color: '#15803d', label: 'LINCOLN SQ',   points: '113,290 168,290 168,320 110,320',                  labelAt: [140, 307], labelSize: 9 },
-      { id: 'midtown',      color: '#1d4ed8', label: 'MIDTOWN',      points: '110,320 256,320 264,420 102,420',                  labelAt: [183, 372] },
-      { id: 'chelsea',      color: '#059669', label: 'CHELSEA',      points: '102,420 264,420 252,480 108,480',                  labelAt: [180, 452] },
-      { id: 'west_village', color: '#9d174d', label: 'WEST VILLAGE', points: '108,480 252,480 222,540 125,540',                  labelAt: [180, 512], labelSize: 10 },
-      { id: 'lower',        color: '#92400e', label: 'LOWER MANH',   points: '125,540 222,540 205,572 175,582 145,560',          labelAt: [177, 558], labelSize: 10 },
+      { id: 'uptown',   color: '#8aa873', label: 'UPTOWN',     points: '120,62 240,62 248,182 112,182',   labelAt: [180, 126] },
+      { id: 'uws',      color: '#c2a24e', label: 'UPPER WEST', points: '112,182 170,182 170,310 108,310', labelAt: [138, 248], labelSize: 8 },
+      { id: 'ues',      color: '#cc7d92', label: 'UPPER EAST', points: '192,182 248,182 252,310 192,310', labelAt: [223, 248], labelSize: 8 },
+      { id: 'mw',       color: '#7e93c4', label: 'MW',         points: '108,310 180,310 180,400 110,400', labelAt: [144, 356] },
+      { id: 'me',       color: '#c98aa0', label: 'ME',         points: '180,310 252,310 250,400 180,400', labelAt: [216, 356] },
+      { id: 'chelsea',  color: '#9b86c4', label: 'CHELSEA',    points: '110,400 180,400 180,460 115,460', labelAt: [146, 432], labelSize: 9 },
+      { id: 'gramercy', color: '#b8a64e', label: 'GRAMERCY',   points: '180,400 250,400 245,460 180,460', labelAt: [214, 432], labelSize: 8 },
+      { id: 'wv',       color: '#6fae8e', label: 'WV',         points: '115,460 180,460 180,540 138,540', labelAt: [150, 500] },
+      { id: 'ev',       color: '#9aaa5e', label: 'EV',         points: '180,460 245,460 222,540 180,540', labelAt: [210, 500] },
+      { id: 'lower',    color: '#c89a6a', label: 'LOWER',      points: '138,540 222,540 180,592',         labelAt: [180, 556], labelSize: 9 },
     ],
   },
   brooklyn: {
-    viewBox: '0 0 360 440',
+    viewBox: '0 0 322 403',
+    baseLand: '197.6,42.0 239.9,54.3 246.3,89.7 247.2,142.9 225.9,192.9 196.1,204.5 259.8,275.7 265.6,340.0 145.9,373.1 108.0,346.9 79.9,339.2 57.4,262.2 56.6,194.8 70.0,175.6 145.0,160.2 150.0,123.6 166.3,79.3',
     adjacent: [
-      { kind: 'land', label: 'MANH',   d: 'M 0,0 L 80,30 L 80,290 L 0,290 Z',          labelAt: [40, 150] },
-      { kind: 'land', label: 'QNS',    d: 'M 280,0 L 360,0 L 360,180 L 280,180 Z',     labelAt: [320, 90] },
-      { kind: 'land', label: 'STATEN', d: 'M 0,360 L 70,360 L 70,440 L 0,440 Z',       labelAt: [35, 405] },
-      { kind: 'water-label', label: 'Upper Bay', at: [42, 350], rotate: 0 },
-      { kind: 'water-label', label: 'Atlantic',  at: [305, 420], rotate: 0 },
+      { kind: 'land', label: 'Manhattan', d: 'M 0,34 L 56,34 L 40,192 L 14,292 L 0,327 Z', labelAt: [34, 72] },
+      { kind: 'land', label: 'Queens', d: 'M 264,34 L 322,34 L 322,134 L 274,112 Z', labelAt: [292, 72] },
+      { kind: 'water-label', label: 'East River', at: [60, 192], rotate: -62 },
+      { kind: 'water-label', label: 'Upper Bay', at: [62, 387], rotate: 0 },
     ],
     areas: [
-      { id: 'bk_downtown', color: '#92400e', label: 'DUMBO + DOWNTOWN', points: '85,40 178,40 178,178 85,178',  labelAt: [131, 105], labelSize: 9 },
-      { id: 'bk_north',    color: '#0369a1', label: 'NORTH BROOKLYN',   points: '182,30 285,30 285,178 182,178', labelAt: [233, 105], labelSize: 10 },
-      { id: 'bk_central',  color: '#15803d', label: 'CENTRAL BROOKLYN', points: '85,182 285,182 285,290 85,290', labelAt: [185, 238], labelSize: 10 },
-      { id: 'bk_south',    color: '#9d174d', label: 'SOUTH BROOKLYN',   points: '85,294 285,294 285,395 100,395 75,360', labelAt: [185, 348], labelSize: 10 },
+      { id: 'bk_greenpoint', color: '#6fae8e', label: ['GREENPOINT'], points: '168.4,44.7 197.6,42.0 239.9,54.3 246.3,89.7 216.5,100.5 181.5,97.4 166.3,79.3', labelAt: [202.5, 70.5], labelSize: 9 },
+      { id: 'bk_williamsburg', color: '#7e93c4', label: ['WILLIAMS-', 'BURG'], points: '181.5,97.4 216.5,100.5 247.2,142.9 225.9,192.9 181.5,189.8 146.5,160.2 150.0,123.6 164.0,107.4', labelAt: [193.2, 146.7], labelSize: 9 },
+      { id: 'bk_dumbo', color: '#c89a6a', label: ['DUMBO'], points: '70.0,176.7 96.3,174.8 97.4,191.0 72.0,192.9', labelAt: [83.4, 183.7], labelSize: 7 },
+      { id: 'bk_downtown', color: '#c2a24e', label: ['DOWN-', 'TOWN'], points: '79.9,192.9 110.9,197.5 115.5,231.4 85.8,236.0 75.8,210.2', labelAt: [96.3, 213.7], labelSize: 8 },
+      { id: 'bk_clinton', color: '#cc7d92', label: ['CLINTON', 'HILL'], points: '140.1,202.5 174.2,204.5 169.8,269.9 134.2,268.0', labelAt: [153.8, 236.0], labelSize: 8.5 },
+      { id: 'bk_prospect_hts', color: '#9b86c4', label: ['PROS.', 'HTS'], points: '128.4,264.1 160.5,266.8 153.8,300.7 128.4,294.9', labelAt: [143.0, 281.5], labelSize: 7 },
+      { id: 'bk_park_slope', color: '#8aa873', label: ['PARK', 'SLOPE'], points: '99.8,249.9 128.4,269.9 119.6,308.4 108.5,345.0 79.9,339.2 84.6,280.7', labelAt: [96.3, 292.2], labelSize: 8.5 },
+      { id: 'bk_crown_hts', color: '#c98aa0', label: ['CROWN', 'HEIGHTS'], points: '160.5,273.8 259.8,275.7 265.6,340.0 187.4,343.8 160.5,323.0', labelAt: [219.5, 306.5], labelSize: 9 },
+      { id: 'bk_prospect_park', color: '#7cc285', label: ['PROSPECT', 'PARK'], points: '139.2,292.2 166.9,308.4 163.4,343.8 145.9,373.1 128.4,346.1 131.9,307.6', labelAt: [143.6, 328.4], labelSize: 8 },
     ],
   },
+}
+
+// ── Detailed Manhattan neighborhood map (Map tab "Neighborhoods" view) ──────
+// The richer 19-area split, rendered as a tappable schematic. Tapping an area
+// pans the real Leaflet map (see MANHATTAN_DETAIL_CENTERS + MapScreen).
+const MANHATTAN_DETAIL_SVG = {
+  viewBox: '0 0 360 660',
+  rivers: [
+    { label: 'Hudson R.', at: [60, 360], rotate: -80 },
+    { label: 'East R.',   at: [300, 360], rotate: 80 },
+  ],
+  park:    { points: '168.5,156 194.4,156 194.8,270 168.2,270', labelAt: [181, 216] },
+  timesSq: { points: '147.4,298 180.0,298 180.0,322 147.4,322', labelAt: [164, 313] },
+  areas: [
+    { id: 'harlem', color: '#8aa873', label: 'HARLEM', points: '120.0,40 240.0,40 246.0,92 114.0,92', labelAt: [180, 70] },
+    { id: 'morningside', color: '#9b86c4', label: 'MORN. HTS', points: '114.0,92 174.7,92 174.2,156 108.0,156', labelAt: [143, 126], labelSize: 6 },
+    { id: 'east_harlem', color: '#c98a6a', label: 'E. HARLEM', points: '174.7,92 246.0,92 252.0,156 174.2,156', labelAt: [212, 126], labelSize: 7 },
+    { id: 'uws', color: '#c2a24e', label: 'UWS', points: '108.0,156 168.5,156 168.2,270 106.0,270', labelAt: [138, 216], labelSize: 9 },
+    { id: 'ues', color: '#cc7d92', label: 'UES', points: '194.4,156 252.0,156 254.0,270 194.8,270', labelAt: [224, 216], labelSize: 9 },
+    { id: 'mw', color: '#7e93c4', label: 'MIDTOWN W', points: '106.0,270 180.0,270 180.0,326 106.0,326', labelAt: [142, 292], labelSize: 6 },
+    { id: 'me', color: '#c98aa0', label: 'MIDTOWN E', points: '180.0,270 254.0,270 254.0,326 180.0,326', labelAt: [217, 300], labelSize: 6 },
+    { id: 'garment', color: '#b8a64e', label: 'GARMENT', points: '106.0,326 174.1,326 174.2,368 108.0,368', labelAt: [141, 349], labelSize: 6 },
+    { id: 'gramercy', color: '#9aaa5e', label: 'GRAMERCY', points: '174.1,326 254.0,326 248.0,428 174.6,428', labelAt: [213, 380], labelSize: 8 },
+    { id: 'chelsea', color: '#9b86c4', label: 'CHELSEA', points: '108.0,368 174.2,368 174.6,428 112.0,428', labelAt: [142, 400], labelSize: 7 },
+    { id: 'greenwich', color: '#6fae8e', label: 'GREENWICH', points: '112.0,428 188.2,428 186.7,486 124.0,486', labelAt: [153, 459], labelSize: 6 },
+    { id: 'east_village', color: '#9aaa5e', label: 'E. VILLAGE', points: '188.2,428 248.0,428 236.0,486 186.7,486', labelAt: [215, 459], labelSize: 6 },
+    { id: 'soho', color: '#c2a24e', label: 'SOHO', points: '124.0,486 171.0,486 173.3,532 138.0,532', labelAt: [152, 511], labelSize: 7 },
+    { id: 'les', color: '#e0b46a', label: 'LES', points: '171.0,486 236.0,486 222.0,532 173.3,532', labelAt: [201, 511], labelSize: 8 },
+    { id: 'wtc', color: '#6fae8e', label: 'WTC', points: '138.0,532 176.6,532 177.8,578 152.0,578', labelAt: [161, 557], labelSize: 8 },
+    { id: 'chinatown', color: '#d2a85e', label: 'CHINATOWN', points: '176.6,532 222.0,532 208.0,578 177.8,578', labelAt: [196, 557], labelSize: 6 },
+    { id: 'fidi', color: '#c89a6a', label: 'FIDI', points: '152.0,578 208.0,578 180,628', labelAt: [180, 596], labelSize: 7 },
+  ],
+}
+// Map-pan targets for each detailed area: [lat, lng, zoom]. Tapping an area in
+// the schematic flips to the real map centered here.
+const MANHATTAN_DETAIL_CENTERS = {
+  harlem: [40.8116, -73.9465, 14], morningside: [40.8089, -73.9626, 14], east_harlem: [40.7957, -73.9389, 14],
+  uws: [40.7870, -73.9754, 14], ues: [40.7736, -73.9566, 14],
+  mw: [40.7590, -73.9855, 14], me: [40.7540, -73.9740, 14],
+  garment: [40.7530, -73.9915, 15], gramercy: [40.7380, -73.9840, 14], chelsea: [40.7465, -74.0014, 14],
+  greenwich: [40.7320, -74.0020, 15], east_village: [40.7270, -73.9840, 15],
+  soho: [40.7240, -74.0010, 15], les: [40.7180, -73.9870, 15],
+  wtc: [40.7120, -74.0120, 15], chinatown: [40.7158, -73.9970, 15], fidi: [40.7060, -74.0110, 15],
+}
+// Pure SVG, tappable. Mirrors BoroughAreaMap styling but Manhattan-only and
+// always fully colored (this is a neighborhood reference, not a pick filter).
+function ManhattanDetailMap({ selectedArea = null, onSelectArea = () => {} }) {
+  const D = MANHATTAN_DETAIL_SVG
+  return (
+    <div style={{ width: '100%', height: '100%', overflowY: 'auto', background: '#e7eef6' }}>
+      <svg
+        viewBox={D.viewBox}
+        xmlns="http://www.w3.org/2000/svg"
+        preserveAspectRatio="xMidYMid meet"
+        style={{ display: 'block', width: '100%', maxWidth: 460, margin: '0 auto', padding: '10px 0' }}
+      >
+        <rect x="0" y="0" width="100%" height="100%" fill="#e7eef6" />
+        {D.rivers.map((r, i) => (
+          <text key={'r' + i} x={r.at[0]} y={r.at[1]}
+            transform={r.rotate ? `rotate(${r.rotate} ${r.at[0]} ${r.at[1]})` : undefined}
+            fontSize="9" fill="#7aa0c4" fontStyle="italic" textAnchor="middle"
+            style={{ pointerEvents: 'none', fontFamily: 'inherit' }}>{r.label}</text>
+        ))}
+        {D.areas.map(a => {
+          const active = selectedArea === a.id
+          return (
+            <g key={a.id} onClick={() => onSelectArea(active ? null : a.id)} style={{ cursor: 'pointer' }}>
+              <polygon points={a.points} fill={a.color} fillOpacity={active ? 1 : 0.9}
+                stroke={active ? '#0f172a' : '#ffffff'} strokeWidth={active ? 3 : 1.4} strokeLinejoin="round" />
+              <text x={a.labelAt[0]} y={a.labelAt[1]} fontSize={a.labelSize || 11} fontWeight="800"
+                fill="#33414d" textAnchor="middle" letterSpacing="0.02"
+                style={{ pointerEvents: 'none', fontFamily: 'inherit' }}>{a.label}</text>
+            </g>
+          )
+        })}
+        <polygon points={D.park.points} fill="#bbf7d0" stroke="#86efac" strokeWidth="1" />
+        <text x={D.park.labelAt[0]} y={D.park.labelAt[1]} fontSize="7" fontWeight="700" fill="#166534"
+          textAnchor="middle" style={{ pointerEvents: 'none', fontFamily: 'inherit' }}>C.P.</text>
+        <polygon points={D.timesSq.points} fill="#f3e1bd" stroke="#bfae73" strokeWidth="1.2" />
+        <text x={D.timesSq.labelAt[0]} y={D.timesSq.labelAt[1]} fontSize="6" fontWeight="800" fill="#6b5a1f"
+          textAnchor="middle" style={{ pointerEvents: 'none', fontFamily: 'inherit' }}>TSQ</text>
+      </svg>
+    </div>
+  )
 }
 
 // ── BoroughAreaMap ─────────────────────────────────────────────────────────
@@ -4169,7 +4308,7 @@ function BoroughAreaMap({ borough, countsByArea, selectedArea, onSelectArea, hei
       width: '100%',
       borderRadius: 14,
       overflow: 'hidden',
-      background: '#dbeafe', // water
+      background: '#e7eef6', // water
       border: '1px solid var(--gray-200)',
     }}>
       <svg
@@ -4184,7 +4323,7 @@ function BoroughAreaMap({ borough, countsByArea, selectedArea, onSelectArea, hei
         }}
       >
         {/* Water-tone background fills the viewBox. */}
-        <rect x="0" y="0" width="100%" height="100%" fill="#dbeafe" />
+        <rect x="0" y="0" width="100%" height="100%" fill="#e7eef6" />
 
         {/* Adjacent landmasses + park + water labels */}
         {(data.adjacent || []).map((g, i) => {
@@ -4218,29 +4357,28 @@ function BoroughAreaMap({ borough, countsByArea, selectedArea, onSelectArea, hei
           )
         })}
 
-        {/* Neighborhood polygons + labels */}
+        {/* Base landmass — the rest of the borough (unmapped neighborhoods), so
+            the colored areas read as part of a real borough, not islands. */}
+        {data.baseLand && (
+          <polygon points={data.baseLand} fill="#e2e8e2" stroke="#d3dcd4" strokeWidth="1.2" strokeLinejoin="round" />
+        )}
+
+        {/* Neighborhood polygons + labels — every area is explorable, no counts. */}
         {data.areas.map(a => {
-          const count    = countsByArea?.[borough]?.[a.id] || 0
-          const isEmpty  = count === 0
           const isActive = selectedArea === a.id
-          const fill = isEmpty ? '#e2e8f0' : a.color
-          const fillOpacity = isEmpty ? 0.7 : (isActive ? 1 : 0.85)
-          const stroke = isActive ? '#0f172a' : '#ffffff'
-          const strokeWidth = isActive ? 3 : 1.5
-          const textFill = isEmpty ? '#94a3b8' : '#ffffff'
           const labelFontSize = a.labelSize || 11
           return (
             <g
               key={a.id}
-              onClick={() => { if (!isEmpty) onSelectArea?.(isActive ? null : a.id) }}
-              style={{ cursor: isEmpty ? 'default' : 'pointer' }}
+              onClick={() => onSelectArea?.(isActive ? null : a.id)}
+              style={{ cursor: 'pointer' }}
             >
               <polygon
                 points={a.points}
-                fill={fill}
-                fillOpacity={fillOpacity}
-                stroke={stroke}
-                strokeWidth={strokeWidth}
+                fill={a.color}
+                fillOpacity={isActive ? 1 : 0.9}
+                stroke={isActive ? '#0f172a' : '#ffffff'}
+                strokeWidth={isActive ? 3 : 1.5}
                 strokeLinejoin="round"
               />
               <text
@@ -4248,34 +4386,17 @@ function BoroughAreaMap({ borough, countsByArea, selectedArea, onSelectArea, hei
                 y={a.labelAt[1]}
                 fontSize={labelFontSize}
                 fontWeight="800"
-                fill={textFill}
+                fill="#ffffff"
                 textAnchor="middle"
                 letterSpacing="0.04em"
                 style={{ pointerEvents: 'none', fontFamily: 'inherit' }}
               >
-                {a.label}
+                {Array.isArray(a.label)
+                  ? a.label.map((ln, i) => (
+                      <tspan key={i} x={a.labelAt[0]} dy={i === 0 ? `${-(a.label.length - 1) * 0.55}em` : '1.1em'}>{ln}</tspan>
+                    ))
+                  : a.label}
               </text>
-              {count > 0 && (
-                <g style={{ pointerEvents: 'none' }}>
-                  <circle
-                    cx={a.labelAt[0]}
-                    cy={a.labelAt[1] + 14}
-                    r="9.5"
-                    fill={isActive ? '#ffffff' : '#0f172a'}
-                  />
-                  <text
-                    x={a.labelAt[0]}
-                    y={a.labelAt[1] + 17.5}
-                    fontSize="11"
-                    fontWeight="800"
-                    fill={isActive ? a.color : '#ffffff'}
-                    textAnchor="middle"
-                    style={{ fontFamily: 'inherit' }}
-                  >
-                    {count}
-                  </text>
-                </g>
-              )}
             </g>
           )
         })}
@@ -4408,6 +4529,254 @@ function BoroughReferenceMap({ borough, pins, selectedArea, height = 280 }) {
 // building `pins` arrays for <BoroughReferenceMap>.
 function colorForArea(borough, areaId) {
   return MOOD_MAP_SVG[borough]?.areas.find(a => a.id === areaId)?.color || '#1d4ed8'
+}
+
+// ── MoodFlowScreen — guided "Unhurried" flow ────────────────────────────────
+// Replaces the old all-at-once MoodScreen with one decision per step:
+//   place (neighborhood)  →  activity (the mood's own groups)  →  top 5.
+// Each mood's groups already ARE the activity set (Dinner spots, Live jazz,
+// Romantic walks…), curated per mood — so no activity classifier is needed.
+function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, userVenues = {}, onAddPlace = () => {} }) {
+  const mood = moodById[moodId]
+  const [step, setStep]           = React.useState('place')   // 'place' | 'activity' | 'results'
+  const [mapBorough, setMapBorough] = React.useState('manhattan')
+  const [place, setPlace]         = React.useState(null)      // null | {scope:'anywhere'} | {scope:'area',borough,areaId,label}
+  const [activityId, setActivityId] = React.useState(null)
+  const [geoStatus, setGeoStatus] = React.useState('idle')   // idle | locating | denied
+  const [geoNote, setGeoNote]     = React.useState('')
+  if (!mood) return <div style={{ padding: 24, color: 'var(--ink-2)' }}>Mood not found.</div>
+
+  const resolvePick = (p) => {
+    if (p?.type === 'venue') { const v = venues[p.id]; return v ? { kind: 'venue', id: p.id, venue: v, where: classifyPickToArea(p) } : null }
+    if (p?.type === 'sight') { const s = ALL_SIGHTS[p.id]; return s ? { kind: 'sight', id: p.id, sight: s, where: classifyPickToArea(p) } : null }
+    return null
+  }
+  const group = activityId ? (mood.groups.find(g => g.activity === activityId) || null) : null
+  const allItems = group ? group.picks.map(resolvePick).filter(Boolean) : []
+  const filteredItems = (place && place.scope === 'area')
+    ? allItems.filter(it => it.where && it.where.borough === place.borough && it.where.areaId === place.areaId)
+    : allItems
+  const results = filteredItems.slice(0, 5)
+  const placeLabel = !place ? '' : (place.scope === 'anywhere' ? 'Anywhere' : place.label)
+
+  // ── Your picks for this activity, location-aware. Custom (saved) picks use
+  // their hand-assigned area; database picks use real coordinates — so nothing
+  // ever surfaces in the wrong neighborhood. ──
+  const inPlace = (it) => !place || place.scope !== 'area'
+    || (it.kind === 'custom'
+        ? (it.borough === place.borough && it.area === place.areaId)
+        : (it.where && it.where.borough === place.borough && it.where.areaId === place.areaId))
+  const userItemsAll = activityId ? userPicks.filter(u => u.activity === activityId).map(u => {
+    if (u.venueId) { const v = venues[u.venueId]; return v ? { kind: 'venue', id: u.venueId, venue: v, where: classifyPickToArea({ type: 'venue', id: u.venueId }), saved: false } : null }
+    return { kind: 'custom', id: 'up_' + (u.name || '').replace(/[^a-z0-9]+/gi, '_'), name: u.name, note: u.note, borough: u.borough, area: u.area, saved: true }
+  }).filter(Boolean) : []
+  const userItems = userItemsAll.filter(inPlace).slice(0, 5)
+  const activityMeta = activityId ? ACTIVITIES[activityId] : null
+  const actLabel = (group && group.label) || (activityMeta && activityMeta.label) || ''
+  const actEmoji = (group && group.emoji) || (activityMeta && activityMeta.emoji) || ''
+  // Activities offered for this mood. Some moods exclude ones that don't fit
+  // (e.g. Rainy day hides Outdoors); falls back to all six.
+  const shownActivities = ACTIVITY_ORDER.filter(aid => !((mood && mood.excludeActivities) || []).includes(aid))
+
+  // ── Recommendations — every one renders through VenueTapCard (the single
+  // card style), so My Picks, NYC Stoop picks, sights and imports all match. ──
+  const CAT_TO_ACT = { food: 'eat', eat: 'eat', coffee: 'coffee', drinks: 'drinks', music: 'live', live: 'live', art: 'culture', culture: 'culture', outdoors: 'outdoors' }
+  const COLOR_BY_ACT = { eat: '#c1876b', drinks: '#ad8aa2', coffee: '#c89a6a', outdoors: '#6fae8e', culture: '#8aa4c0', live: '#a3408c' }
+  const actColor = COLOR_BY_ACT[activityId] || '#8aa4c0'
+  const isImportedV = (v) => (typeof v?.id === 'string' && v.id.startsWith('seed_')) || (((v?.source || '') + '').startsWith('google_'))
+  const placeArea = (v) => {
+    if (typeof v.lat === 'number' && typeof v.lng === 'number') return classifyLatLngToArea(v.lat, v.lng)
+    return neighborhoodToArea(v.neighborhood)
+  }
+  const matchesArea = (v) => {
+    if (!(place && place.scope === 'area')) return true
+    const w = placeArea(v)
+    return !!(w && w.borough === place.borough && w.areaId === place.areaId)
+  }
+  const byNewest = (arr) => arr.slice().sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0))
+  const cardForUserVenue = (v) => (
+    <UserVenueCard key={v.id} venue={v}
+      cardVenue={{ id: v.id, name: v.name, neighborhood: (v.neighborhood && v.neighborhood !== 'Saved from Google Maps') ? v.neighborhood : 'Saved spot', character: v.blurb || '', color: COLOR_BY_ACT[CAT_TO_ACT[v.category]] || actColor }}
+      onPress={() => { try { window.open(v.sourceUrl || mapsUrl(v.name), '_blank', 'noopener') } catch (e) {} }} />
+  )
+  const cardForItem = (it) => {
+    if (it.kind === 'venue') return <VenueTapCard key={'v' + it.id} venue={it.venue} isSaved={!!savedItems['venue:' + it.id]} onPress={() => push({ screen: 'venue', venueId: it.id })} />
+    if (it.kind === 'sight') return <VenueTapCard key={'s' + it.id} venue={{ id: it.id, name: it.sight.name, neighborhood: [it.sight.neighborhood, it.sight.subArea].filter(Boolean).join(' · '), character: it.sight.longDesc || '', color: actColor }} onPress={() => push({ screen: 'sight', sightId: it.id })} />
+    return <VenueTapCard key={'c' + it.id} venue={{ id: it.id, name: it.name, neighborhood: it.note || '', character: '', color: actColor }} onPress={() => { try { window.open(mapsUrl(it.name), '_blank', 'noopener') } catch (e) {} }} />
+  }
+
+  // My Picks — ONLY the viewer's hand-added places (the 62 Google imports are
+  // NYC Stoop picks, not My Picks). Newest first; never cut off.
+  const myPicks = byNewest(Object.values(userVenues || {}).filter(v => CAT_TO_ACT[v.category] === activityId && !isImportedV(v) && matchesArea(v))).slice(0, 5)
+  const myPicksRendered = myPicks.map(cardForUserVenue)
+
+  // NYC Stoop picks — editorial + curated database venues + your 62 imports.
+  const stoopSeen = new Set()
+  const stoopItems = [...userItems.filter(it => it.kind === 'venue'), ...results].filter(it => {
+    if (stoopSeen.has(it.id)) return false
+    stoopSeen.add(it.id); return true
+  })
+  const stoopNames = new Set(stoopItems.map(it => ((it.venue ? it.venue.name : (it.sight ? it.sight.name : it.name)) || '').toLowerCase().trim()))
+  const importedRecs = byNewest(Object.values(userVenues || {}).filter(v => CAT_TO_ACT[v.category] === activityId && isImportedV(v) && matchesArea(v) && !stoopNames.has((v.name || '').toLowerCase().trim())))
+  const stoopHead = stoopItems.slice(0, 6)
+  const stoopRendered = [...stoopHead.map(cardForItem), ...importedRecs.slice(0, Math.max(0, 6 - stoopHead.length)).map(cardForUserVenue)]
+
+  const Dots = ({ n }) => (
+    <div style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
+      {[0, 1, 2].map(i => <span key={i} style={{ width: 7, height: 7, borderRadius: 999, background: i < n ? 'var(--accent)' : '#d4dde6' }} />)}
+    </div>
+  )
+  const Chip = ({ text, tint, color }) => (
+    <span style={{ fontSize: 11.5, fontWeight: 700, padding: '4px 10px', borderRadius: 999, background: tint, color }}>{text}</span>
+  )
+  const Back = ({ onClick }) => (
+    <button onClick={onClick} aria-label="Back" style={{ width: 32, height: 32, borderRadius: 999, border: 'none', background: 'var(--gray-100)', color: 'var(--ink-2)', cursor: 'pointer', fontSize: 19, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'inherit' }}>&#8249;</button>
+  )
+  const heading = { fontSize: 24, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.15, color: 'var(--ink)' }
+
+  // "Near me" — browser geolocation → our area. Outside Manhattan/Brooklyn falls
+  // back to "Anywhere" with a note; denial disables the button.
+  const handleNearMe = async () => {
+    if (geoStatus === 'denied' || geoStatus === 'locating') return
+    setGeoStatus('locating')
+    try {
+      const { lat, lng } = await getUserLocation()
+      const w = classifyLatLngToArea(lat, lng)
+      setGeoStatus('idle')
+      if (w) {
+        const lbl = (MOOD_MAP_AREAS[w.borough] || []).find(a => a.id === w.areaId)?.label || w.areaId
+        setMapBorough(w.borough); setGeoNote('')
+        setPlace({ scope: 'area', borough: w.borough, areaId: w.areaId, label: lbl })
+      } else {
+        setGeoNote("You're outside Manhattan & Brooklyn — showing everywhere.")
+        setPlace({ scope: 'anywhere' })
+      }
+      setStep('activity')
+    } catch (e) { setGeoStatus('denied') }
+  }
+
+  return (
+    <div style={{ padding: '6px 16px', paddingBottom: 'calc(104px + env(safe-area-inset-bottom, 0px))' }}>
+      {step === 'place' && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <Dots n={1} />
+            <Chip text={`${mood.emoji} ${mood.label}`} tint={(mood.heroColor || '#888') + '22'} color={'var(--ink)'} />
+          </div>
+          <h2 style={{ ...heading, margin: '4px 0' }}>Where are you<br />headed?</h2>
+          <div style={{ fontSize: 13, color: 'var(--ink-2)', marginBottom: 14 }}>Pick a neighborhood, or let us roam the whole city.</div>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 6 }}>
+            <button onClick={handleNearMe} disabled={geoStatus === 'denied'} style={{ flex: 1, border: 'none', borderRadius: 999, padding: '13px', background: geoStatus === 'denied' ? 'var(--gray-100)' : 'var(--accent)', color: geoStatus === 'denied' ? 'var(--gray-400)' : '#fff', fontWeight: 700, fontSize: 13.5, cursor: geoStatus === 'denied' ? 'default' : 'pointer', fontFamily: 'inherit', boxShadow: geoStatus === 'denied' ? 'none' : 'var(--shadow-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>📍 {geoStatus === 'locating' ? 'Locating…' : geoStatus === 'denied' ? 'Location off' : 'Near me'}</button>
+            <button onClick={() => { setPlace({ scope: 'anywhere' }); setStep('activity') }} style={{ flex: 1, border: '1.5px solid var(--gray-200)', borderRadius: 999, padding: '13px', background: 'var(--white)', color: 'var(--ink)', fontWeight: 700, fontSize: 13.5, cursor: 'pointer', fontFamily: 'inherit' }}>Anywhere</button>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--ink-3)', textAlign: 'center', marginBottom: 16, lineHeight: 1.4 }}>{geoStatus === 'denied' ? 'Location is off — turn it on in your browser to use Near me.' : 'We use your location only to find spots nearby — you can say no.'}</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
+            <div style={{ display: 'inline-flex', background: 'var(--gray-100)', borderRadius: 999, padding: 3 }}>
+              {['manhattan', 'brooklyn'].map(b => (
+                <button key={b} onClick={() => setMapBorough(b)} style={{ border: 'none', cursor: 'pointer', padding: '6px 16px', borderRadius: 999, fontSize: 12.5, fontWeight: 700, fontFamily: 'inherit', textTransform: 'capitalize', background: mapBorough === b ? 'var(--white)' : 'transparent', color: mapBorough === b ? 'var(--gray-900)' : 'var(--gray-500)', boxShadow: mapBorough === b ? '0 1px 2px rgba(0,0,0,0.08)' : 'none' }}>{b}</button>
+              ))}
+            </div>
+          </div>
+          <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--gray-400)', textAlign: 'center', marginBottom: 8 }}>TAP A NEIGHBORHOOD</div>
+          <BoroughAreaMap
+            borough={mapBorough}
+            countsByArea={{}}
+            selectedArea={null}
+            onSelectArea={(id) => { if (!id) return; const lbl = (MOOD_MAP_AREAS[mapBorough] || []).find(a => a.id === id)?.label || id; setPlace({ scope: 'area', borough: mapBorough, areaId: id, label: lbl }); setStep('activity') }}
+            height={520}
+          />
+        </>
+      )}
+
+      {step === 'activity' && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <Back onClick={() => setStep('place')} />
+            <Dots n={2} />
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+            <Chip text={`${mood.emoji} ${mood.label}`} tint={(mood.heroColor || '#888') + '22'} color={'var(--ink)'} />
+            <Chip text={`📍 ${placeLabel}`} tint={'#d2e6d9'} color={'#2f5d44'} />
+          </div>
+          {geoNote && <div style={{ fontSize: 11.5, color: '#92400e', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 8, padding: '6px 10px', marginBottom: 10 }}>{geoNote}</div>}
+          <h2 style={{ ...heading, margin: '4px 0 14px' }}>What sounds<br />good?</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            {shownActivities.map(aid => {
+              const g = mood.groups.find(x => x.activity === aid)
+              const meta = ACTIVITIES[aid]
+              const uc = userPicks.filter(u => u.activity === aid).length
+              const ready = !!g || uc > 0
+              const n = (g ? g.picks.length : 0) + uc
+              return (
+                <button
+                  key={aid}
+                  disabled={!ready}
+                  onClick={ready ? () => { setActivityId(aid); setStep('results') } : undefined}
+                  style={{
+                    border: '1px solid var(--gray-200)', borderRadius: 18, padding: '16px 12px',
+                    background: 'var(--white)', cursor: ready ? 'pointer' : 'default', textAlign: 'left',
+                    fontFamily: 'inherit', boxShadow: ready ? '0 4px 14px rgba(29,39,51,0.05)' : 'none',
+                    opacity: ready ? 1 : 0.5,
+                  }}
+                >
+                  <div style={{ fontSize: 26, lineHeight: 1, marginBottom: 8 }}>{(g && g.emoji) || meta.emoji}</div>
+                  <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--ink)', lineHeight: 1.2 }}>{(g && g.label) || meta.label}</div>
+                  <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 3 }}>{ready ? `${n} ${n === 1 ? 'pick' : 'picks'}` : 'Coming soon'}</div>
+                </button>
+              )
+            })}
+          </div>
+          <div style={{ fontSize: 11.5, color: 'var(--ink-3)', textAlign: 'center', marginTop: 14 }}>{shownActivities.length} ways to spend the day &mdash; more picks landing every week.</div>
+        </>
+      )}
+
+      {step === 'results' && activityId && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <Back onClick={() => setStep('activity')} />
+            <Dots n={3} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--gray-100)', borderRadius: 12, padding: '8px 12px', marginBottom: 12 }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ink-2)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mood.label} &middot; {placeLabel} &middot; {actLabel}</span>
+            <button onClick={() => setStep('activity')} style={{ background: 'none', border: 'none', color: 'var(--accent-text)', fontWeight: 800, fontSize: 11.5, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>Edit</button>
+          </div>
+          <h2 style={{ ...heading, margin: '0 0 2px' }}>{actEmoji} {actLabel}</h2>
+          <div style={{ fontSize: 13, color: 'var(--ink-2)', marginBottom: 16 }}>in {placeLabel} &middot; for {mood.label.toLowerCase()}</div>
+
+          {/* My Picks — the viewer's own hand-added places (empty → add a place) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+            <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--ink)' }}>★ My Picks</span>
+            {myPicksRendered.length > 0 && <span style={{ fontSize: 11, color: 'var(--ink-3)' }}>{myPicksRendered.length}</span>}
+            <span style={{ flex: 1 }} />
+            <button onClick={() => onAddPlace()} aria-label="Add a place" title="Add a place" style={{ width: 26, height: 26, borderRadius: 999, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: 19, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, paddingBottom: 2 }}>+</button>
+          </div>
+          {myPicksRendered.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 22 }}>
+              {myPicksRendered}
+            </div>
+          ) : (
+            <button onClick={() => onAddPlace()} style={{ width: '100%', textAlign: 'left', border: '1.5px dashed var(--gray-300)', borderRadius: 16, background: 'var(--white)', cursor: 'pointer', fontFamily: 'inherit', padding: '16px', marginBottom: 22, display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ width: 36, height: 36, borderRadius: 999, background: 'var(--accent)', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0, lineHeight: 1 }}>+</span>
+              <span style={{ flex: 1 }}>
+                <span style={{ display: 'block', fontSize: 13.5, fontWeight: 800, color: 'var(--ink)' }}>You don&rsquo;t have any picks yet</span>
+                <span style={{ display: 'block', fontSize: 11.5, color: 'var(--ink-2)', marginTop: 2 }}>Tap to add a place you love</span>
+              </span>
+            </button>
+          )}
+
+          {/* NYC Stoop picks — editorial + curated + your 62 imports */}
+          {stoopRendered.length > 0 && (
+            <>
+              <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--ink)', marginBottom: 8 }}>NYC Stoop picks</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {stoopRendered}
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  )
 }
 
 function MoodScreen({ moodId, push, savedItems = {}, toggleSave = () => {} }) {
@@ -5446,10 +5815,13 @@ function SavedDot({ saved, style }) {
   )
 }
 
-function VenueTapCard({ venue, onPress, isSaved = false }) {
-  const colors = venueColors[venue.id] || { bg: '#111', text: '#fff' }
-  const preview = venue.character?.length > 160
-    ? venue.character.slice(0, 160).trimEnd() + '…'
+function VenueTapCard({ venue, onPress, isSaved = false, image = null, attribution = null }) {
+  const colors = venueColors[venue.id] || (venue.color ? { bg: venue.color, text: '#fff' } : { bg: '#8aa4c0', text: '#fff' })
+  // Photo priority: explicit image prop → curated venue photo → first
+  // work-at-this-venue image → none, in which case the category gradient shows.
+  const photo = image || venueImages[venue.id] || getWorksAtVenue(venue.id).find(w => w.imageUrl)?.imageUrl || null
+  const preview = venue.character?.length > 110
+    ? venue.character.slice(0, 110).trimEnd() + '…'
     : (venue.character || '')
   // Theater venues: surface what's currently playing. Users search by show
   // name ("where's Hamilton?"), not theater name, so the production needs to
@@ -5476,38 +5848,90 @@ function VenueTapCard({ venue, onPress, isSaved = false }) {
       style={{
         display: 'block', position: 'relative',
         width: '100%',
-        border: '1px solid var(--gray-200)',
-        borderRadius: 12,
+        border: 'none',
+        borderRadius: 22,
         overflow: 'hidden',
         background: 'var(--white)',
         cursor: 'pointer',
         textAlign: 'left',
         padding: 0,
-        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+        boxShadow: 'var(--shadow)',
       }}
       onClick={onPress}
     >
-      {/* Saved indicator — read-only ♥ in top-right corner of the colored header. Lets users see what they've already collected when browsing. */}
-      {isSaved && (
-        <span aria-label="Saved" style={{
-          position: 'absolute', top: 10, right: 12, zIndex: 2,
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          width: 22, height: 22, borderRadius: 999,
-          background: 'rgba(255,77,125,0.15)', color: '#ff4d7d',
-          fontSize: 12, lineHeight: 1,
-          boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
-        }}>♥</span>
-      )}
+      {/* ── Photo header — full-bleed image over the category-gradient base
+             layer, so a missing/renamed photo degrades to a pretty gradient,
+             never a black box. Mirrors the home hero + venue detail screen. ── */}
       <div style={{
-        background: colors.bg,
-        color: colors.text,
-        padding: '14px 16px 12px',
+        position: 'relative',
+        width: '100%', height: 120,
+        background: `linear-gradient(135deg, ${colors.bg} 0%, ${colors.bg}99 100%)`,
+        overflow: 'hidden',
       }}>
-        <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 2, paddingRight: isSaved ? 32 : 0 }}>{venue.name}</div>
-        {venue.fullName && venue.fullName !== venue.name && (
-          <div style={{ fontSize: 11, opacity: 0.75, marginBottom: 2 }}>{venue.fullName}</div>
+        {photo && (
+          <img
+            src={photo}
+            alt=""
+            loading="lazy"
+            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          />
         )}
-        <div style={{ fontSize: 12, opacity: 0.8 }}>{venue.neighborhood}</div>
+        {/* Bottom scrim — keeps the frosted title panel legible over busy photos */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(to top, rgba(13,18,25,0.42), rgba(13,18,25,0) 55%)',
+        }} />
+
+        {/* Photo attribution — required by Google Places TOS when the image
+            comes from the Places Photos API. Tiny credit, top-left, kept out of
+            the way of the saved heart (top-right) and the title panel (bottom). */}
+        {photo && attribution && attribution.length > 0 && (
+          <span style={{
+            position: 'absolute', top: 10, left: 12, zIndex: 3,
+            maxWidth: '62%',
+            padding: '3px 8px', borderRadius: 999,
+            background: 'rgba(13,18,25,0.5)', color: 'rgba(255,255,255,0.92)',
+            backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
+            fontSize: 9.5, fontWeight: 600, letterSpacing: '0.02em', lineHeight: 1.2,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>📷 {attribution.map(a => a.name).filter(Boolean).join(', ')}</span>
+        )}
+
+        {/* Saved indicator — read-only ♥ pill, pink frosted (matches reference
+            heart). Shown only when saved so it never looks like a dead control. */}
+        {isSaved && (
+          <span aria-label="Saved" style={{
+            position: 'absolute', top: 12, right: 12, zIndex: 3,
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            width: 34, height: 34, borderRadius: 999,
+            background: 'rgba(255,77,125,0.95)', color: '#fff',
+            backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+            fontSize: 16, lineHeight: 1,
+            boxShadow: '0 4px 12px rgba(255,77,125,0.45)',
+          }}>♥</span>
+        )}
+
+        {/* Frosted white title panel — bottom-left, mirrors the home hero */}
+        <span style={{
+          position: 'absolute', left: 12, right: 12, bottom: 12, zIndex: 2,
+          display: 'block',
+          background: 'rgba(255,255,255,0.82)',
+          backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
+          borderRadius: 16, padding: '11px 14px',
+          boxShadow: '0 8px 24px rgba(29,39,51,0.18)',
+        }}>
+          <span style={{
+            display: 'block', fontSize: 16, fontWeight: 800, letterSpacing: '-0.01em',
+            color: 'var(--ink)', lineHeight: 1.22,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>{venue.name}</span>
+          <span style={{
+            display: 'block', fontSize: 11.5, fontWeight: 600, color: 'var(--ink-2)', marginTop: 3,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {venue.neighborhood}{venue.fullName && venue.fullName !== venue.name ? ` · ${venue.fullName}` : ''}
+          </span>
+        </span>
       </div>
 
       {/* Now-playing bar — only on venues with a nowPlaying field (currently
@@ -5548,9 +5972,9 @@ function VenueTapCard({ venue, onPress, isSaved = false }) {
         )
       )}
 
-      <div style={{ padding: '12px 16px 14px' }}>
+      <div style={{ padding: '11px 14px 12px' }}>
         {preview && (
-          <div style={{ fontSize: 13, color: 'var(--gray-600)', lineHeight: 1.55, marginBottom: 10 }}>
+          <div style={{ fontSize: 12.5, color: 'var(--ink-2)', lineHeight: 1.5, marginBottom: 8 }}>
             {preview}
           </div>
         )}
@@ -5558,9 +5982,9 @@ function VenueTapCard({ venue, onPress, isSaved = false }) {
           <div style={{
             background: '#fef3c7',
             borderLeft: `3px solid ${colors.bg}`,
-            borderRadius: '0 8px 8px 0',
+            borderRadius: '0 10px 10px 0',
             padding: '8px 11px',
-            marginBottom: 10,
+            marginBottom: 12,
             display: 'flex', alignItems: 'flex-start', gap: 7,
           }}>
             <span style={{ fontSize: 12, lineHeight: 1.35, flexShrink: 0 }}>💡</span>
@@ -5572,10 +5996,50 @@ function VenueTapCard({ venue, onPress, isSaved = false }) {
             </span>
           </div>
         )}
-        <div style={{ fontSize: 12, fontWeight: 700, color: colors.bg }}>Explore →</div>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--accent-text)' }}>Explore →</div>
       </div>
     </button>
   )
+}
+
+// ── Lazy Google Places photo for a user-saved venue ───────────────────────
+// Small session-only cache keyed by venue id so re-renders / re-entering the
+// flow don't refetch. Per Google Maps Platform TOS the photo is fetched live
+// and its attribution displayed; we deliberately keep this cache in memory
+// only (never localStorage) so image bytes aren't persisted.
+const _googlePhotoCache = {}
+function useGooglePhoto(venue) {
+  const id = venue?.id
+  const [photo, setPhoto] = useState(() => (id && _googlePhotoCache[id]) || null)
+  useEffect(() => {
+    if (!id) return
+    if (venue?.image) return                 // user-supplied image wins — no fetch
+    if (_googlePhotoCache[id]) { setPhoto(_googlePhotoCache[id]); return }
+    const fromGoogle = (typeof venue?.id === 'string' && venue.id.startsWith('seed_'))
+      || String(venue?.source || '').startsWith('google')
+      || !!venue?.googlePlaceId
+    if (!fromGoogle || !venue?.name) return
+    if (!isGooglePlacesAvailable()) return
+    let alive = true
+    getPlacePhotoByName(venue.name).then(res => {
+      if (!alive || !res || !res.photoUrl) return
+      _googlePhotoCache[id] = res
+      setPhoto(res)
+    }).catch(() => {})
+    return () => { alive = false }
+  }, [id])
+  return photo // { photoUrl, attribution, lat, lng } | null
+}
+
+// ── UserVenueCard — VenueTapCard for a user-saved place, with a lazily
+// resolved Google Places photo (falls back to the gradient when there's no
+// key, no match, or no photo). `cardVenue` is the synthetic venue passed to
+// VenueTapCard; `venue` is the raw user_venue used to resolve the photo. ──
+function UserVenueCard({ venue, cardVenue, onPress, isSaved = false }) {
+  const g = useGooglePhoto(venue)
+  const image = venue?.image || g?.photoUrl || null
+  const attribution = venue?.image ? null : (g?.attribution || null)
+  return <VenueTapCard venue={cardVenue} image={image} attribution={attribution} isSaved={isSaved} onPress={onPress} />
 }
 
 // ── VenueCard — static detail card for WorkScreen ─────────────────────────
@@ -5777,6 +6241,13 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
   const markersRef      = useRef([])
   const [filter, setFilter]         = useState('all')
   const [selectedVenueId, setSelectedVenueId] = useState(null)
+  // Map tab has two views: the detailed neighborhood schematic and the live
+  // Leaflet pin map. Arriving via "View on map" (highlight) jumps to the live map.
+  const [view, setView]             = useState(highlight ? 'real' : 'schematic')
+  const [schemArea, setSchemArea]   = useState(null)
+  const [userLoc, setUserLoc]       = useState(null)   // {lat,lng} | null
+  const [geoStatus, setGeoStatus]   = useState('idle') // idle | locating | denied
+  const userMarkerRef = useRef(null)
 
   // Load Leaflet JS dynamically (CSS already in index.html)
   useEffect(() => {
@@ -5855,14 +6326,50 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
   // appear off-screen because the pan call bailed before the map instance existed.
   useEffect(() => {
     if (!highlight || !mapReady || !mapInstanceRef.current || !window.L) return
+    setView('real')
     setSelectedVenueId(highlight)
     const info = venueCoords[highlight]
     if (info) mapInstanceRef.current.setView([info.lat, info.lng], 15)
     if (onClearHighlight) onClearHighlight()
   }, [highlight, mapReady])
 
+  // Render the user's location as a ★ on the live map (only in the real view).
+  useEffect(() => {
+    const L = window.L; const map = mapInstanceRef.current
+    if (!L || !map) return
+    if (userMarkerRef.current) { userMarkerRef.current.remove(); userMarkerRef.current = null }
+    if (userLoc && view === 'real') {
+      const icon = L.divIcon({ className: '', html: '<div style="font-size:22px;line-height:1;filter:drop-shadow(0 1px 3px rgba(0,0,0,.45))">⭐</div>', iconSize: [22, 22], iconAnchor: [11, 11] })
+      userMarkerRef.current = L.marker([userLoc.lat, userLoc.lng], { icon, zIndexOffset: 1000 }).addTo(map)
+      userMarkerRef.current.bindTooltip('You are here', { direction: 'top', offset: [0, -10] })
+    }
+  }, [userLoc, view, mapReady])
+
   const selVenue = selectedVenueId ? venues[selectedVenueId] : null
   const selInfo  = selectedVenueId ? venueCoords[selectedVenueId] : null
+
+  // Tap a neighborhood on the schematic → flip to the live map, centered there.
+  const handleSchemSelect = (areaId) => {
+    setSchemArea(areaId)
+    if (!areaId) return
+    const c = MANHATTAN_DETAIL_CENTERS[areaId]
+    if (!c) return
+    setView('real')
+    const m = mapInstanceRef.current
+    if (m) setTimeout(() => { m.invalidateSize(); m.setView([c[0], c[1]], c[2]) }, 60)
+  }
+
+  // "Near me" — geolocate, flip to the live map, pan, and drop the ★.
+  const handleNearMeMap = async () => {
+    if (geoStatus === 'denied' || geoStatus === 'locating') return
+    setGeoStatus('locating')
+    try {
+      const { lat, lng } = await getUserLocation()
+      setGeoStatus('idle'); setUserLoc({ lat, lng }); setView('real')
+      const m = mapInstanceRef.current
+      if (m) setTimeout(() => { m.invalidateSize(); m.setView([lat, lng], 15) }, 80)
+    } catch (e) { setGeoStatus('denied') }
+  }
 
   return (
     <div style={{
@@ -5873,9 +6380,35 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
       bottom: 'calc(60px + env(safe-area-inset-bottom, 0px))',
       zIndex: 1,
     }}>
-      {/* Filter chips */}
+      {/* View toggle — Neighborhoods (schematic) vs Map (live pins) */}
+      <div style={{ display: 'flex', alignItems: 'center', padding: '8px 14px 6px', background: 'var(--white)', flexShrink: 0 }}>
+        <div style={{ width: 78, flexShrink: 0 }} />
+        <div role="tablist" style={{ display: 'inline-flex', background: 'var(--gray-100)', borderRadius: 999, padding: 3, margin: '0 auto' }}>
+          {[{ id: 'schematic', label: 'Neighborhoods' }, { id: 'real', label: 'Map' }].map(opt => {
+            const on = view === opt.id
+            return (
+              <button key={opt.id} role="tab" aria-selected={on} onClick={() => setView(opt.id)} style={{
+                border: 'none', cursor: 'pointer', padding: '6px 16px', borderRadius: 999,
+                fontSize: 12.5, fontWeight: 700, fontFamily: 'inherit',
+                background: on ? 'var(--white)' : 'transparent',
+                color: on ? 'var(--gray-900)' : 'var(--gray-500)',
+                boxShadow: on ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                transition: 'background 120ms ease, color 120ms ease',
+              }}>{opt.label}</button>
+            )
+          })}
+        </div>
+        <button onClick={handleNearMeMap} disabled={geoStatus === 'denied'} title="Show my location" style={{
+          width: 78, flexShrink: 0, textAlign: 'right', border: 'none', background: 'none',
+          cursor: geoStatus === 'denied' ? 'default' : 'pointer', fontFamily: 'inherit',
+          fontSize: 11.5, fontWeight: 700, color: geoStatus === 'denied' ? 'var(--gray-400)' : 'var(--accent-text)',
+        }}>{geoStatus === 'locating' ? '…' : geoStatus === 'denied' ? 'Loc. off' : '📍 Near me'}</button>
+      </div>
+
+      {/* Filter chips — live-map categories only */}
+      {view === 'real' && (
       <div style={{
-        padding: '10px 14px 8px', display: 'flex', gap: 8, overflowX: 'auto',
+        padding: '4px 14px 8px', display: 'flex', gap: 8, overflowX: 'auto',
         flexShrink: 0, scrollbarWidth: 'none', background: 'var(--white)',
         borderBottom: '1px solid var(--gray-100)',
       }}>
@@ -5889,13 +6422,22 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
           }}>{f.label}</button>
         ))}
       </div>
+      )}
 
-      {/* Map */}
-      <div ref={mapContainerRef} style={{ flex: 1, minHeight: 0 }} />
+      {/* Map area — live Leaflet map always mounted; schematic overlays it so
+          Leaflet never unmounts (keeps its lifecycle + markers intact). */}
+      <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+        <div ref={mapContainerRef} style={{ position: 'absolute', inset: 0 }} />
+        {view === 'schematic' && (
+          <div style={{ position: 'absolute', inset: 0, zIndex: 600, background: '#e7eef6' }}>
+            <ManhattanDetailMap selectedArea={schemArea} onSelectArea={handleSchemSelect} />
+          </div>
+        )}
+      </div>
 
       {/* Legend — decodes the category pin colors; collapses to the active
           category when a filter is applied. Hidden while a venue card is open. */}
-      {!selVenue && (
+      {view === 'real' && !selVenue && (
         <div style={{
           position: 'absolute', bottom: 12, left: 12, zIndex: 1000,
           background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(8px)',
@@ -5925,7 +6467,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
       )}
 
       {/* Selected venue card */}
-      {selVenue && (
+      {view === 'real' && selVenue && (
         <div style={{
           position: 'absolute', bottom: 12, left: 12, right: 12,
           background: 'var(--white)', borderRadius: 16, padding: '14px 16px',
@@ -6500,7 +7042,7 @@ function buildItinerary(venueIds, userVenuesLookup = {}) {
   // Map user-place category → display domain so the itinerary can color/sort them
   // alongside curated venues. Defaults to 'visual_art' (treated as daytime, neutral).
   const USER_CATEGORY_DOMAIN = {
-    food: 'visual_art', drink: 'jazz', music: 'jazz', art: 'visual_art',
+    food: 'visual_art', coffee: 'visual_art', drink: 'jazz', drinks: 'jazz', music: 'jazz', art: 'visual_art',
     history: 'history', sports: 'sports', shopping: 'visual_art', other: 'visual_art',
   }
 
@@ -7610,7 +8152,7 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
           point is always available — it lost its bottom-nav slot to Eat. ══ */}
       {(() => {
         const userList = Object.values(userVenues || {}).sort((a, b) => b.savedAt - a.savedAt)
-        const USER_CAT = { food:'🍴', drink:'🍷', art:'🎨', music:'🎵', history:'📜', sports:'🏆', shopping:'🛍️', other:'📍' }
+        const USER_CAT = { food:'🍴', coffee:'☕', drink:'🍷', drinks:'🍷', art:'🎨', music:'🎵', history:'📜', sports:'🏆', shopping:'🛍️', other:'📍' }
 
         function isImported(v) {
           if (typeof v?.id === 'string' && v.id.startsWith('seed_')) return true
@@ -8064,7 +8606,7 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
                     const isUser = !venues[id] && !!userVenues[id]
                     const selected = planSelection.has(id)
                     const domainId = Object.keys(domains).find(d => domains[d].venues?.includes(id))
-                    const userCatIcon = { food:'🍴', drink:'🍷', art:'🎨', music:'🎵', history:'📜', sports:'🏆', shopping:'🛍️', other:'📍' }
+                    const userCatIcon = { food:'🍴', coffee:'☕', drink:'🍷', drinks:'🍷', art:'🎨', music:'🎵', history:'📜', sports:'🏆', shopping:'🛍️', other:'📍' }
                     const icon = isUser
                       ? (userCatIcon[v.category] || '📍')
                       : ({ visual_art:'🎨', jazz:'🎷', classical_music:'🎼', theater:'🎭', history:'📜', architecture:'🏛️', sports:'🏆', hip_hop:'🎤' }[domainId] || '📍')
@@ -11530,8 +12072,21 @@ export default function App() {
       let changed = false
       const next = { ...prev }
       ;(seedUserPlaces || []).forEach(p => {
-        if (p?.id && !next[p.id]) {
+        if (!p?.id) return
+        const existing = next[p.id]
+        if (!existing) {
           next[p.id] = { savedAt: Date.now(), ...p }
+          changed = true
+          return
+        }
+        // Refresh curated fields (esp. `category`, which we re-classified) from
+        // the seed, while preserving user-specific fields: savedAt and any image
+        // the user added. This lets re-categorizations reach devices that already
+        // imported the seeds under the old category.
+        const merged = { ...existing, ...p, savedAt: existing.savedAt || Date.now() }
+        if (existing.image && !p.image) merged.image = existing.image
+        if (JSON.stringify(merged) !== JSON.stringify(existing)) {
+          next[p.id] = merged
           changed = true
         }
       })
@@ -11696,7 +12251,7 @@ export default function App() {
       case 'venueGroup':return <VenueGroupScreen domainId={current.domainId} groupIndex={current.groupIndex} push={push} savedItems={savedItems} />
       case 'neighborhood': return <NeighborhoodScreen neighborhoodKey={current.neighborhoodKey} subAreaName={current.subAreaName} push={push} savedItems={savedItems} />
       case 'sight':     return <SightScreen sightId={current.sightId} push={push} savedItems={savedItems} toggleSave={toggleSave} />
-      case 'mood':      return <MoodScreen moodId={current.moodId} push={push} savedItems={savedItems} toggleSave={toggleSave} />
+      case 'mood':      return <MoodFlowScreen moodId={current.moodId} push={push} savedItems={savedItems} toggleSave={toggleSave} userVenues={userVenues} onAddPlace={() => setAddPlaceOpen(true)} />
       case 'eat':       return <EatScreen push={push} savedItems={savedItems} />
       default:          return <HomeScreen push={push} savedItems={savedItems} toggleSave={toggleSave} onSeeAllTonight={() => setActiveTab('tonight')} onOpenSettings={() => setSettingsOpen(true)} userVenues={userVenues} />
     }

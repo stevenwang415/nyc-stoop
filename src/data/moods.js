@@ -2,14 +2,32 @@
 // Vibe-based curation, parallel to Tonight picks but organized by what kind of
 // day you're having instead of what time it is.
 //
-// Each mood has GROUPS (sub-categories) so users can scan by intent —
-// "I want a date-night walk" vs "I want a date-night bar" vs "I want a
-// date-night jazz club". Inside each group, picks are either:
-//   { type: 'venue', id: 'high_line' }     → looked up from src/data/content.js
-//   { type: 'sight', id: 'sight_…' }       → looked up from ALL_SIGHTS in App.jsx
+// V3 — SHARED ACTIVITY MODEL. Every mood's groups now map onto ONE shared set
+// of six activity types, so the "what sounds good?" step speaks the same
+// language across moods (an Eat card means the same thing everywhere). A mood
+// only shows the activities it actually has picks for, and may give each a
+// mood-flavored label. Groups are ordered by ACTIVITY_ORDER below.
 //
-// V2 update (post-user-walkthrough): each mood was reviewed for missing canonical
-// picks and category misfires. Notes inline on what changed where.
+//   activity  emoji  meaning
+//   eat       🍽️     sit-down meals
+//   drinks    🍸     bars, cocktails, wine
+//   coffee    ☕     cafés, low-key, lingering
+//   outdoors  🌳     parks, waterfront, walks
+//   culture   🖼️     museums, galleries, landmarks, interiors
+//   live      🎭     theater, jazz, concerts, spectacle
+//
+// Each group: { activity, label, emoji, picks:[ {type:'venue'|'sight', id} ] }
+// picks resolve from src/data/content.js (venues) or ALL_SIGHTS in App.jsx.
+
+export const ACTIVITY_ORDER = ['eat', 'drinks', 'coffee', 'outdoors', 'culture', 'live']
+export const ACTIVITIES = {
+  eat:      { label: 'Eat',     emoji: '🍽️' },
+  drinks:   { label: 'Drinks',  emoji: '🍸' },
+  coffee:   { label: 'Coffee',  emoji: '☕' },
+  outdoors: { label: 'Outdoors',emoji: '🌳' },
+  culture:  { label: 'Culture', emoji: '🖼️' },
+  live:     { label: 'Live',    emoji: '🎭' },
+}
 
 export const moods = [
   {
@@ -20,36 +38,36 @@ export const moods = [
     heroColor: '#f59e0b',
     groups: [
       {
-        label: 'Waterfront views',
-        emoji: '🌊',
+        activity: 'coffee',
+        label: 'Cafés & slow mornings',
+        emoji: '☕',
         picks: [
-          { type: 'venue', id: 'high_line' },
-          { type: 'sight', id: 'sight_brooklyn_heights_promenade' },
-          { type: 'sight', id: 'sight_domino_park' },
-          { type: 'sight', id: 'sight_transmitter_park' },
-          { type: 'venue', id: 'battery_park' },
+          { type: 'sight', id: 'sight_variety_coffee' },
+          { type: 'sight', id: 'sight_brooklyn_roasting_company' },
         ],
       },
       {
-        label: 'City parks',
+        activity: 'outdoors',
+        label: 'Parks & waterfront',
         emoji: '🌳',
         picks: [
-          // Added Central Park (was missing from this mood entirely — obvious chill spot)
+          { type: 'venue', id: 'high_line' },
           { type: 'venue', id: 'central_park' },
           { type: 'venue', id: 'bryant_park' },
           { type: 'venue', id: 'washington_square_park' },
+          { type: 'venue', id: 'battery_park' },
+          { type: 'sight', id: 'sight_brooklyn_heights_promenade' },
+          { type: 'sight', id: 'sight_domino_park' },
+          { type: 'sight', id: 'sight_transmitter_park' },
           { type: 'sight', id: 'sight_prospect_park' },
         ],
       },
       {
-        label: 'Cafés + libraries',
-        emoji: '☕',
-        // Renamed from "Quiet escapes". Brooklyn Brewery removed (taproom isn't quiet);
-        // section now focused on the actual chill-with-a-book spots.
+        activity: 'culture',
+        label: 'Grand interiors',
+        emoji: '🖼️',
         picks: [
           { type: 'venue', id: 'nypl_schwarzman' },
-          { type: 'sight', id: 'sight_variety_coffee' },
-          { type: 'sight', id: 'sight_brooklyn_roasting_company' },
         ],
       },
     ],
@@ -62,11 +80,9 @@ export const moods = [
     heroColor: '#7c3aed',
     groups: [
       {
-        // NEW group — biggest user-feedback gap was "no restaurants for date night"
-        // Added Brooklyn picks (Lilia, Peter Luger) so the date-night map
-        // doesn't look Manhattan-only.
+        activity: 'eat',
         label: 'Dinner spots',
-        emoji: '🍝',
+        emoji: '🍽️',
         picks: [
           { type: 'venue', id: 'carbone' },
           { type: 'venue', id: 'don_angie' },
@@ -75,50 +91,36 @@ export const moods = [
         ],
       },
       {
-        // Trimmed from 5 → 3. Blue Note + Birdland moved to Rainy Day to reduce
-        // the "5 jazz clubs in a row feels like the same recommendation" feel.
-        label: 'Live jazz',
-        emoji: '🎷',
-        picks: [
-          { type: 'venue', id: 'village_vanguard' },
-          { type: 'venue', id: 'smalls' },
-          { type: 'venue', id: 'jazz_lincoln_center' },
-        ],
-      },
-      {
-        label: 'Concert halls',
-        emoji: '🎼',
-        picks: [
-          { type: 'venue', id: 'carnegie_hall' },
-          { type: 'venue', id: 'met_opera_house' },
-          { type: 'venue', id: 'bargemusic' },
-        ],
-      },
-      {
-        // Expanded from 2 → 2 (Death & Co added; Stonewall moved to First Time → American history
-        // where it actually belongs as a landmark, not a generic date bar)
+        activity: 'drinks',
         label: 'Cocktail bars',
-        emoji: '🍷',
+        emoji: '🍸',
         picks: [
           { type: 'venue', id: 'the_campbell' },
           { type: 'venue', id: 'death_and_co' },
         ],
       },
       {
+        activity: 'outdoors',
         label: 'Romantic walks',
-        emoji: '🚶',
+        emoji: '🌳',
         picks: [
           { type: 'venue', id: 'high_line' },
           { type: 'venue', id: 'brooklyn_bridge_arch' },
           { type: 'sight', id: 'sight_brooklyn_heights_promenade' },
+          { type: 'sight', id: 'sight_jane_s_carousel' },
         ],
       },
       {
-        // Delacorte removed (summer-only Shakespeare in the Park — not a year-round date option)
-        label: 'Quirky charm',
-        emoji: '🎠',
+        activity: 'live',
+        label: 'Jazz & concert halls',
+        emoji: '🎭',
         picks: [
-          { type: 'sight', id: 'sight_jane_s_carousel' },
+          { type: 'venue', id: 'village_vanguard' },
+          { type: 'venue', id: 'smalls' },
+          { type: 'venue', id: 'jazz_lincoln_center' },
+          { type: 'venue', id: 'carnegie_hall' },
+          { type: 'venue', id: 'met_opera_house' },
+          { type: 'venue', id: 'bargemusic' },
         ],
       },
     ],
@@ -131,53 +133,41 @@ export const moods = [
     heroColor: '#059669',
     groups: [
       {
-        // Cooper Hewitt removed (design museum, over kids' heads).
-        // Met ADDED — was the most glaring omission from Family Day (Egyptian wing, Costume Institute, Arms & Armor are all kid magnets).
-        label: 'Big museums',
-        emoji: '🦕',
-        picks: [
-          { type: 'venue', id: 'amnh' },
-          { type: 'venue', id: 'met' },
-          { type: 'venue', id: 'intrepid_museum' },
-          { type: 'venue', id: 'brooklyn' },
-        ],
-      },
-      {
-        // NEW group built out from 1 → 3 picks. Active fun was the weakest group; now it has real content.
-        label: 'Active fun',
-        emoji: '🎢',
-        picks: [
-          { type: 'venue', id: 'ny_aquarium' },
-          { type: 'venue', id: 'brooklyn_childrens_museum' },
-          { type: 'sight', id: 'sight_jane_s_carousel' },
-        ],
-      },
-      {
-        label: 'Parks + run-around',
+        activity: 'outdoors',
+        label: 'Parks & run-around',
         emoji: '🌳',
         picks: [
           { type: 'venue', id: 'central_park' },
           { type: 'sight', id: 'sight_prospect_park' },
           { type: 'sight', id: 'sight_brooklyn_botanic_garden' },
           { type: 'sight', id: 'sight_brooklyn_bridge_park' },
+          { type: 'sight', id: 'sight_jane_s_carousel' },
         ],
       },
       {
-        label: 'Sports + spectacle',
-        emoji: '⚾',
+        activity: 'culture',
+        label: 'Museums & landmarks',
+        emoji: '🖼️',
+        picks: [
+          { type: 'venue', id: 'amnh' },
+          { type: 'venue', id: 'met' },
+          { type: 'venue', id: 'intrepid_museum' },
+          { type: 'venue', id: 'brooklyn' },
+          { type: 'venue', id: 'ny_aquarium' },
+          { type: 'venue', id: 'brooklyn_childrens_museum' },
+          { type: 'venue', id: 'grand_central_terminal' },
+          { type: 'venue', id: 'nypl_schwarzman' },
+        ],
+      },
+      {
+        activity: 'live',
+        label: 'Games & spectacle',
+        emoji: '🎭',
         picks: [
           { type: 'venue', id: 'yankee_stadium' },
           { type: 'venue', id: 'citi_field' },
           { type: 'venue', id: 'msg' },
           { type: 'venue', id: 'barclays_center' },
-        ],
-      },
-      {
-        label: 'Iconic interiors',
-        emoji: '🏛',
-        picks: [
-          { type: 'venue', id: 'grand_central_terminal' },
-          { type: 'venue', id: 'nypl_schwarzman' },
         ],
       },
     ],
@@ -188,11 +178,30 @@ export const moods = [
     emoji: '🌧️',
     blurb: "Indoor-only picks for when the weather's against you. Museums, food halls, basement jazz, movies — no umbrella required.",
     heroColor: '#0369a1',
+    // Indoor-only mood: never offer Outdoors, even though global picks exist.
+    excludeActivities: ['outdoors'],
     groups: [
       {
-        // Brooklyn Museum ADDED (was inexplicably in Family but not Rainy)
-        label: 'Big museums',
-        emoji: '🖼',
+        activity: 'eat',
+        label: 'Food halls & pizza',
+        emoji: '🍽️',
+        picks: [
+          { type: 'venue', id: 'chelsea_market' },
+          { type: 'venue', id: 'roberta_s_pizza' },
+        ],
+      },
+      {
+        activity: 'drinks',
+        label: 'Cozy bars',
+        emoji: '🍸',
+        picks: [
+          { type: 'venue', id: 'the_campbell' },
+        ],
+      },
+      {
+        activity: 'culture',
+        label: 'Museums & history',
+        emoji: '🖼️',
         picks: [
           { type: 'venue', id: 'met' },
           { type: 'venue', id: 'moma' },
@@ -200,60 +209,28 @@ export const moods = [
           { type: 'venue', id: 'whitney' },
           { type: 'venue', id: 'brooklyn' },
           { type: 'venue', id: 'cooper_hewitt' },
+          { type: 'venue', id: 'tenement_museum' },
+          { type: 'venue', id: 'federal_hall' },
+          { type: 'venue', id: 'fraunces_tavern' },
+          { type: 'venue', id: 'schomburg_center' },
+          { type: 'venue', id: 'one_wtc' },
         ],
       },
       {
-        // NEW group — the canonical NYC rainy-day move is "Chelsea Market then a movie"
-        // + Roberta's Bushwick gives the Brooklyn map something to land on.
-        label: 'Food halls + pizza',
-        emoji: '🍿',
-        picks: [
-          { type: 'venue', id: 'chelsea_market' },
-          { type: 'venue', id: 'angelika_film_center' },
-          { type: 'venue', id: 'roberta_s_pizza' },
-        ],
-      },
-      {
-        // Bargemusic added — Brooklyn classical inside a moored barge in DUMBO,
-        // perfect indoor-rainy alternative to the Lincoln Center halls.
-        label: 'Halls + shows',
-        emoji: '🎟',
+        activity: 'live',
+        label: 'Concert halls & shows',
+        emoji: '🎭',
         picks: [
           { type: 'venue', id: 'carnegie_hall' },
           { type: 'venue', id: 'david_geffen_hall' },
           { type: 'venue', id: 'met_opera_house' },
           { type: 'venue', id: 'public_theater' },
           { type: 'venue', id: 'bargemusic' },
-        ],
-      },
-      {
-        // Blue Note + Birdland added (moved from Date Night where they were saturating the jazz group)
-        label: 'Underground jazz',
-        emoji: '🎷',
-        picks: [
           { type: 'venue', id: 'village_vanguard' },
           { type: 'venue', id: 'smalls' },
           { type: 'venue', id: 'birdland' },
           { type: 'venue', id: 'blue_note' },
-        ],
-      },
-      {
-        label: 'History museums',
-        emoji: '📜',
-        picks: [
-          { type: 'venue', id: 'tenement_museum' },
-          { type: 'venue', id: 'federal_hall' },
-          { type: 'venue', id: 'fraunces_tavern' },
-          { type: 'venue', id: 'schomburg_center' },
-        ],
-      },
-      {
-        // ESB observatory REMOVED (no visibility in rain — $40 to stand in clouds)
-        label: 'Indoor landmarks',
-        emoji: '🏛',
-        picks: [
-          { type: 'venue', id: 'one_wtc' },
-          { type: 'venue', id: 'the_campbell' },
+          { type: 'venue', id: 'angelika_film_center' },
         ],
       },
     ],
@@ -266,74 +243,50 @@ export const moods = [
     heroColor: '#dc2626',
     groups: [
       {
-        // Times Square ADDED — first-timer staple; editorial snobbery to pretend it doesn't exist
-        label: 'Iconic Manhattan',
-        emoji: '🌆',
+        activity: 'outdoors',
+        label: 'Green & walking',
+        emoji: '🌳',
+        picks: [
+          { type: 'venue', id: 'central_park' },
+          { type: 'venue', id: 'high_line' },
+          { type: 'venue', id: 'brooklyn_bridge_arch' },
+          { type: 'venue', id: 'staten_island_ferry_terminal' },
+          { type: 'sight', id: 'sight_brooklyn_heights_promenade' },
+          { type: 'sight', id: 'sight_jane_s_carousel' },
+        ],
+      },
+      {
+        activity: 'culture',
+        label: 'Landmarks & museums',
+        emoji: '🖼️',
         picks: [
           { type: 'venue', id: 'times_square' },
           { type: 'venue', id: 'empire_state' },
           { type: 'venue', id: 'rockefeller_center' },
           { type: 'venue', id: 'one_wtc' },
           { type: 'venue', id: 'chrysler_building' },
-        ],
-      },
-      {
-        // Statue of Liberty ADDED as own pick (was bizarrely missing despite Ellis being listed)
-        // Stonewall Inn MOVED here from Date Night (it's a historic landmark, not a generic date bar)
-        label: 'American history',
-        emoji: '🗽',
-        picks: [
           { type: 'venue', id: 'statue_of_liberty' },
-          { type: 'venue', id: 'staten_island_ferry_terminal' },
           { type: 'venue', id: 'ellis_island' },
           { type: 'venue', id: 'federal_hall' },
           { type: 'venue', id: 'stonewall_inn' },
-        ],
-      },
-      {
-        // Expanded from 3 → 5 (Whitney + Guggenheim added — first-timers usually do them all)
-        label: 'Must-see museums',
-        emoji: '🖼',
-        picks: [
           { type: 'venue', id: 'met' },
           { type: 'venue', id: 'moma' },
           { type: 'venue', id: 'amnh' },
           { type: 'venue', id: 'guggenheim' },
           { type: 'venue', id: 'whitney' },
-        ],
-      },
-      {
-        label: 'Iconic interiors',
-        emoji: '🏛',
-        picks: [
           { type: 'venue', id: 'grand_central_terminal' },
           { type: 'venue', id: 'nypl_schwarzman' },
           { type: 'venue', id: 'st_patricks' },
         ],
       },
       {
-        // NEW group — Broadway is a canonical first-time experience.
-        // Three theaters that consistently have major shows running.
-        label: 'See a Broadway show',
+        activity: 'live',
+        label: 'Broadway shows',
         emoji: '🎭',
         picks: [
           { type: 'venue', id: 'richard_rodgers_theatre' },
           { type: 'venue', id: 'majestic_theatre' },
           { type: 'venue', id: 'shubert_theatre' },
-        ],
-      },
-      {
-        // Added Jane's Carousel + Brooklyn Heights Promenade so first-timers
-        // get the canonical Brooklyn walk paired with the bridge — no first
-        // NYC trip is complete without crossing into DUMBO at golden hour.
-        label: 'Green + walking',
-        emoji: '🌳',
-        picks: [
-          { type: 'venue', id: 'central_park' },
-          { type: 'venue', id: 'high_line' },
-          { type: 'venue', id: 'brooklyn_bridge_arch' },
-          { type: 'sight', id: 'sight_brooklyn_heights_promenade' },
-          { type: 'sight', id: 'sight_jane_s_carousel' },
         ],
       },
     ],

@@ -186,3 +186,71 @@ export async function getGooglePlaceDetails(placeId) {
     neighborhood,
   }
 }
+
+/**
+ * Resolve a place by free-text name (NYC-biased) and return its first Google
+ * Places photo as a displayable URL, plus the author attribution Google's TOS
+ * requires you to display, plus coordinates (useful for area classification).
+ *
+ * Returns null when: no API key, no autocomplete match, or the place carries
+ * no photo. Callers should fall back gracefully (e.g., gradient card) on null.
+ *
+ * TOS compliance baked in:
+ *   • The returned `attribution` array MUST be shown wherever the photo is
+ *     displayed (each item: { name, uri }).
+ *   • The returned `photoUrl` is fetched live via Photo.getURI(); do NOT
+ *     permanently store the image bytes — cache the URL short-term only.
+ *
+ * Billing: one Autocomplete + one Place Details, charged as a single session
+ * via a per-call AutocompleteSessionToken (kept separate from the search UI's
+ * module-level token so the two don't interfere).
+ */
+export async function getPlacePhotoByName(name, { maxWidth = 480 } = {}) {
+  if (!isGooglePlacesAvailable()) return null
+  const q = (name || '').trim()
+  if (q.length < 2) return null
+  await loadGoogleMapsScript()
+  const places = await window.google.maps.importLibrary('places')
+  const { AutocompleteSuggestion, Place, AutocompleteSessionToken } = places
+  const token = new AutocompleteSessionToken()
+
+  // 1) Resolve the name → a modern placeId (our seed data only carries the
+  //    legacy hex CID, which the Place class won't accept, so we search).
+  let placeId = null
+  try {
+    const resp = await AutocompleteSuggestion.fetchAutocompleteSuggestions({
+      input: q,
+      sessionToken: token,
+      locationBias: NYC_BIAS,
+      region: 'us',
+    })
+    placeId = resp?.suggestions?.[0]?.placePrediction?.placeId || null
+  } catch (e) {
+    console.warn('[googlePlaces] photo autocomplete failed:', e)
+    return null
+  }
+  if (!placeId) return null
+
+  // 2) Fetch photos + location for that place.
+  try {
+    const place = new Place({ id: placeId, requestedLanguage: 'en' })
+    await place.fetchFields({ fields: ['photos', 'location'], sessionToken: token })
+    const photo = place.photos?.[0]
+    if (!photo) return null
+    const photoUrl = typeof photo.getURI === 'function' ? photo.getURI({ maxWidth }) : null
+    if (!photoUrl) return null
+    const attribution = (photo.authorAttributions || []).map(a => ({
+      name: a?.displayName || '',
+      uri: a?.uri || '',
+    })).filter(a => a.name)
+    return {
+      photoUrl,
+      attribution,
+      lat: typeof place.location?.lat === 'function' ? place.location.lat() : null,
+      lng: typeof place.location?.lng === 'function' ? place.location.lng() : null,
+    }
+  } catch (e) {
+    console.warn('[googlePlaces] photo details failed:', e)
+    return null
+  }
+}
