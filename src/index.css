@@ -10,7 +10,7 @@
 :root {
   --ink:    #1d2733;  /* primary text */
   --ink-2:  #5d6b7c;  /* secondary text */
-  --ink-3:  #9aa6b4;  /* tertiary text, large sizes only */
+  --ink-3:  #6e7a88;  /* tertiary text — darkened for small-text legibility */
   --canvas: #e9eef4;  /* soft blue-gray page background */
   --card:   #ffffff;
   --accent: #3d9bff;  /* blue — action FILLS: pills, FAB, glows, large text */
@@ -26,7 +26,7 @@
   --gray-100: #edf1f6;
   --gray-200: #dfe6ee;
   --gray-300: #c3cdd8;
-  --gray-400: #9aa6b4;
+  --gray-400: #6e7a88; /* darkened for small-text legibility */
   --gray-500: #65717f; /* darkened for ≥4.5:1 small-text compliance */
   --gray-600: #5d6b7c;
   --gray-700: #455363;

@@ -1190,7 +1190,7 @@ function ThisWeekSection() {
   )
 }
 
-function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, onOpenSettings = () => {}, userVenues = {} }) {
+function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, onOpenSettings = () => {}, onPlanNight = () => {}, userVenues = {} }) {
   const [query, setQuery] = useState('')
   // Last-visit ribbon — show what changed since the user's previous open.
   // null = first visit; we don't pester first-timers with a "what's new" banner.
@@ -1423,6 +1423,21 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
             const carouselPicks = tonightPicks.filter(p => p.id !== heroPick?.id).slice(0, 4)
             return (
               <>
+                {/* ── Plan my night — the one-tap happy path to a routed plan ── */}
+                <div style={{ padding: '10px 20px 0' }}>
+                  <button onClick={onPlanNight} style={{
+                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 16,
+                    padding: '15px 18px', fontSize: 16, fontWeight: 800, cursor: 'pointer',
+                    boxShadow: '0 8px 20px rgba(61,155,255,.35)',
+                  }}>
+                    <span aria-hidden="true">✨</span> Plan my night
+                  </button>
+                  <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--ink-3)', marginTop: 6 }}>
+                    A routed plan with food, in a couple taps
+                  </div>
+                </div>
+
                 {/* ── This Week in NYC — live events, the new top section ── */}
                 <ThisWeekSection />
 
@@ -1551,14 +1566,6 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                             flex: 1, minWidth: 0,
                             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                           }}>{domain.name}</span>
-                          {count > 0 && (
-                            <span style={{
-                              fontSize: 10, fontWeight: 700, color: tint,
-                              background: tint + '18',
-                              padding: '2px 7px', borderRadius: 999,
-                              flexShrink: 0,
-                            }}>{count}</span>
-                          )}
                         </button>
                       )
                     })}
@@ -1592,21 +1599,14 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                             flex: 1, minWidth: 0,
                             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                           }}>{grp.label}</span>
-                          {showSoonBadge ? (
+                          {showSoonBadge && (
                             <span style={{
                               fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
                               color: '#92400e', background: '#fef3c7',
                               padding: '2px 7px', borderRadius: 999,
                               flexShrink: 0,
                             }}>Soon</span>
-                          ) : count > 0 ? (
-                            <span style={{
-                              fontSize: 10, fontWeight: 700, color: 'var(--gray-600)',
-                              background: 'var(--gray-100)',
-                              padding: '2px 7px', borderRadius: 999,
-                              flexShrink: 0,
-                            }}>{count}{hasSubAreas ? '+' : ''}</span>
-                          ) : null}
+                          )}
                         </button>
                       )
                     })}
@@ -4172,12 +4172,12 @@ const MOOD_MAP_SVG = {
       { id: 'uptown',   color: '#8aa873', label: 'UPTOWN',     points: '120,62 240,62 248,182 112,182',   labelAt: [180, 126] },
       { id: 'uws',      color: '#c2a24e', label: 'UPPER WEST', points: '112,182 170,182 170,310 108,310', labelAt: [138, 248], labelSize: 8 },
       { id: 'ues',      color: '#cc7d92', label: 'UPPER EAST', points: '192,182 248,182 252,310 192,310', labelAt: [223, 248], labelSize: 8 },
-      { id: 'mw',       color: '#7e93c4', label: 'MW',         points: '108,310 180,310 180,400 110,400', labelAt: [144, 356] },
-      { id: 'me',       color: '#c98aa0', label: 'ME',         points: '180,310 252,310 250,400 180,400', labelAt: [216, 356] },
+      { id: 'mw',       color: '#7e93c4', label: ['MIDTOWN', 'WEST'], points: '108,310 180,310 180,400 110,400', labelAt: [144, 356], labelSize: 8 },
+      { id: 'me',       color: '#c98aa0', label: ['MIDTOWN', 'EAST'], points: '180,310 252,310 250,400 180,400', labelAt: [216, 356], labelSize: 8 },
       { id: 'chelsea',  color: '#9b86c4', label: 'CHELSEA',    points: '110,400 180,400 180,460 115,460', labelAt: [146, 432], labelSize: 9 },
       { id: 'gramercy', color: '#b8a64e', label: 'GRAMERCY',   points: '180,400 250,400 245,460 180,460', labelAt: [214, 432], labelSize: 8 },
-      { id: 'wv',       color: '#6fae8e', label: 'WV',         points: '115,460 180,460 180,540 138,540', labelAt: [150, 500] },
-      { id: 'ev',       color: '#9aaa5e', label: 'EV',         points: '180,460 245,460 222,540 180,540', labelAt: [210, 500] },
+      { id: 'wv',       color: '#6fae8e', label: ['WEST', 'VILLAGE'], points: '115,460 180,460 180,540 138,540', labelAt: [150, 498], labelSize: 7 },
+      { id: 'ev',       color: '#9aaa5e', label: ['EAST', 'VILLAGE'], points: '180,460 245,460 222,540 180,540', labelAt: [208, 498], labelSize: 7 },
       { id: 'lower',    color: '#c89a6a', label: 'LOWER',      points: '138,540 222,540 180,592',         labelAt: [180, 556], labelSize: 9 },
     ],
   },
@@ -4602,7 +4602,7 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
   const cardForItem = (it) => {
     if (it.kind === 'venue') return <VenueTapCard key={'v' + it.id} venue={it.venue} isSaved={!!savedItems['venue:' + it.id]} onPress={() => push({ screen: 'venue', venueId: it.id })} />
     if (it.kind === 'sight') return <VenueTapCard key={'s' + it.id} venue={{ id: it.id, name: it.sight.name, neighborhood: [it.sight.neighborhood, it.sight.subArea].filter(Boolean).join(' · '), character: it.sight.longDesc || '', color: actColor }} onPress={() => push({ screen: 'sight', sightId: it.id })} />
-    return <VenueTapCard key={'c' + it.id} venue={{ id: it.id, name: it.name, neighborhood: it.note || '', character: '', color: actColor }} onPress={() => { try { window.open(mapsUrl(it.name), '_blank', 'noopener') } catch (e) {} }} />
+    return <VenueTapCard key={'c' + it.id} external venue={{ id: it.id, name: it.name, neighborhood: it.note || '', character: '', color: actColor }} onPress={() => { try { window.open(mapsUrl(it.name), '_blank', 'noopener') } catch (e) {} }} />
   }
 
   // My Picks — ONLY the viewer's hand-added places (the 62 Google imports are
@@ -5302,7 +5302,18 @@ function MoodScreen({ moodId, push, savedItems = {}, toggleSave = () => {} }) {
   )
 }
 
-function NeighborhoodScreen({ neighborhoodKey, subAreaName, push, savedItems = {} }) {
+// Reverse map venueId → domainId (venues carry no category field; the topic/
+// domain taxonomy lives in `domains`). Used to screen neighborhood lists.
+const VENUE_DOMAIN = (() => {
+  const m = {}
+  Object.values(domains).forEach(d => (d.venueIds || []).forEach(id => { m[id] = d.id }))
+  return m
+})()
+
+function NeighborhoodScreen({ neighborhoodKey, subAreaName, push, savedItems = {}, userVenues = {} }) {
+  // Category screening for the venue list: a filter chip + per-section "show all".
+  const [catFilter, setCatFilter] = React.useState('all')
+  const [expanded, setExpanded] = React.useState({})
   const group = NEIGHBORHOOD_GROUPS.find(g => g.key === neighborhoodKey)
   if (!group) return null
 
@@ -5386,6 +5397,15 @@ function NeighborhoodScreen({ neighborhoodKey, subAreaName, push, savedItems = {
   // Sub-areas only render at the parent-level view (not when already drilled into one).
   const subAreas = subAreaInfo ? null : (NEIGHBORHOOD_SUBAREAS[neighborhoodKey] || null)
 
+  // Personal saves (imported/added places) that fall in this neighborhood — shown
+  // as a SEPARATE, clearly-labeled layer below the editorial picks, never blended.
+  const myPlaces = Object.values(userVenues || {}).filter(v => {
+    if (!v.neighborhood) return false
+    return subAreaInfo
+      ? new RegExp(escapeRegExp(subAreaName), 'i').test(v.neighborhood)
+      : group.match(v.neighborhood)
+  })
+
   return (
     <div className="screen">
       <div className="section">
@@ -5416,18 +5436,106 @@ function NeighborhoodScreen({ neighborhoodKey, subAreaName, push, savedItems = {
       </div>
       {/* Top venue list — only on focused sub-area views. On the parent view (with sub-areas),
           we deliberately suppress this list so users browse by area instead of seeing duplicates. */}
-      {nbVenues.length > 0 && !subAreas && (
-        <div style={{ padding: '4px 20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {nbVenues.map(v => (
-            <VenueTapCard
-              key={v.id}
-              venue={v}
-              isSaved={!!savedItems[`venue:${v.id}`]}
-              onPress={() => push({ screen: 'venue', venueId: v.id })}
-            />
-          ))}
-        </div>
-      )}
+      {nbVenues.length > 0 && !subAreas && (() => {
+        // Screen the list into scannable category sections instead of one long
+        // flat dump: filter chips up top, each section capped with "show all".
+        const CATS = [
+          { key: 'see',     label: 'Art & sights',  emoji: '🖼️' },
+          { key: 'culture', label: 'Music & shows', emoji: '🎷' },
+          { key: 'eat',     label: 'Eat & drink',   emoji: '🍽️' },
+          { key: 'sports',  label: 'Sports',        emoji: '🏆' },
+          { key: 'other',   label: 'More',          emoji: '📍' },
+        ]
+        const catOf = v => v.isRestaurant ? 'eat'
+          : ['visual_art', 'architecture', 'history'].includes(VENUE_DOMAIN[v.id]) ? 'see'
+          : ['jazz', 'classical_music', 'hip_hop', 'theater'].includes(VENUE_DOMAIN[v.id]) ? 'culture'
+          : VENUE_DOMAIN[v.id] === 'sports' ? 'sports' : 'other'
+        const groups = CATS.map(c => ({ ...c, items: nbVenues.filter(v => catOf(v) === c.key) })).filter(g => g.items.length)
+        const visible = catFilter === 'all' ? groups : groups.filter(g => g.key === catFilter)
+        const CAP = 5
+        return (
+          <div style={{ padding: '4px 20px 24px' }}>
+            {groups.length > 1 && (
+              <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 16 }}>
+                {[{ key: 'all', label: 'All', emoji: '', items: nbVenues }, ...groups].map(c => {
+                  const active = catFilter === c.key
+                  return (
+                    <button key={c.key} onClick={() => setCatFilter(c.key)} style={{
+                      flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 5,
+                      padding: '7px 13px', borderRadius: 999, border: 'none', cursor: 'pointer',
+                      fontSize: 13, fontWeight: 700,
+                      background: active ? 'var(--ink)' : 'var(--gray-100)',
+                      color: active ? '#fff' : 'var(--gray-700)',
+                    }}>
+                      {c.emoji && <span aria-hidden="true">{c.emoji}</span>}{c.label}
+                      <span style={{ opacity: 0.6, fontWeight: 600 }}>{c.items.length}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+            {visible.map(g => {
+              const isOpen = !!expanded[g.key] || catFilter === g.key || g.items.length <= CAP
+              const shown = isOpen ? g.items : g.items.slice(0, CAP)
+              return (
+                <div key={g.key} style={{ marginBottom: 22 }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--ink)' }}><span aria-hidden="true">{g.emoji}</span> {g.label}</div>
+                    <span style={{ fontSize: 12, color: 'var(--gray-500)', fontWeight: 600 }}>{g.items.length}</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    {shown.map(v => (
+                      <VenueTapCard key={v.id} venue={v} isSaved={!!savedItems[`venue:${v.id}`]} onPress={() => push({ screen: 'venue', venueId: v.id })} />
+                    ))}
+                  </div>
+                  {!isOpen && (
+                    <button onClick={() => setExpanded(e => ({ ...e, [g.key]: true }))} style={{
+                      marginTop: 12, width: '100%', background: 'var(--gray-100)', border: 'none', cursor: 'pointer',
+                      borderRadius: 10, padding: '10px', fontSize: 13, fontWeight: 700, color: 'var(--gray-700)',
+                    }}>
+                      Show all {g.items.length} →
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )
+      })()}
+
+      {/* From your list — personal saves for this neighborhood, kept as a clearly
+          labeled layer below the editorial picks (never blended into them). */}
+      {myPlaces.length > 0 && !subAreas && (() => {
+        const CAP = 5
+        const open = !!expanded.mine || myPlaces.length <= CAP
+        const shown = open ? myPlaces : myPlaces.slice(0, CAP)
+        return (
+          <div style={{ padding: '4px 20px 32px', borderTop: '1px solid var(--gray-100)', marginTop: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', margin: '16px 0 2px' }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--ink)' }}><span aria-hidden="true">📌</span> From your list</div>
+              <span style={{ fontSize: 12, color: 'var(--gray-500)', fontWeight: 600 }}>{myPlaces.length}</span>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 12 }}>Your saved places — not NYC Stoop editorial picks.</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {shown.map(v => (
+                <UserVenueCard key={v.id}
+                  venue={v}
+                  cardVenue={{ id: v.id, name: v.name, neighborhood: v.neighborhood || 'Saved spot', character: v.description || '', color: '#8aa4c0' }}
+                  onPress={() => { try { window.open(v.sourceUrl || mapsUrl(v.name), '_blank', 'noopener') } catch (e) {} }}
+                />
+              ))}
+            </div>
+            {!open && (
+              <button onClick={() => setExpanded(e => ({ ...e, mine: true }))} style={{
+                marginTop: 12, width: '100%', background: 'var(--gray-100)', border: 'none', cursor: 'pointer',
+                borderRadius: 10, padding: '10px', fontSize: 13, fontWeight: 700, color: 'var(--gray-700)',
+              }}>
+                Show all {myPlaces.length} from your list →
+              </button>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Curated sights — only shown in focused sub-area view. Tap a row → opens Google Maps search for that place. */}
       {subAreaInfo && subAreaInfo.sights && subAreaInfo.sights.length > 0 && (
@@ -5815,7 +5923,7 @@ function SavedDot({ saved, style }) {
   )
 }
 
-function VenueTapCard({ venue, onPress, isSaved = false, image = null, attribution = null }) {
+function VenueTapCard({ venue, onPress, isSaved = false, image = null, attribution = null, external = false }) {
   const colors = venueColors[venue.id] || (venue.color ? { bg: venue.color, text: '#fff' } : { bg: '#8aa4c0', text: '#fff' })
   // Photo priority: explicit image prop → curated venue photo → first
   // work-at-this-venue image → none, in which case the category gradient shows.
@@ -5876,11 +5984,6 @@ function VenueTapCard({ venue, onPress, isSaved = false, image = null, attributi
             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
           />
         )}
-        {/* Bottom scrim — keeps the frosted title panel legible over busy photos */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          background: 'linear-gradient(to top, rgba(13,18,25,0.42), rgba(13,18,25,0) 55%)',
-        }} />
 
         {/* Photo attribution — required by Google Places TOS when the image
             comes from the Places Photos API. Tiny credit, top-left, kept out of
@@ -5911,27 +6014,7 @@ function VenueTapCard({ venue, onPress, isSaved = false, image = null, attributi
           }}>♥</span>
         )}
 
-        {/* Frosted white title panel — bottom-left, mirrors the home hero */}
-        <span style={{
-          position: 'absolute', left: 12, right: 12, bottom: 12, zIndex: 2,
-          display: 'block',
-          background: 'rgba(255,255,255,0.82)',
-          backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
-          borderRadius: 16, padding: '11px 14px',
-          boxShadow: '0 8px 24px rgba(29,39,51,0.18)',
-        }}>
-          <span style={{
-            display: 'block', fontSize: 16, fontWeight: 800, letterSpacing: '-0.01em',
-            color: 'var(--ink)', lineHeight: 1.22,
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>{venue.name}</span>
-          <span style={{
-            display: 'block', fontSize: 11.5, fontWeight: 600, color: 'var(--ink-2)', marginTop: 3,
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>
-            {venue.neighborhood}{venue.fullName && venue.fullName !== venue.name ? ` · ${venue.fullName}` : ''}
-          </span>
-        </span>
+        {/* Title moved below the photo (Layout A) for readability + room for rating/price. */}
       </div>
 
       {/* Now-playing bar — only on venues with a nowPlaying field (currently
@@ -5972,7 +6055,25 @@ function VenueTapCard({ venue, onPress, isSaved = false, image = null, attributi
         )
       )}
 
-      <div style={{ padding: '11px 14px 12px' }}>
+      <div style={{ padding: '12px 14px 13px' }}>
+        <div style={{
+          fontSize: 16, fontWeight: 800, letterSpacing: '-0.01em', color: 'var(--ink)', lineHeight: 1.22,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>{venue.name}</div>
+        {(() => {
+          const parts = []
+          if (venue.price) parts.push(venue.price)
+          const place = `${venue.neighborhood || ''}${venue.fullName && venue.fullName !== venue.name ? ` · ${venue.fullName}` : ''}`.trim()
+          if (place) parts.push(place)
+          if (!venue.rating && parts.length === 0) return null
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 12, color: 'var(--ink-2)', margin: '4px 0 8px' }}>
+              {venue.rating ? <span style={{ color: '#854F0B', fontWeight: 700 }}>★ {venue.rating}</span> : null}
+              {venue.rating && parts.length ? <span style={{ color: 'var(--ink-3)' }}>·</span> : null}
+              {parts.length ? <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{parts.join(' · ')}</span> : null}
+            </div>
+          )
+        })()}
         {preview && (
           <div style={{ fontSize: 12.5, color: 'var(--ink-2)', lineHeight: 1.5, marginBottom: 8 }}>
             {preview}
@@ -5996,7 +6097,7 @@ function VenueTapCard({ venue, onPress, isSaved = false, image = null, attributi
             </span>
           </div>
         )}
-        <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--accent-text)' }}>Explore →</div>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: external ? 'var(--gray-500)' : 'var(--accent-text)' }}>{external ? 'View on Google Maps ↗' : 'Explore →'}</div>
       </div>
     </button>
   )
@@ -6038,8 +6139,41 @@ function useGooglePhoto(venue) {
 function UserVenueCard({ venue, cardVenue, onPress, isSaved = false }) {
   const g = useGooglePhoto(venue)
   const image = venue?.image || g?.photoUrl || null
-  const attribution = venue?.image ? null : (g?.attribution || null)
-  return <VenueTapCard venue={cardVenue} image={image} attribution={attribution} isSaved={isSaved} onPress={onPress} />
+  // Layout C — compact row: small thumbnail + name + rating·price·neighborhood + one-line desc.
+  const rawDesc = (venue?.description || venue?.googleSummary || cardVenue?.character || '').trim()
+  const desc = rawDesc.length > 84 ? rawDesc.slice(0, 84).trimEnd() + '…' : rawDesc
+  const place = (venue?.neighborhood && venue.neighborhood !== 'Saved from Google Maps')
+    ? venue.neighborhood : (cardVenue?.neighborhood || 'Saved spot')
+  const meta = []
+  if (venue?.price) meta.push(venue.price)
+  if (place) meta.push(place)
+  return (
+    <button onClick={onPress} style={{
+      width: '100%', display: 'flex', gap: 12, alignItems: 'center', textAlign: 'left', cursor: 'pointer',
+      background: 'var(--white)', border: '1px solid var(--gray-200)', borderRadius: 14, padding: 10,
+      boxShadow: '0 1px 2px rgba(29,39,51,0.05)',
+    }}>
+      <div style={{
+        width: 74, height: 74, flexShrink: 0, borderRadius: 10, overflow: 'hidden',
+        background: 'linear-gradient(135deg, #8aa4c0, #8aa4c099)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        {image
+          ? <img src={image} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          : <span style={{ fontSize: 22 }} aria-hidden="true">📍</span>}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gray-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{venue?.name || cardVenue?.name}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--ink-2)', margin: '3px 0', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+          {venue?.rating ? <span style={{ color: '#854F0B', fontWeight: 700, flexShrink: 0 }}>★ {venue.rating}</span> : null}
+          {venue?.rating && meta.length ? <span style={{ color: 'var(--ink-3)', flexShrink: 0 }}>·</span> : null}
+          {meta.length ? <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{meta.join(' · ')}</span> : null}
+        </div>
+        {desc && <div style={{ fontSize: 12, color: 'var(--ink-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{desc}</div>}
+      </div>
+      <span style={{ fontSize: 16, color: 'var(--gray-300)', flexShrink: 0 }} aria-hidden="true">↗</span>
+    </button>
+  )
 }
 
 // ── VenueCard — static detail card for WorkScreen ─────────────────────────
@@ -6128,14 +6262,14 @@ function NavIcon({ name, size = 22, color = 'currentColor', fill = 'none' }) {
 }
 
 function BottomNav({ activeTab, onTabPress, savedCount, onAddPlace }) {
-  // Floating bar on blurred white. Eat keeps the prized center slot (it
-  // replaced Add after the UX eval) but is styled as the 48px blue circle
-  // with a blue glow — the bar's single accent-colored action.
+  // Four tabs, no conceptual overlap. Eat folded into Explore (it already
+  // lives inside the mood flow's "Eat" category), and Tonight — the
+  // un-Google-able signature feature — is promoted as the accent-colored
+  // hero of the bar instead of the old "Eat" center button.
   const tabs = [
     { id: 'explore', icon: 'compass',  label: 'Explore' },
+    { id: 'tonight', icon: 'moon',     label: 'Tonight', accent: true },
     { id: 'map',     icon: 'mapPin',   label: 'Map' },
-    { id: 'eat',     icon: 'utensils', label: 'Eat', isCenter: true },
-    { id: 'tonight', icon: 'moon',     label: 'Tonight' },
     { id: 'saved',   icon: 'bookmark', label: 'My Trip' },
   ]
   return (
@@ -6152,41 +6286,23 @@ function BottomNav({ activeTab, onTabPress, savedCount, onAddPlace }) {
       boxShadow: '0 -8px 28px rgba(29,39,51,0.08)',
       display: 'flex', zIndex: 200,
     }}>
-      {tabs.map(({ id, icon, label, isCenter }) => {
+      {tabs.map(({ id, icon, label, accent }) => {
         const active = activeTab === id
         const badge = id === 'saved' && savedCount > 0 ? savedCount : null
-        if (isCenter) {
-          return (
-            <button key={id} onClick={() => onTabPress(id)} aria-label={label} style={{
-              flex: 1, display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center',
-              background: 'none', border: 'none', cursor: 'pointer',
-              position: 'relative',
-            }}>
-              <span style={{
-                width: 48, height: 48, borderRadius: 999,
-                background: 'var(--accent)',
-                boxShadow: '0 10px 22px rgba(61,155,255,.45)',
-                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                marginTop: -18,
-                border: '4px solid rgba(255,255,255,0.9)',
-              }}>
-                <NavIcon name={icon} size={21} color="#fff" />
-              </span>
-              <span style={{ fontSize: 10, fontWeight: 700, marginTop: 3, color: active ? 'var(--ink)' : 'var(--gray-500)' }}>{label}</span>
-            </button>
-          )
-        }
+        // Tonight is tinted with the accent color even when inactive so it
+        // reads as the signature destination; the active tab is always ink.
+        const iconColor = active ? 'var(--accent)' : (accent ? 'var(--accent)' : 'var(--ink-3)')
+        const labelColor = active ? 'var(--ink)' : (accent ? 'var(--accent)' : 'var(--gray-500)')
         return (
           <button key={id} onClick={() => onTabPress(id)} style={{
             flex: 1, display: 'flex', flexDirection: 'column',
             alignItems: 'center', justifyContent: 'center', gap: 3,
             background: 'none', border: 'none', cursor: 'pointer',
-            color: active ? 'var(--ink)' : 'var(--ink-3)',
+            color: iconColor,
             position: 'relative',
           }}>
             <NavIcon name={icon} size={22} fill={active ? 'solid' : 'none'} />
-            <span style={{ fontSize: 10, fontWeight: active ? 700 : 500, color: active ? 'var(--ink)' : 'var(--gray-500)' }}>{label}</span>
+            <span style={{ fontSize: 10, fontWeight: active || accent ? 700 : 500, color: labelColor }}>{label}</span>
             {badge && (
               <span style={{
                 position: 'absolute', top: 7, right: '50%', transform: 'translateX(18px)',
@@ -7170,10 +7286,14 @@ function capDays(days, maxDays) {
 }
 
 function fmtHour(h) {
-  const hh = Math.floor(h)
-  const mm = h % 1 === 0.5 ? '30' : '00'
-  const ampm = hh >= 12 ? 'pm' : 'am'
-  return `${hh > 12 ? hh - 12 : hh}:${mm}${ampm}`
+  // Accepts any fractional hour (rounded to the nearest 5 min) so sequenced
+  // stop times like 11:45 render correctly — not just :00 / :30.
+  const total = Math.round((h * 60) / 5) * 5
+  const hh = Math.floor(total / 60)
+  const mm = total % 60
+  const ampm = hh % 24 >= 12 ? 'pm' : 'am'
+  const disp = hh % 12 === 0 ? 12 : hh % 12
+  return `${disp}:${String(mm).padStart(2, '0')}${ampm}`
 }
 
 
@@ -7195,10 +7315,10 @@ const RESTAURANT_DATA = [
   { id: 'ootoya_midtown',  name: 'Ootoya',             cuisines: ['japanese'],   area: 'Midtown', price: '$$',  neighborhood: 'Midtown',         description: 'Homestyle Japanese teishoku sets — rice, miso soup, pickles, grilled fish or tonkatsu.',      reservationUrl: 'https://www.opentable.com/ootoya-chelsea',          mapsUrl: 'https://maps.google.com/?q=Ootoya+Midtown+New+York' },
   { id: 'marea',           name: 'Marea',              cuisines: ['italian'],    area: 'Midtown', price: '$$$$',neighborhood: 'Central Park South', description: 'Michelin-starred coastal Italian — impeccable seafood pastas and crudo overlooking the park.', reservationUrl: 'https://www.opentable.com/marea',                   mapsUrl: 'https://maps.google.com/?q=Marea+Restaurant+New+York' },
   { id: 'the_modern',      name: 'The Modern',         cuisines: ['american'],   area: 'Midtown', price: '$$$$',neighborhood: 'Midtown (MoMA)',   description: 'Danny Meyer\'s MoMA restaurant with floor-to-ceiling sculpture garden views and seasonal tasting menus.', reservationUrl: 'https://www.opentable.com/the-modern',         mapsUrl: 'https://maps.google.com/?q=The+Modern+Restaurant+MoMA+New+York' },
-  { id: 'shake_shack_midtown', name: 'Shake Shack',   cuisines: ['burger'],     area: 'Midtown', price: '$',   neighborhood: 'Midtown',         description: 'The original ShackBurger — crispy edges, special sauce, fresh potato bun. Perfect quick stop.', reservationUrl: 'https://www.shakeshack.com',                        mapsUrl: 'https://maps.google.com/?q=Shake+Shack+Madison+Square+Park+New+York' },
+  { id: 'shake_shack_midtown', name: 'Shake Shack',   cuisines: ['burger'],     area: 'Midtown', price: '$',   neighborhood: 'Midtown',         description: 'The original ShackBurger — crispy edges, special sauce, fresh potato bun. Perfect quick stop.', reservationUrl: null, walkIn: true,                        mapsUrl: 'https://maps.google.com/?q=Shake+Shack+Madison+Square+Park+New+York' },
   { id: 'campbell',        name: 'The Campbell',       cuisines: ['bar_tavern'], area: 'Midtown', price: '$$',  neighborhood: 'Grand Central',    description: 'Jaw-dropping 1920s Gilded Age bar inside Grand Central — gilded ceiling, roaring fireplace, craft cocktails.', reservationUrl: 'https://thecampbellnyc.com',                    mapsUrl: 'https://maps.google.com/?q=The+Campbell+Grand+Central+New+York' },
   { id: 'benjamin_steak',  name: 'Benjamin Steakhouse',cuisines: ['steakhouse'], area: 'Midtown', price: '$$$$',neighborhood: 'Midtown East',    description: 'Classic NYC prime steakhouse — USDA prime dry-aged porterhouses in an elegant Helmsley Building room.', reservationUrl: 'https://www.opentable.com/benjamin-steakhouse', mapsUrl: 'https://maps.google.com/?q=Benjamin+Steakhouse+New+York' },
-  { id: 'jongno_midtown',  name: 'Jongno Gopchang',   cuisines: ['korean'],     area: 'Midtown', price: '$$',  neighborhood: 'Koreatown',       description: 'Sizzling Korean BBQ specializing in beef intestines and offcuts — bold, smoky, deeply satisfying.', reservationUrl: 'https://www.yelp.com/biz/jongno-gopchang-new-york',mapsUrl: 'https://maps.google.com/?q=Jongno+Gopchang+New+York' },
+  { id: 'jongno_midtown',  name: 'Jongno Gopchang',   cuisines: ['korean'],     area: 'Midtown', price: '$$',  neighborhood: 'Koreatown',       description: 'Sizzling Korean BBQ specializing in beef intestines and offcuts — bold, smoky, deeply satisfying.', reservationUrl: null,mapsUrl: 'https://maps.google.com/?q=Jongno+Gopchang+New+York' },
 
   // ── UPPER EAST SIDE ──
   { id: 'sushi_of_gari',   name: 'Sushi of Gari',     cuisines: ['japanese'],   area: 'Upper East Side', price: '$$$', neighborhood: 'Upper East Side', description: 'Chef Gari\'s legendary omakase — creative toppings and sauces that transformed NYC sushi culture.',  reservationUrl: 'https://www.sushiofgari.com',           mapsUrl: 'https://maps.google.com/?q=Sushi+of+Gari+New+York' },
@@ -7210,7 +7330,7 @@ const RESTAURANT_DATA = [
 
   // ── UPPER WEST SIDE ──
   { id: 'carmines_uws',    name: 'Carmine\'s',          cuisines: ['italian'],    area: 'Upper West Side', price: '$$', neighborhood: 'Upper West Side', description: 'Legendary family-style Italian — enormous platters of linguine alle vongole and chicken parmigiana built for sharing.', reservationUrl: 'https://www.carminesnyc.com', mapsUrl: 'https://maps.google.com/?q=Carmine\'s+Upper+West+Side+New+York' },
-  { id: 'shake_shack_uws', name: 'Shake Shack (UWS)',   cuisines: ['burger'],     area: 'Upper West Side', price: '$',  neighborhood: 'Upper West Side', description: 'The Shake Shack nearest Lincoln Center — ideal pre-concert ShackBurger or custard stop.',           reservationUrl: 'https://www.shakeshack.com', mapsUrl: 'https://maps.google.com/?q=Shake+Shack+Upper+West+Side+New+York' },
+  { id: 'shake_shack_uws', name: 'Shake Shack (UWS)',   cuisines: ['burger'],     area: 'Upper West Side', price: '$',  neighborhood: 'Upper West Side', description: 'The Shake Shack nearest Lincoln Center — ideal pre-concert ShackBurger or custard stop.',           reservationUrl: null, walkIn: true, mapsUrl: 'https://maps.google.com/?q=Shake+Shack+Upper+West+Side+New+York' },
   { id: 'amsterdam_ale',   name: 'Amsterdam Ale House', cuisines: ['bar_tavern'], area: 'Upper West Side', price: '$$', neighborhood: 'Upper West Side', description: '60 taps of craft and import beer in a classic neighborhood tavern — excellent wings and a relaxed vibe.', reservationUrl: null, mapsUrl: 'https://maps.google.com/?q=Amsterdam+Ale+House+New+York' },
   { id: 'kefi_uws',        name: 'Kefi',                cuisines: ['american'],   area: 'Upper West Side', price: '$$', neighborhood: 'Upper West Side', description: 'Michael Psilakis\'s beloved Greek-American taverna — roasted lamb, spreads, and casual neighborhood warmth.', reservationUrl: 'https://www.opentable.com/kefi', mapsUrl: 'https://maps.google.com/?q=Kefi+Restaurant+New+York' },
   { id: 'sushi_yasaka',    name: 'Sushi Yasaka',        cuisines: ['japanese'],   area: 'Upper West Side', price: '$$', neighborhood: 'Upper West Side', description: 'Quiet neighborhood sushi bar known for generous omakase value and pristine fish sourced daily.',           reservationUrl: 'https://www.opentable.com/sushi-yasaka', mapsUrl: 'https://maps.google.com/?q=Sushi+Yasaka+New+York' },
@@ -7223,7 +7343,7 @@ const RESTAURANT_DATA = [
   { id: 'corner_bistro',   name: 'Corner Bistro',       cuisines: ['burger'],     area: 'Downtown Village', price: '$',   neighborhood: 'West Village',      description: 'NYC dive bar legend since 1961 — the Bistro Burger (8oz, cheese, bacon, fried onion) for under $10.',      reservationUrl: null, mapsUrl: 'https://maps.google.com/?q=Corner+Bistro+New+York' },
   { id: 'employees_only',  name: 'Employees Only',      cuisines: ['bar_tavern'], area: 'Downtown Village', price: '$$$', neighborhood: 'West Village',      description: 'Legendary speakeasy cocktail bar behind a psychic\'s storefront — brilliant pre-Prohibition drinks and late-night food.', reservationUrl: 'https://www.employeesonlynyc.com', mapsUrl: 'https://maps.google.com/?q=Employees+Only+New+York' },
   { id: 'spotted_pig',     name: 'The Spotted Pig',     cuisines: ['american'],   area: 'Downtown Village', price: '$$$', neighborhood: 'West Village',      description: 'April Bloomfield\'s iconic gastro-pub — gnudi, chargrilled burger with Roquefort, and a convivial crammed room.', reservationUrl: 'https://www.thespottedpig.com', mapsUrl: 'https://maps.google.com/?q=The+Spotted+Pig+New+York' },
-  { id: 'artichoke_pizza', name: 'Artichoke Basille\'s', cuisines: ['pizza'],     area: 'Downtown Village', price: '$',   neighborhood: 'East Village',      description: 'Thick square Sicilian slices — the artichoke-cream slice is a NYC late-night institution. Enormous portions.',   reservationUrl: null, mapsUrl: 'https://maps.google.com/?q=Artichoke+Basille\'s+New+York' },
+  { id: 'artichoke_pizza', name: 'Artichoke Basille\'s', cuisines: ['pizza'],     area: 'Downtown Village', price: '$',   neighborhood: 'East Village',      description: 'Thick square Sicilian slices — the artichoke-cream slice is a NYC late-night institution. Enormous portions.',   reservationUrl: null, walkIn: true, mapsUrl: 'https://maps.google.com/?q=Artichoke+Basille\'s+New+York' },
   { id: 'jeju_noodle',     name: 'Jeju Noodle Bar',     cuisines: ['korean'],     area: 'Downtown Village', price: '$$',  neighborhood: 'Greenwich Village', description: 'Creative Korean noodles rooted in Jeju Island tradition — the signature ramen broth simmers for days.',         reservationUrl: 'https://www.opentable.com/jeju-noodle-bar', mapsUrl: 'https://maps.google.com/?q=Jeju+Noodle+Bar+New+York' },
 
   // ── LOWER MANHATTAN ──
@@ -7231,7 +7351,7 @@ const RESTAURANT_DATA = [
   { id: 'adriennes_pizza', name: 'Adrienne\'s Pizzabar', cuisines: ['pizza'],     area: 'Lower Manhattan', price: '$$',  neighborhood: 'Financial District',  description: 'Old-school FiDi square pizza — thin-crusted, crispy-bottomed rectangular pies beloved by Wall Street workers.', reservationUrl: null, mapsUrl: 'https://maps.google.com/?q=Adrienne\'s+Pizzabar+New+York' },
   { id: 'dead_rabbit',     name: 'The Dead Rabbit',     cuisines: ['bar_tavern'], area: 'Lower Manhattan', price: '$$$', neighborhood: 'Financial District',  description: 'World\'s best bar (multiple awards) — impeccably researched 19th-century cocktails in a Victorian Irish pub.', reservationUrl: 'https://www.deadrabbitnyc.com', mapsUrl: 'https://maps.google.com/?q=The+Dead+Rabbit+New+York' },
   { id: 'fraunces_tavern', name: 'Fraunces Tavern',     cuisines: ['american','bar_tavern'], area: 'Lower Manhattan', price: '$$', neighborhood: 'Financial District', description: 'Where Washington bade farewell to his officers in 1783 — history in every brick, classic pub fare, beer.', reservationUrl: 'https://www.frauncestavern.com', mapsUrl: 'https://maps.google.com/?q=Fraunces+Tavern+New+York' },
-  { id: 'bareburger_fidi', name: 'Bareburger',          cuisines: ['burger'],     area: 'Lower Manhattan', price: '$$',  neighborhood: 'Financial District',  description: 'Organic, all-natural burgers with creative toppings — bison, elk, turkey, or beef on a pretzel bun.',       reservationUrl: 'https://www.bareburger.com', mapsUrl: 'https://maps.google.com/?q=Bareburger+Financial+District+New+York' },
+  { id: 'bareburger_fidi', name: 'Bareburger',          cuisines: ['burger'],     area: 'Lower Manhattan', price: '$$',  neighborhood: 'Financial District',  description: 'Organic, all-natural burgers with creative toppings — bison, elk, turkey, or beef on a pretzel bun.',       reservationUrl: null, walkIn: true, mapsUrl: 'https://maps.google.com/?q=Bareburger+Financial+District+New+York' },
   { id: 'delmonicos',      name: 'Delmonico\'s',        cuisines: ['steakhouse'], area: 'Lower Manhattan', price: '$$$$', neighborhood: 'Financial District', description: 'America\'s oldest restaurant (1837) — the birthplace of Delmonico steak, Eggs Benedict, and Baked Alaska.', reservationUrl: 'https://www.opentable.com/delmonicos', mapsUrl: 'https://maps.google.com/?q=Delmonico\'s+New+York' },
 
   // ── HARLEM ──
@@ -7248,7 +7368,7 @@ const RESTAURANT_DATA = [
   { id: 'insa_korean',     name: 'Insa',                cuisines: ['korean'],     area: 'Brooklyn', price: '$$$', neighborhood: 'Gowanus',           description: 'Korean BBQ and karaoke under one roof — premium galbi, wagyu short ribs, and private karaoke rooms.',        reservationUrl: 'https://www.insabrooklyn.com', mapsUrl: 'https://maps.google.com/?q=Insa+Korean+BBQ+Brooklyn' },
   { id: 'okonomi_bk',      name: 'Okonomi',             cuisines: ['japanese'],   area: 'Brooklyn', price: '$$',  neighborhood: 'Williamsburg',      description: 'Intimate all-day Japanese breakfast and lunch omakase — pristine simplicity using the finest seasonal ingredients.', reservationUrl: 'https://www.opentable.com/okonomi', mapsUrl: 'https://maps.google.com/?q=Okonomi+Williamsburg+Brooklyn' },
   { id: 'brooklyn_inn',    name: 'Brooklyn Inn',         cuisines: ['bar_tavern'], area: 'Brooklyn', price: '$',   neighborhood: 'Cobble Hill',       description: 'Historic 1800s bar with original mahogany furniture — quiet, literary, the perfect neighborhood pub.',         reservationUrl: null, mapsUrl: 'https://maps.google.com/?q=Brooklyn+Inn+Cobble+Hill' },
-  { id: 'shake_bk',        name: 'Shake Shack (Bklyn)',  cuisines: ['burger'],     area: 'Brooklyn', price: '$',   neighborhood: 'Brooklyn Bridge Park', description: 'The Brooklyn Bridge Park location — great burgers with an unbeatable view of Manhattan and the bridge.',    reservationUrl: 'https://www.shakeshack.com', mapsUrl: 'https://maps.google.com/?q=Shake+Shack+Brooklyn+Bridge+Park' },
+  { id: 'shake_bk',        name: 'Shake Shack (Bklyn)',  cuisines: ['burger'],     area: 'Brooklyn', price: '$',   neighborhood: 'Brooklyn Bridge Park', description: 'The Brooklyn Bridge Park location — great burgers with an unbeatable view of Manhattan and the bridge.',    reservationUrl: null, walkIn: true, mapsUrl: 'https://maps.google.com/?q=Shake+Shack+Brooklyn+Bridge+Park' },
 
   // ── BRONX ──
   { id: 'roberto_bronx',   name: 'Roberto Restaurant',  cuisines: ['italian'],    area: 'Bronx', price: '$$$',  neighborhood: 'Belmont (Bronx)',   description: 'Arthur Avenue\'s finest — authentic Calabrian Italian in the heart of the Bronx\'s Little Italy since 1983.', reservationUrl: 'https://www.opentable.com/roberto-restaurant-the-bronx', mapsUrl: 'https://maps.google.com/?q=Roberto+Restaurant+Bronx+New+York' },
@@ -7260,6 +7380,53 @@ const RESTAURANT_DATA = [
   { id: 'nan_xiang',       name: 'Nan Xiang Xiao Long Bao', cuisines: ['japanese'], area: 'Queens', price: '$', neighborhood: 'Flushing, Queens',  description: 'Flushing\'s most celebrated soup dumplings — paper-thin skin bursting with broth and pork.',               reservationUrl: null, mapsUrl: 'https://maps.google.com/?q=Nan+Xiang+Xiao+Long+Bao+Queens' },
   { id: 'de_mole',         name: 'De Mole',             cuisines: ['american'],   area: 'Queens', price: '$$',   neighborhood: 'Sunnyside, Queens', description: 'Beloved neighborhood Mexican-American spot — complex moles, chiles rellenos, margaritas worth the trip.',    reservationUrl: null, mapsUrl: 'https://maps.google.com/?q=De+Mole+Sunnyside+Queens' },
 ]
+
+// Approx [lat, lng] for the curated restaurants above. Used to rank meal
+// suggestions by walking distance from the stop you're coming from. Block-level
+// accuracy is plenty for ordering candidates within a neighborhood.
+const RESTAURANT_COORDS = {
+  sushi_yasuda: [40.7516, -73.9730], ootoya_midtown: [40.7546, -73.9863], marea: [40.7681, -73.9819],
+  the_modern: [40.7615, -73.9776], shake_shack_midtown: [40.7415, -73.9881], campbell: [40.7527, -73.9772],
+  benjamin_steak: [40.7518, -73.9785], jongno_midtown: [40.7472, -73.9862],
+  sushi_of_gari: [40.7714, -73.9526], caravaggio: [40.7726, -73.9655], jg_melon: [40.7706, -73.9580],
+  burnside_ues: [40.7765, -73.9520], mezzaluna: [40.7707, -73.9579], mono_mono: [40.7736, -73.9566],
+  carmines_uws: [40.7917, -73.9740], shake_shack_uws: [40.7806, -73.9758], amsterdam_ale: [40.7800, -73.9800],
+  kefi_uws: [40.7855, -73.9716], sushi_yasaka: [40.7785, -73.9820], juliana_uws: [40.7850, -73.9750],
+  carbone: [40.7281, -74.0003], lupa: [40.7284, -74.0008], momofuku_noodle: [40.7295, -73.9847],
+  corner_bistro: [40.7384, -74.0027], employees_only: [40.7339, -74.0065], spotted_pig: [40.7359, -74.0073],
+  artichoke_pizza: [40.7327, -73.9840], jeju_noodle: [40.7345, -74.0075],
+  nobu_downtown: [40.7110, -74.0095], adriennes_pizza: [40.7041, -74.0113], dead_rabbit: [40.7028, -74.0113],
+  fraunces_tavern: [40.7033, -74.0114], bareburger_fidi: [40.7045, -74.0070], delmonicos: [40.7045, -74.0110],
+  sylvias: [40.8081, -73.9447], raos: [40.7943, -73.9344], patsys_pizza: [40.7977, -73.9347],
+  ginnys: [40.8083, -73.9455], lonni_bar: [40.8089, -73.9482],
+  lucali: [40.6810, -74.0010], peter_luger: [40.7099, -73.9626], frankies_457: [40.6790, -73.9990],
+  insa_korean: [40.6790, -73.9860], okonomi_bk: [40.7140, -73.9490], brooklyn_inn: [40.6873, -73.9890],
+  shake_bk: [40.7029, -73.9933],
+  roberto_bronx: [40.8540, -73.8870], zero_otto_nove: [40.8546, -73.8880], yankee_tavern: [40.8275, -73.9270],
+  sik_gaek: [40.7458, -73.9060], nan_xiang: [40.7595, -73.8310], de_mole: [40.7430, -73.9230],
+}
+
+// Like getRestaurantSuggestion, but when given an `anchor` { lat, lng } (the stop
+// you're coming from) it ranks the candidate pool nearest-first, so "Show another"
+// walks outward from the closest spot. Restaurants without a known coord sort last.
+function getRestaurantSuggestionNear(area, cuisineId, offset = 0, anchor = null) {
+  let pool
+  if (cuisineId) {
+    pool = RESTAURANT_DATA.filter(r => r.cuisines && r.cuisines.includes(cuisineId) && r.area === area)
+    if (pool.length === 0) pool = RESTAURANT_DATA.filter(r => r.cuisines && r.cuisines.includes(cuisineId))
+  } else {
+    pool = RESTAURANT_DATA.filter(r => r.area === area)
+  }
+  if (pool.length === 0) return null
+  if (anchor && typeof anchor.lat === 'number') {
+    const dist = r => {
+      const c = RESTAURANT_COORDS[r.id]
+      return c ? distanceMiles(anchor, { lat: c[0], lng: c[1] }) : Infinity
+    }
+    pool = [...pool].sort((a, b) => dist(a) - dist(b))
+  }
+  return pool[offset % pool.length]
+}
 
 function getRestaurantSuggestion(area, cuisineId, offset = 0) {
   // With cuisine: filter by area + cuisine, falling back to anywhere if the area has none of that cuisine.
@@ -7460,8 +7627,10 @@ function SavedPlanSummary({ snapshot, onBack }) {
                           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-900)' }}>{item.r.name}</div>
                           <div style={{ fontSize: 12, color: 'var(--gray-500)' }}>{item.r.price} · {item.r.neighborhood}</div>
                         </div>
-                        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                          {item.r.reservationUrl && (
+                        <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
+                          {item.r.walkIn ? (
+                            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-500)' }}>Walk-in</span>
+                          ) : item.r.reservationUrl && (
                             <a href={item.r.reservationUrl} target="_blank" rel="noopener noreferrer"
                               style={{ fontSize: 11, fontWeight: 700, background: '#ea580c', color: '#fff', padding: '5px 8px', borderRadius: 7, textDecoration: 'none' }}>
                               Reserve →
@@ -7841,25 +8010,49 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
   }
 
   // Memoize restaurant picks per dayIdx (not per area) so each day can have its own cuisine + offset independently.
+  // The stop you're coming from before a meal: the latest Morning stop for lunch,
+  // the latest Afternoon/Evening stop for dinner. Used to recommend nearby spots.
+  const mealAnchor = (day, meal) => {
+    const withC = day.stops.map(s => ({ s, c: venueCoords[s.id] })).filter(x => x.c)
+    if (withC.length === 0) return null
+    const morning = withC.filter(x => x.s.period === 'Morning')
+    const later = withC.filter(x => x.s.period === 'Afternoon' || x.s.period === 'Evening')
+    const block = meal === 'lunch' ? (morning.length ? morning : withC) : (later.length ? later : withC)
+    block.sort((a, b) => (a.s.startHour ?? 0) - (b.s.startHour ?? 0))
+    return block[block.length - 1].c
+  }
+
   const lunchRestaurants = React.useMemo(() => {
     const map = {}
     days.forEach((day, di) => {
+      // Auto-fill the nearest good spot by default (cuisine optional). The
+      // smoothest flow: a complete plan with zero taps; the user can refine
+      // cuisine or "show another" if they care.
       const cuisine = mealCuisines[`${di}:lunch`] || null
       const off = restaurantOffsets[`lunch:${di}`] || 0
-      map[di] = getRestaurantSuggestion(day.area, cuisine, off)
+      map[di] = getRestaurantSuggestionNear(day.area, cuisine, off, mealAnchor(day, 'lunch'))
     })
     return map
-  }, [mealCuisines, restaurantOffsets])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mealCuisines, restaurantOffsets, days])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const dinnerRestaurants = React.useMemo(() => {
     const map = {}
     days.forEach((day, di) => {
       const cuisine = mealCuisines[`${di}:dinner`] || null
       const off = restaurantOffsets[`dinner:${di}`] || 0
-      map[di] = getRestaurantSuggestion(day.area, cuisine, off)
+      const anchor = mealAnchor(day, 'dinner')
+      let pick = getRestaurantSuggestionNear(day.area, cuisine, off, anchor)
+      // Don't suggest the same restaurant for lunch and dinner on the same day.
+      const lunchCuisine = mealCuisines[`${di}:lunch`] || null
+      const lunchPick = lunchCuisine ? getRestaurantSuggestionNear(day.area, lunchCuisine, restaurantOffsets[`lunch:${di}`] || 0, mealAnchor(day, 'lunch')) : null
+      if (pick && lunchPick && pick.name === lunchPick.name) {
+        const alt = getRestaurantSuggestionNear(day.area, cuisine, off + 1, anchor)
+        if (alt && alt.name !== lunchPick.name) pick = alt
+      }
+      map[di] = pick
     })
     return map
-  }, [mealCuisines, restaurantOffsets])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mealCuisines, restaurantOffsets, days])  // eslint-disable-line react-hooks/exhaustive-deps
 
 
 
@@ -8377,8 +8570,10 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
         </div>
 
         {/* Empty state — single, count-aware block (collapsed the old stacked
-            "No plans yet" + "Nothing saved yet" pair) + 3-step how-it-works row */}
-        {!_snap && (() => {
+            "No plans yet" + "Nothing saved yet" pair) + 3-step how-it-works row.
+            Hidden once the working plan already has days — the live itinerary
+            below makes the how-it-works explainer redundant. */}
+        {!_snap && days.length === 0 && (() => {
           // Hearts + imported/custom places, without double-counting user_venue
           // entries that live in both savedItems and userVenues.
           const totalSaved =
@@ -8691,7 +8886,7 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
             background: todayMode ? 'var(--gray-100)' : 'var(--gray-900)',
             color: todayMode ? 'var(--gray-500)' : '#fff',
           }}>
-            🗓 Plan view
+            🗓 Full plan
           </button>
           <button onClick={() => setTodayMode(true)} style={{
             flex: 1, padding: '8px 0', borderRadius: 10, border: 'none', cursor: 'pointer',
@@ -8699,7 +8894,7 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
             background: todayMode ? 'var(--gray-900)' : 'var(--gray-100)',
             color: todayMode ? '#fff' : 'var(--gray-500)',
           }}>
-            ✅ Today
+            ✅ Checklist
           </button>
         </div>
       )}
@@ -8905,78 +9100,7 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
               {summaryBits.join(' · ')}
             </div>
 
-            {/* Day map preview — numbered pins with venue labels. Hidden when day is collapsed. */}
-            {!isCollapsed && (() => {
-              const coords = dayStops.map(s => ({ ...s, c: venueCoords[s.id] })).filter(s => s.c)
-              if (coords.length < 1) return null
-              // Abbreviate venue names for label use (drops "The" prefix, caps length).
-              const shortName = (n) => {
-                let s = (n || '').replace(/^The\s+/i, '').trim()
-                if (s.length > 18) s = s.slice(0, 17).trim() + '…'
-                return s
-              }
-              const lats = coords.map(s => s.c.lat)
-              const lngs = coords.map(s => s.c.lng)
-              const minLat = Math.min(...lats), maxLat = Math.max(...lats)
-              const minLng = Math.min(...lngs), maxLng = Math.max(...lngs)
-              const padLat = Math.max((maxLat - minLat) * 0.22, 0.006)
-              const padLng = Math.max((maxLng - minLng) * 0.22, 0.006)
-              // Wider canvas so labels have room.
-              const W = 360, H = coords.length === 1 ? 80 : 140
-              const project = (c) => {
-                const x = padLng === 0 ? W / 2 : ((c.lng - (minLng - padLng)) / ((maxLng + padLng) - (minLng - padLng))) * W
-                const y = padLat === 0 ? H / 2 : H - ((c.lat - (minLat - padLat)) / ((maxLat + padLat) - (minLat - padLat))) * H
-                return { x, y }
-              }
-              const pts = coords.map(s => ({ ...project(s.c), name: shortName(s.name) }))
-              const polyline = pts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
-              return (
-                <div style={{ marginBottom: 14, borderRadius: 12, overflow: 'hidden', background: '#f5f6f4', border: '1px solid var(--gray-200)' }}>
-                  <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="xMidYMid meet" style={{ width: '100%', height: 'auto', display: 'block' }}>
-                    {/* Route polyline */}
-                    {pts.length > 1 && (
-                      <polyline points={polyline} fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="4,5" />
-                    )}
-                    {/* Numbered pins with venue labels — label placed left or right depending on pin position */}
-                    {pts.map((p, i) => {
-                      const labelLeft = p.x > W * 0.55  // right-half pins get left-side labels
-                      const labelX = labelLeft ? p.x - 16 : p.x + 16
-                      const anchor = labelLeft ? 'end' : 'start'
-                      return (
-                        <g key={i}>
-                          {/* Label background pill so text stays readable over the polyline */}
-                          <text x={labelX} y={p.y + 4} textAnchor={anchor}
-                            fill="#fff" stroke="#fff" strokeWidth="3.5"
-                            fontSize="11" fontWeight="700" fontFamily="-apple-system, BlinkMacSystemFont, sans-serif"
-                            paintOrder="stroke" style={{ pointerEvents: 'none' }}>
-                            {p.name}
-                          </text>
-                          <text x={labelX} y={p.y + 4} textAnchor={anchor}
-                            fill="#374151"
-                            fontSize="11" fontWeight="700" fontFamily="-apple-system, BlinkMacSystemFont, sans-serif"
-                            style={{ pointerEvents: 'none' }}>
-                            {p.name}
-                          </text>
-                          {/* Pin */}
-                          <circle cx={p.x} cy={p.y} r="11" fill="#111" stroke="#fff" strokeWidth="2.5" />
-                          <text x={p.x} y={p.y + 3.5} textAnchor="middle" fill="#fff" fontSize="11" fontWeight="800" fontFamily="-apple-system, BlinkMacSystemFont, sans-serif">
-                            {i + 1}
-                          </text>
-                        </g>
-                      )
-                    })}
-                  </svg>
-                  {/* Small caption so first-time users know what they're looking at */}
-                  <div style={{
-                    padding: '6px 12px 8px', fontSize: 10, color: 'var(--gray-400)',
-                    borderTop: '1px solid var(--gray-200)', background: 'var(--white)',
-                    letterSpacing: '0.03em', textTransform: 'uppercase', fontWeight: 600,
-                  }}>
-                    Relative position of stops · not to scale
-                  </div>
-                </div>
-              )
-            })()}
+            {/* Day map preview removed — the Map tab already covers geography, and this mini-map desynced on reorder. */}
 
             {/* Stops + restaurant cards — hidden when day is collapsed */}
             {!isCollapsed && (() => {
@@ -9029,6 +9153,26 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
                          : stopMap[id]         ? { type: 'stop', stop: stopMap[id] }
                          : null)
                 .filter(Boolean)
+              // Sequenced clock — each stop's displayed start time accumulates the
+              // prior stops' durations, inter-stop travel time, and meal breaks, so
+              // two stops in the same period no longer both read "10:00am".
+              const stopClock = {}
+              {
+                const firstStop = reorderedItems.find(it => it.type === 'stop')?.stop
+                let clock = firstStop ? firstStop.startHour : 10
+                let prevId = null
+                reorderedItems.forEach(it => {
+                  if (it.type === 'restaurant') { clock += 1.25; return }
+                  const s = it.stop
+                  if (prevId) {
+                    const t = estimateTravel(prevId, s.id)
+                    clock += (t?.mins ?? 12) / 60
+                  }
+                  stopClock[s.id] = clock
+                  clock += (typeof s.duration === 'number' ? s.duration : 1)
+                  prevId = s.id
+                })
+              }
               const allStopIds = days.flatMap(d => d.stops.map(s => s.id))
               return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
@@ -9150,7 +9294,7 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
                         </div>
                       )}
 
-                      {/* Restaurant card — always shown (defaults to area's best when no cuisine selected) */}
+                      {/* Restaurant card — auto-filled with the nearest good spot; cuisine optional */}
                       {restaurant && (
                         <div style={{
                           background: 'var(--gray-50)', border: '1px solid var(--gray-200)',
@@ -9166,7 +9310,12 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
                             {restaurant.description}
                           </div>
                           <div style={{ display: 'flex', gap: 8 }}>
-                            {restaurant.reservationUrl ? (
+                            {restaurant.walkIn ? (
+                              <span style={{ flex: 1, background: 'var(--gray-100)', color: 'var(--gray-600)',
+                                textAlign: 'center', fontSize: 13, fontWeight: 600, padding: '9px 8px', borderRadius: 9 }}>
+                                🚶 Walk-in · no reservation
+                              </span>
+                            ) : restaurant.reservationUrl ? (
                               <a href={restaurant.reservationUrl} target="_blank" rel="noopener noreferrer"
                                 style={{ flex: 1, background: '#15803d', color: '#fff', textAlign: 'center',
                                   fontSize: 13, fontWeight: 700, padding: '9px 8px', borderRadius: 9, textDecoration: 'none' }}>
@@ -9275,7 +9424,7 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
                         background: pc.dot, display: 'inline-block', flexShrink: 0,
                       }} />
                       <span style={{ fontSize: 11, fontWeight: 700, color: pc.text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                        {stop.period} · {fmtHour(stop.startHour)}
+                        {stop.period} · {fmtHour(stopClock[stop.id] ?? stop.startHour)}
                       </span>
                       <span style={{ marginLeft: 'auto', fontSize: 11, color: pc.text, opacity: 0.7 }}>
                         ~{stop.duration < 1 ? `${Math.round(stop.duration * 60)} min` : stop.duration % 1 === 0 ? `${stop.duration} hrs` : `${stop.duration.toFixed(1)} hrs`}
@@ -11996,6 +12145,45 @@ function SharedTripView({ trip, onAdopt, onDismiss }) {
   )
 }
 
+// ── Plan my night — lightweight when/where chooser for the one-tap happy path ──
+function PlanNightSheet({ onClose, onBuild }) {
+  const [when, setWhen] = React.useState('tonight')
+  const [area, setArea] = React.useState('surprise')
+  const whenOpts = [['tonight', 'Tonight'], ['weekend', 'This weekend']]
+  const areaOpts = [['surprise', '🎲 Surprise me'], ['midtown', 'Midtown'], ['downtown', 'Downtown'], ['uptown', 'Uptown'], ['brooklyn', 'Brooklyn']]
+  const chip = active => ({
+    padding: '9px 14px', borderRadius: 999, border: 'none', cursor: 'pointer',
+    fontSize: 14, fontWeight: 700,
+    background: active ? 'var(--accent)' : 'var(--gray-100)',
+    color: active ? '#fff' : 'var(--gray-700)',
+  })
+  const label = { fontSize: 12, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(29,39,51,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: 'var(--white)', borderRadius: '20px 20px 0 0', padding: '18px 20px calc(20px + env(safe-area-inset-bottom, 0px))' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div style={{ fontSize: 19, fontWeight: 800, color: 'var(--ink)' }}>Plan my night</div>
+          <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--gray-400)', cursor: 'pointer' }}>✕</button>
+        </div>
+        <div style={label}>When</div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+          {whenOpts.map(([k, l]) => <button key={k} onClick={() => setWhen(k)} style={chip(when === k)}>{l}</button>)}
+        </div>
+        <div style={label}>Where</div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 22 }}>
+          {areaOpts.map(([k, l]) => <button key={k} onClick={() => setArea(k)} style={chip(area === k)}>{l}</button>)}
+        </div>
+        <button onClick={() => onBuild({ when, areaKey: area })} style={{
+          width: '100%', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 14,
+          padding: '15px', fontSize: 16, fontWeight: 800, cursor: 'pointer', boxShadow: '0 6px 16px rgba(61,155,255,.35)',
+        }}>
+          Build my plan →
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   // ── Shared-trip view state ──────────────────────────────────────────────
   // If the URL is /#/t/<encoded>, we render a read-only preview so a
@@ -12130,6 +12318,42 @@ export default function App() {
   const [addPlaceOpen, setAddPlaceOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [importOpen, setImportOpen]     = useState(false)
+  const [planNightOpen, setPlanNightOpen] = useState(false)
+
+  // One-tap "Plan my night": seed a few editorial attractions for the chosen
+  // area, set the trip length/date, and drop the user straight into My Trip with
+  // a routed draft (meals auto-fill near the stops). The happy path, ~2 taps.
+  function planNight({ when = 'tonight', areaKey = 'surprise' } = {}) {
+    const inArea = {
+      midtown:  a => a && ['mw', 'me'].includes(a.areaId),
+      downtown: a => a && a.borough === 'manhattan' && ['wv', 'ev', 'lower', 'chelsea', 'gramercy'].includes(a.areaId),
+      uptown:   a => a && ['uws', 'ues', 'uptown'].includes(a.areaId),
+      brooklyn: a => a && a.borough === 'brooklyn',
+      surprise: () => true,
+    }[areaKey] || (() => true)
+    let ids = Object.keys(venues).filter(id => {
+      const v = venues[id]
+      return v && !v.isRestaurant && v.neighborhood && inArea(neighborhoodToArea(v.neighborhood))
+    })
+    // Prefer venues with coordinates so routing + meal anchoring work well.
+    ids.sort((x, y) => (venueCoords[y] ? 1 : 0) - (venueCoords[x] ? 1 : 0))
+    ids = ids.slice(0, 3)
+    if (ids.length < 2) ids = ['moma', 'met', 'village_vanguard', 'guggenheim'].filter(id => venues[id]).slice(0, 3)
+
+    const alreadySaved = new Set(Object.values(savedItems || {}).filter(i => i?.type === 'venue').map(i => i.id))
+    ids.forEach(id => { if (!alreadySaved.has(id)) toggleSave('venue', id) })
+
+    const days = when === 'weekend' ? 2 : 1
+    const d = new Date()
+    if (when === 'weekend') d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7)) // upcoming Saturday (today if Sat)
+    try {
+      localStorage.setItem('nyc_trip_days', JSON.stringify(days))
+      localStorage.setItem('nyc_trip_start_date', d.toISOString().slice(0, 10))
+    } catch {}
+
+    setPlanNightOpen(false)
+    setActiveTab('saved')
+  }
 
   const [venueNotes, setVenueNotesRaw] = useState(() => {
     try { return JSON.parse(localStorage.getItem('nyc_venue_notes') || '{}') } catch { return {} }
@@ -12242,18 +12466,18 @@ export default function App() {
 
   function renderExploreScreen() {
     switch (current.screen) {
-      case 'home':      return <HomeScreen push={push} savedItems={savedItems} toggleSave={toggleSave} onSeeAllTonight={() => setActiveTab('tonight')} onOpenSettings={() => setSettingsOpen(true)} userVenues={userVenues} />
+      case 'home':      return <HomeScreen push={push} savedItems={savedItems} toggleSave={toggleSave} onSeeAllTonight={() => setActiveTab('tonight')} onOpenSettings={() => setSettingsOpen(true)} onPlanNight={() => setPlanNightOpen(true)} userVenues={userVenues} />
       case 'domain':    return <DomainScreen domainId={current.domainId} push={push} savedItems={savedItems} />
       case 'topic':     return <TopicScreen topicId={current.topicId} push={push} savedItems={savedItems} />
       case 'venue':     return <VenueScreen venueId={current.venueId} fromTopicId={current.fromTopicId} fromDomainId={current.fromDomainId} push={push} savedItems={savedItems} toggleSave={toggleSave} onViewMap={venueCoords[current.venueId] ? () => { resetExplore(); setMapHighlight(current.venueId); setActiveTab('map') } : null} />
       case 'figure':    return <FigureScreen figureId={current.figureId} push={push} savedItems={savedItems} toggleSave={toggleSave} />
       case 'work':      return <WorkScreen workId={current.workId} push={push} savedItems={savedItems} toggleSave={toggleSave} />
       case 'venueGroup':return <VenueGroupScreen domainId={current.domainId} groupIndex={current.groupIndex} push={push} savedItems={savedItems} />
-      case 'neighborhood': return <NeighborhoodScreen neighborhoodKey={current.neighborhoodKey} subAreaName={current.subAreaName} push={push} savedItems={savedItems} />
+      case 'neighborhood': return <NeighborhoodScreen neighborhoodKey={current.neighborhoodKey} subAreaName={current.subAreaName} push={push} savedItems={savedItems} userVenues={userVenues} />
       case 'sight':     return <SightScreen sightId={current.sightId} push={push} savedItems={savedItems} toggleSave={toggleSave} />
       case 'mood':      return <MoodFlowScreen moodId={current.moodId} push={push} savedItems={savedItems} toggleSave={toggleSave} userVenues={userVenues} onAddPlace={() => setAddPlaceOpen(true)} />
       case 'eat':       return <EatScreen push={push} savedItems={savedItems} />
-      default:          return <HomeScreen push={push} savedItems={savedItems} toggleSave={toggleSave} onSeeAllTonight={() => setActiveTab('tonight')} onOpenSettings={() => setSettingsOpen(true)} userVenues={userVenues} />
+      default:          return <HomeScreen push={push} savedItems={savedItems} toggleSave={toggleSave} onSeeAllTonight={() => setActiveTab('tonight')} onOpenSettings={() => setSettingsOpen(true)} onPlanNight={() => setPlanNightOpen(true)} userVenues={userVenues} />
     }
   }
 
@@ -12355,6 +12579,9 @@ export default function App() {
           onAdd={(data) => addUserVenue(data)}
           onRemove={(id) => removeUserVenue(id)}
         />
+      )}
+      {planNightOpen && (
+        <PlanNightSheet onClose={() => setPlanNightOpen(false)} onBuild={planNight} />
       )}
       {/* Google Takeout / paste-list bulk import */}
       {importOpen && (
