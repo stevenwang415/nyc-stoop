@@ -205,10 +205,13 @@ export async function getGooglePlaceDetails(placeId) {
  * via a per-call AutocompleteSessionToken (kept separate from the search UI's
  * module-level token so the two don't interfere).
  */
-export async function getPlacePhotoByName(name, { maxWidth = 480 } = {}) {
+export async function getPlacePhotoByName(name, { maxWidth = 480, hint = '' } = {}) {
   if (!isGooglePlacesAvailable()) return null
   const q = (name || '').trim()
   if (q.length < 2) return null
+  // A name alone ("Gospel", "Smith") often matches the wrong place; appending the
+  // address/neighborhood disambiguates so we fetch the correct venue's photo.
+  const input = hint ? `${q} ${String(hint).trim()}` : q
   await loadGoogleMapsScript()
   const places = await window.google.maps.importLibrary('places')
   const { AutocompleteSuggestion, Place, AutocompleteSessionToken } = places
@@ -219,7 +222,7 @@ export async function getPlacePhotoByName(name, { maxWidth = 480 } = {}) {
   let placeId = null
   try {
     const resp = await AutocompleteSuggestion.fetchAutocompleteSuggestions({
-      input: q,
+      input,
       sessionToken: token,
       locationBias: NYC_BIAS,
       region: 'us',

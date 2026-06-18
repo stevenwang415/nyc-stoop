@@ -18,8 +18,22 @@ const SEGMENT_META = {
   Film:             { emoji: '🎬', label: 'Film',     color: '#7e93c4' },
   Miscellaneous:    { emoji: '🎟️', label: 'Event',    color: '#7e93c4' },
 }
-// Venue cities we treat as in-coverage (Manhattan venues list as "New York").
-const TM_CITY_OK = /^(new york|manhattan|brooklyn|new york city)$/i
+// In-coverage venue cities — all five boroughs (TM lists Manhattan venues as
+// "New York", and Queens venues under their neighborhood city names).
+const TM_CITY_OK = /^(new york|manhattan|brooklyn|bronx|queens|staten island|new york city|long island city|astoria|flushing|forest hills|corona|jamaica|elmhurst|sunnyside|ridgewood|college point)$/i
+const boroughOf = (c) =>
+  /brooklyn/i.test(c) ? 'Brooklyn'
+  : /bronx/i.test(c) ? 'The Bronx'
+  : /staten island/i.test(c) ? 'Staten Island'
+  : /queens|long island city|astoria|flushing|forest hills|corona|jamaica|elmhurst|sunnyside|ridgewood|college point/i.test(c) ? 'Queens'
+  : 'Manhattan'
+
+// Concerts + sports only (across all five boroughs). Theatre stays excluded:
+// Broadway is covered by our curated list with official box-office links, and
+// Ticketmaster's theatre tagging is too inconsistent to keep Broadway out
+// reliably (many musicals carry an undefined genre and slip past a genre filter).
+const TM_SEGMENTS_OK = new Set(['Music', 'Sports'])
+const TM_NOISE = /\b(tour|admission|sightseeing|hop[- ]?on|self[- ]?guided|cruise|observation deck)\b/i
 
 export function isTicketmasterAvailable() {
   return !!import.meta.env.VITE_TICKETMASTER_API_KEY
@@ -47,6 +61,7 @@ function priceText(ranges) {
 export function normalizeTicketmaster(json) {
   const rows = json?._embedded?.events || []
   const out = []
+  const seen = new Set()   // collapse Ticketmaster's duplicate listings (presale/general/etc.)
   for (const ev of rows) {
     const venue = ev?._embedded?.venues?.[0]
     const city = venue?.city?.name || ''
@@ -55,7 +70,17 @@ export function normalizeTicketmaster(json) {
       || (ev?.dates?.start?.localDate ? `${ev.dates.start.localDate}T${ev.dates.start.localTime || '00:00:00'}` : null)
     const date = startISO ? new Date(startISO) : null
     if (!date || isNaN(date.getTime())) continue
-    const seg = ev?.classifications?.[0]?.segment?.name || 'Miscellaneous'
+    const cls = ev?.classifications?.[0] || {}
+    const seg = cls.segment?.name || 'Miscellaneous'
+    if (!TM_SEGMENTS_OK.has(seg)) continue                      // concerts + sports only (see note above)
+    // Drop venue/stadium tours + admissions — but NOT for Music, where a "Tour"
+    // is the name of a concert tour, not a building walk-through.
+    if (seg !== 'Music' && TM_NOISE.test(ev.name || '')) continue
+    // De-dupe: same title + venue + day = one event (keeps genuine multi-night runs,
+    // which differ by date). Ticketmaster often lists the same show several times.
+    const dupKey = `${(ev.name || '').trim().toLowerCase()}|${(venue?.name || '').toLowerCase()}|${date.toDateString()}`
+    if (seen.has(dupKey)) continue
+    seen.add(dupKey)
     const meta = SEGMENT_META[seg] || SEGMENT_META.Miscellaneous
     out.push({
       id: 'tm_' + ev.id,
@@ -63,7 +88,7 @@ export function normalizeTicketmaster(json) {
       kind: seg, emoji: meta.emoji, kindLabel: meta.label, color: meta.color,
       title: ev.name,
       date,
-      borough: /brooklyn/i.test(city) ? 'Brooklyn' : 'Manhattan',
+      borough: boroughOf(city),
       location: venue?.name || '',
       locationFull: [venue?.name, venue?.address?.line1].filter(Boolean).join(', '),
       image: bestImage(ev.images),

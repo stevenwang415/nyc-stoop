@@ -18,19 +18,20 @@ export const venueImages = {
   met:              wm('Metropolitan Museum of Art (The Met) - Central Park, NYC.jpg'),
   moma:             wm('MoMa NY USA 1.jpg'),
   guggenheim:       wm('NYC - Guggenheim Museum.jpg'),
-  whitney:          wm('Whitney Museum of American Art - Gansevoort Street entrance.jpg'),
+  whitney:          wm('Whitney Museum of American Art August 2024.jpg'),
   brooklyn:         wm('Brooklyn Museum - Eastern Parkway entrance.jpg'),
   tenement_museum:  wm('Lower East Side Tenement Museum.jpg'),
 
   // ── Jazz ──
-  village_vanguard: wm('Village Vanguard.jpg'),
+  village_vanguard: wm('Vanguard 01.jpg'),
   blue_note:        wm('Blue Note Jazz Club.jpg'),
   birdland:         wm('Birdland Jazz Club NYC.jpg'),
+  smalls:           wm('Max-leven-performance-smalls-jazz-club-greenwich-village-nyc-july-2025.jpg'),
 
   // ── Concert halls / opera ──
   carnegie_hall:    wm('Carnegie Hall - Full (48155558466).jpg'),
   met_opera_house:  wm('Metropolitan Opera House At Lincoln Center.jpg'),
-  david_geffen_hall:wm('David Geffen Hall (48047495362).jpg'),
+  david_geffen_hall:wm('David Geffen Hall (48047408511).jpg'),
 
   // ── Sports ──
   yankee_stadium:   wm('Yankee Stadium overhead 2010.jpg'),
@@ -45,7 +46,7 @@ export const venueImages = {
   stonewall_inn:    wm('Stonewall Inn 5 pride weekend 2016.jpg'),
 
   // ── Theaters / Harlem ──
-  apollo_theater_hh:wm('Apollo Theater, Harlem (2012).jpg'),
+  apollo_theater_hh:wm('Apollo Theater, Harlem (November 2006).jpg'),
   public_theater:   wm('Public Theater (48064377872).jpg'),
 
   // ── Architecture / skyscrapers ──
@@ -83,6 +84,25 @@ export const venueImages = {
 
   // ── Food / markets ──
   katzs:                  wm('KatzGentrificationLES.JPG'),
+
+  // ── Broadway theaters (verified Commons filenames) ──
+  shubert_theatre:        wm('Shubert Theatre Mar 2025 03.jpg'),
+  st_james_theatre:       wm('St. James Theatre, Illinoise, 6-29-2024.jpg'),
+  richard_rodgers_theatre:wm('Rodgers Theater - Hamilton (48193460677).jpg'),
+  imperial_theatre:       wm('Nice Work If You Can Get It at the Imperial Theatre.jpg'),
+  gershwin_theatre:       wm('Gershwin Theatre - Wicked (54077363135).jpg'),
+  winter_garden_theatre:  wm('Winter Garden Theatre, Broadway, New York City, 20231004 185525.jpg'),
+  eugene_oneill_theatre:  wm("Eugene O'Neill Theatre - Book of Mormon (48295951286).jpg"),
+  majestic_theatre:       wm('Majestic Theatre NYC 2007.jpg'),
+  delacorte_theater:      wm('Shakespeare in the Park July 2021.jpg'),
+
+  // ── More venues (verified Commons filenames) ──
+  barclays_center:        wm('Barclays Center, Brooklyn New York, 2023.jpg'),
+  cooper_hewitt:          wm('Cooper hewitt smithsonian design museum (16358298836).jpg'),
+  schomburg_center:       wm('Schomburg Center for Research in Black Culture 135 St 2023 jeh.jpg'),
+  hamilton_grange:        wm('Hamilton Grange late 2010 morn jeh.jpg'),
+  lever_house:            wm('Lever House 390 Park Avenue.jpg'),
+  ny_aquarium:            wm('Coney Island behind NY Aquarium Sep 2019 11.jpg'),
 }
 
 export default venueImages

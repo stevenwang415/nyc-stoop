@@ -28,9 +28,14 @@ const PERMIT_KEEP = new Set([
   'Special Event', 'Plaza Partner Event', 'Plaza Event', 'Single Block Festival',
   'Health Fair', 'Religious Event', 'Athletic Race / Tour',
 ])
-// Drop rows whose NAME is clearly operational (maintenance, closures, logistics)
-// even if the type passed the whitelist (lots of "Special Event" lawn closures).
-const PERMIT_NOISE = /maintenance|closed|close to|bus operation|transportation operation|load[\s-]?in|load[\s-]?out|set[\s-]?up|break ?down|clean ?up|rehearsal|staging|lane closure|no event|sanitation|miscellaneous|hold for|^tbd|placeholder|test event/i
+// Drop rows whose NAME is clearly operational (maintenance, closures, logistics,
+// film/production permits) even if the type passed the whitelist — lots of
+// "Special Event" rows are really lawn closures, permits, or internal records.
+const PERMIT_NOISE = /maintenance|closed|closure|close to|bus operation|transportation operation|load[\s-]?in|load[\s-]?out|set[\s-]?up|break ?down|clean ?up|rehearsal|staging|lane closure|no event|sanitation|miscellaneous|hold for|^tbd|placeholder|test event|permit|\bripa\b|parks event|tree (work|removal)|\bfilm\b|production|photo ?shoot|repair|construction|inspection/i
+
+// Internal permit codes masquerading as event names ("FWC2026", "AB12"): a short
+// letters-then-digits token with no real words. Dropped — they mean nothing to a user.
+const PERMIT_CODE_NAME = /^[a-z]{2,6}\d{2,4}[a-z]?$/i
 
 const KIND_META = {
   'Farmers Market':        { emoji: '🌽', label: 'Farmers market', color: '#6fae8e' },
@@ -61,7 +66,7 @@ export function normalizePermitted(rows) {
     const type = (r.event_type || '').trim()
     const name = (r.event_name || '').trim()
     if (!PERMIT_KEEP.has(type)) continue
-    if (!name || PERMIT_NOISE.test(name)) continue
+    if (!name || PERMIT_NOISE.test(name) || PERMIT_CODE_NAME.test(name)) continue
     const boro = (r.event_borough || '').trim()
     if (!COVERED_BOROUGH.test(boro)) continue          // Manhattan + Brooklyn only
     const start = r.start_date_time ? new Date(r.start_date_time) : null
@@ -72,6 +77,10 @@ export function normalizePermitted(rows) {
     seen.add(key)
     const meta = KIND_META[type] || { emoji: '📍', label: 'Event', color: '#8aa4c0' }
     const loc = (r.event_location || '').trim()
+    // Street-closure permits dump every affected block into event_location
+    // ("MADISON AVE between E 51 and E 50, E 50 between …"). Keep only the first
+    // segment so the card reads as one place, not a block-by-block list.
+    const locShort = loc.split(/[:,]/)[0].trim() || loc
     out.push({
       id: 'permit_' + r.event_id,
       source: 'permitted',
@@ -79,7 +88,7 @@ export function normalizePermitted(rows) {
       title: name,
       date: start,
       borough: boro,
-      location: loc.split(':')[0].trim() || loc,   // "Central Park: Cop Cot" → "Central Park"
+      location: locShort,           // "Central Park: Cop Cot" / "Madison Ave, …" → first segment
       locationFull: loc,
     })
   }

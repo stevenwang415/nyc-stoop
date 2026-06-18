@@ -19,6 +19,7 @@ import { AuthModal, ResetPasswordScreen } from './auth/components.jsx'
 // that aren't in our curated catalog. Falls back gracefully if the key is unset.
 import { isGooglePlacesAvailable, searchGooglePlaces, getGooglePlaceDetails, getPlacePhotoByName } from './lib/googlePlaces'
 import { fetchThisWeek, eventMapsUrl, eventSearchUrl } from './lib/nycEvents'
+import { fetchTicketmaster } from './lib/ticketmaster'
 import { parseTakeoutFile } from './lib/googleTakeout'
 import { extractShareHash, decodeTrip, buildShareUrl } from './lib/tripShare'
 // Module-level lookup tables. Moved out of this file for cleanliness — see
@@ -33,6 +34,30 @@ import { seedUserPlaces } from './data/places.js'
 // (venueColors + venueCoords previously lived inline here — ~210 lines of
 // hardcoded data. Moved to ./data/venueMeta.js so this file stays focused on
 // app logic. Add new entries there, then re-import here as needed.)
+// Clip text to `max` chars on a WORD boundary (never mid-word) with an ellipsis.
+function clipWords(str, max) {
+  const s = (str || '').trim()
+  if (s.length <= max) return s
+  return s.slice(0, max).replace(/\s+\S*$/, '').trimEnd() + '…'
+}
+
+// First sentence of a blurb/tip, but skip terminators inside common abbreviations
+// ("Los Tacos No. 1" must not become "Los Tacos No.") and require a sensible
+// minimum length so a tiny lead-in pulls in the rest. Word-boundary clipped.
+const _SENTENCE_ABBR = /(?:^|\s)(?:no|st|ave|rd|blvd|dr|mr|mrs|ms|vs|jr|sr|mt|ft|approx|etc|e\.g|i\.e)\.$/i
+function firstSentence(text, max = 140) {
+  const t = (text || '').trim()
+  if (!t) return ''
+  const re = /[.!?](?:["'])?(?=\s|$)/g
+  let m, first = ''
+  while ((m = re.exec(t)) !== null) {
+    const cand = t.slice(0, m.index + 1).trim()
+    if (cand.length >= 30 && !_SENTENCE_ABBR.test(cand)) { first = cand; break }
+  }
+  if (!first) first = t.split(/\n/)[0]
+  return first.length > max ? clipWords(first, max) : first
+}
+
 // ── User-place categories — for user-added venues (kept separate from editorial domains) ──
 const USER_PLACE_CATEGORIES = [
   { id: 'food',      label: 'Food',           emoji: '🍴' },
@@ -1266,7 +1291,7 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
             update so users only see each refresh once. */}
         {whatsNewVisible && (
           <div style={{
-            background: 'rgba(61,155,255,0.12)',
+            background: 'rgba(224,85,44,0.12)',
             color: 'var(--ink)',
             padding: '8px 14px 8px 16px',
             display: 'flex', alignItems: 'center', gap: 10,
@@ -1429,7 +1454,7 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                     width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                     background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 16,
                     padding: '15px 18px', fontSize: 16, fontWeight: 800, cursor: 'pointer',
-                    boxShadow: '0 8px 20px rgba(61,155,255,.35)',
+                    boxShadow: '0 8px 20px rgba(224,85,44,.35)',
                   }}>
                     <span aria-hidden="true">✨</span> Plan my night
                   </button>
@@ -1461,7 +1486,40 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                     padding: '0 20px 4px',
                     WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none',
                   }} className="hide-scrollbar">
-                    {/* "Where to eat" card removed — Eat has its own bottom-nav tab. */}
+                    {/* "Where to eat" card — Eat no longer has its own nav tab, so it
+                        lives here as the first card and routes to the restaurant browser. */}
+                    <button
+                      key="eat"
+                      onClick={() => push({ screen: 'eat' })}
+                      style={{
+                        flexShrink: 0, width: 132,
+                        background: 'var(--white)', color: 'var(--ink)',
+                        border: 'none', borderRadius: 22,
+                        padding: 0,
+                        cursor: 'pointer', textAlign: 'left',
+                        display: 'flex', flexDirection: 'column',
+                        fontFamily: 'inherit', overflow: 'hidden',
+                        boxShadow: '0 6px 18px rgba(29,39,51,0.08)',
+                      }}
+                    >
+                      <span style={{
+                        height: 88, width: '100%',
+                        background: 'linear-gradient(135deg, #E0552C, #F0997B)',
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 32,
+                      }}>🍽️</span>
+                      <span style={{ padding: '10px 12px 12px', display: 'block' }}>
+                        <span style={{
+                          display: 'block', fontSize: 13, fontWeight: 800, lineHeight: 1.25, letterSpacing: '-0.01em',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}>
+                          Where to eat
+                        </span>
+                        <span style={{ display: 'block', fontSize: 10.5, color: 'var(--ink-2)', marginTop: 3, lineHeight: 1.35 }}>
+                          Restaurants &amp; bars
+                        </span>
+                      </span>
+                    </button>
                     {moods.map(m => (
                       <button
                         key={m.id}
@@ -1913,9 +1971,7 @@ function TopicScreen({ topicId, push, savedItems = {} }) {
                   const venue = venues[work.venueId]
                   const colors = venueColors[work.venueId] || { bg: '#9d174d', text: '#ffffff' }
                   const isSaved = !!savedItems[`work:${work.id}`]
-                  const preview = work.description?.length > 180
-                    ? work.description.slice(0, 180).trimEnd() + '…'
-                    : (work.description || '')
+                  const preview = clipWords(work.description || '', 180)
                   return (
                     <button
                       key={work.id}
@@ -2080,6 +2136,7 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
   const isHistory      = domainId === 'history'
 
   const [justAdded, setJustAdded] = React.useState(false)
+  const [storyOpen, setStoryOpen] = React.useState(false)
 
   // Works at this venue
   const worksHere = getWorksAtVenue(venueId)
@@ -2260,6 +2317,27 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
         </div>
       )}
 
+      {/* ── Primary CTA, surfaced high so adding to the trip never requires
+             scrolling past the full editorial. (The lower CTA group keeps the
+             secondary actions: tickets, directions, official site.) ── */}
+      <div style={{ padding: '14px 20px 0' }}>
+        {(() => {
+          const isSaved = !!savedItems[`venue:${venueId}`]
+          return (
+            <button
+              className="venue-btn"
+              onClick={() => {
+                toggleSave('venue', venueId)
+                if (!isSaved) { setJustAdded(true); setTimeout(() => setJustAdded(false), 2000) }
+              }}
+              style={isSaved ? { background: 'var(--ink)', boxShadow: 'none', opacity: 0.85 } : {}}
+            >
+              {isSaved ? '✓ Saved to My Trip' : justAdded ? '✓ Added to My Trip!' : '+ Add to My Trip'}
+            </button>
+          )
+        })()}
+      </div>
+
       {/* ── Editorial callout — only when arriving from a Tonight pick. Carries the curation voice through. ── */}
       {editorialCallout && (
         <div style={{
@@ -2307,7 +2385,7 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
                   background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 700,
                   padding: '9px 18px', borderRadius: 999, textDecoration: 'none',
                   flexShrink: 0, display: 'inline-block',
-                  boxShadow: '0 6px 16px rgba(61,155,255,.35)',
+                  boxShadow: '0 6px 16px rgba(224,85,44,.35)',
                 }}
               >Book tickets →</a>
             </div>
@@ -2348,6 +2426,12 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
           grouped[e.day].push(e)
         })
         const days = dayOrder.filter(d => grouped[d]).slice(0, 3)
+        // Single-show theater (Hamilton, etc.): every slot is the same production
+        // (ignoring "(matinee)" etc.), so the day-by-day grid just repeats the
+        // title. Collapse it to the live-schedule link. Multi-lineup venues
+        // (jazz clubs) keep the full grid — that's where it shows real value.
+        const baseTitles = new Set(venue.weeklySchedule.map(e => (e.performer || '').replace(/\s*\([^)]*\)\s*/g, '').trim().toLowerCase()).filter(Boolean))
+        const singleShow = baseTitles.size === 1
         return (
           <div style={{ padding: '14px 16px 0' }}>
             <div style={{
@@ -2364,6 +2448,11 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
                   </div>
                 )}
               </div>
+              {singleShow ? (
+                <div style={{ fontSize: 13, color: 'var(--gray-500)', lineHeight: 1.5 }}>
+                  Performances most nights — check live times &amp; book below.
+                </div>
+              ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {days.map(day => (
                   <div key={day}>
@@ -2415,6 +2504,7 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
                   </div>
                 ))}
               </div>
+              )}
               <a
                 href={venue.scheduleUrl || venue.ticketUrl}
                 target="_blank"
@@ -2436,12 +2526,28 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
         )
       })()}
 
-      {/* ── Character prose — lede with serif drop cap ── */}
-      <div className="section" style={{ paddingTop: 22, paddingBottom: 8 }}>
-        <div className="lede" style={{ fontSize: 15, lineHeight: 1.72, color: 'var(--gray-700)' }}>
-          {venue.character}
-        </div>
-      </div>
+      {/* ── Character prose — short by default, expandable. Keeps the page
+             scannable: the editorial hook (callout) is above; the full essay
+             lives one tap away instead of pushing the actions down the page. ── */}
+      {venue.character && (() => {
+        const isLong = venue.character.length > 280
+        return (
+          <div className="section" style={{ paddingTop: 22, paddingBottom: 8 }}>
+            <div className="lede" style={{
+              fontSize: 15, lineHeight: 1.72, color: 'var(--gray-700)',
+              ...(isLong && !storyOpen ? { display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' } : {}),
+            }}>
+              {venue.character}
+            </div>
+            {isLong && (
+              <button onClick={() => setStoryOpen(o => !o)} style={{
+                marginTop: 8, background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                fontSize: 13, fontWeight: 700, color: 'var(--accent-text)', fontFamily: 'inherit',
+              }}>{storyOpen ? 'Show less' : 'Read more'}</button>
+            )}
+          </div>
+        )
+      })()}
 
       {/* ── Specialties chips ── */}
       {venue.specialties?.length > 0 && (
@@ -2463,8 +2569,9 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
 
       <div className="divider" />
 
-      {/* ── Plan Your Visit ── */}
-      {(venue.admissionCost || venue.visitDuration || venue.bookingNote || venue.insiderTip) && (
+      {/* ── Plan Your Visit — Admission + Time already shown in the top facts
+             row, so we don't repeat them here; just Booking + the insider tip. ── */}
+      {(venue.bookingNote || venue.insiderTip) && (
         <div className="section" style={{ paddingTop: 20, paddingBottom: 4 }}>
           <div className="section-label">Plan your visit</div>
           <div style={{
@@ -2476,24 +2583,6 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
             flexDirection: 'column',
             gap: 12,
           }}>
-            {venue.admissionCost && (
-              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                <span style={{ fontSize: 17, flexShrink: 0 }}>💰</span>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Admission</div>
-                  <div style={{ fontSize: 14, color: 'var(--gray-800)', marginTop: 2 }}>{venue.admissionCost}</div>
-                </div>
-              </div>
-            )}
-            {venue.visitDuration && (
-              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                <span style={{ fontSize: 17, flexShrink: 0 }}>⏱</span>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Time needed</div>
-                  <div style={{ fontSize: 14, color: 'var(--gray-800)', marginTop: 2 }}>{venue.visitDuration}</div>
-                </div>
-              </div>
-            )}
             {venue.bookingNote && (
               <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                 <span style={{ fontSize: 17, flexShrink: 0 }}>📅</span>
@@ -2504,7 +2593,7 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
               </div>
             )}
             {venue.insiderTip && (
-              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', borderTop: '1px solid var(--gray-200)', paddingTop: 12, marginTop: 2 }}>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', ...(venue.bookingNote ? { borderTop: '1px solid var(--gray-200)', paddingTop: 12, marginTop: 2 } : {}) }}>
                 <span style={{ fontSize: 17, flexShrink: 0 }}>💡</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Insider tip</div>
@@ -2532,25 +2621,11 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
       <div className="section">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
 
-          {/* ── Primary: Add to My Trip ── */}
-          {(() => {
-            const isSaved = !!savedItems[`venue:${venueId}`]
-            return (
-              <button
-                className="venue-btn"
-                onClick={() => {
-                  toggleSave('venue', venueId)
-                  if (!isSaved) { setJustAdded(true); setTimeout(() => setJustAdded(false), 2000) }
-                }}
-                style={isSaved ? { background: 'var(--ink)', boxShadow: 'none', opacity: 0.85 } : {}}
-              >
-                {isSaved ? '✓ Saved to My Trip' : justAdded ? '✓ Added to My Trip!' : '+ Add to My Trip'}
-              </button>
-            )
-          })()}
+          {/* (Primary "Add to My Trip" now lives near the top, under the facts.) */}
 
-          {/* ── Buy tickets (paid venues only) ── */}
-          {venue.ticketUrl && !(venue.admissionCost || '').toLowerCase().startsWith('free') && (
+          {/* ── Buy tickets (paid venues only; skip if the now-playing card above
+                 already shows a "Book tickets" button, to avoid a double CTA) ── */}
+          {venue.ticketUrl && !venue.nowPlaying?.bookingUrl && !(venue.admissionCost || '').toLowerCase().startsWith('free') && (
             <a
               href={venue.ticketUrl}
               target="_blank"
@@ -2596,17 +2671,8 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
             </button>
           )}
 
-          {/* ── Official site (small text link, always shown if URL exists) ── */}
-          {(venue.ticketUrl || venue.scheduleUrl) && (
-            <a
-              href={venue.ticketUrl || venue.scheduleUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ textAlign: 'center', fontSize: 12, color: 'var(--gray-400)', textDecoration: 'none', paddingTop: 2 }}
-            >
-              Official site ↗
-            </a>
-          )}
+          {/* Official-site link removed — it pointed to the same URL as Buy
+              tickets / See schedule, so it was a redundant third ticket CTA. */}
 
         </div>
         {venue.hours && (
@@ -2688,7 +2754,7 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
                     <div className="card-meta">{work.year} · {work.medium}</div>
                     {work.description && (
                       <div className="card-tagline" style={{ marginTop: 4, fontSize: 12, color: 'var(--gray-500)', lineHeight: 1.4 }}>
-                        {work.description.length > 100 ? work.description.slice(0, 100) + '…' : work.description}
+                        {clipWords(work.description, 100)}
                       </div>
                     )}
                   </div>
@@ -2751,7 +2817,7 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
                   <div className="card-meta">{work.year} · {work.medium}</div>
                   {work.description && (
                     <div className="card-tagline" style={{ marginTop: 4, fontSize: 12, color: 'var(--gray-500)', lineHeight: 1.4 }}>
-                      {work.description.length > 100 ? work.description.slice(0, 100) + '…' : work.description}
+                      {clipWords(work.description, 100)}
                     </div>
                   )}
                 </div>
@@ -2811,7 +2877,7 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
                   <div className="card-meta">{work.year}</div>
                   {work.description && (
                     <div className="card-tagline" style={{ marginTop: 4, fontSize: 12, color: 'var(--gray-500)', lineHeight: 1.4 }}>
-                      {work.description.length > 100 ? work.description.slice(0, 100) + '…' : work.description}
+                      {clipWords(work.description, 100)}
                     </div>
                   )}
                 </div>
@@ -2938,7 +3004,7 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
         const domainLabels = {
           visual_art: 'Visual Art', jazz: 'Jazz', classical_music: 'Classical Music',
           sports: 'Sports', architecture: 'Architecture', theater: 'Theater',
-          history: 'History', hip_hop: 'Hip-Hop',
+          history: 'History', hip_hop: 'Hip-Hop', food: 'Food',
         }
         const nearby = getNearbyAcrossDomains(venueId, 3)
         if (!nearby.length) return null
@@ -2965,7 +3031,7 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
                         background: nc.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontSize: 16,
                       }}>
-                        {nd === 'jazz' ? '🎷' : nd === 'classical_music' ? '🎻' : nd === 'visual_art' ? '🎨' : nd === 'sports' ? '🏟️' : nd === 'architecture' ? '🏛️' : nd === 'theater' ? '🎭' : nd === 'history' ? '📜' : '🎤'}
+                        {nd === 'jazz' ? '🎷' : nd === 'classical_music' ? '🎻' : nd === 'visual_art' ? '🎨' : nd === 'food' ? '🍴' : nd === 'sports' ? '🏟️' : nd === 'architecture' ? '🏛️' : nd === 'theater' ? '🎭' : nd === 'history' ? '📜' : '🎤'}
                       </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-900)' }}>{nv.name}</div>
@@ -4531,6 +4597,87 @@ function colorForArea(borough, areaId) {
   return MOOD_MAP_SVG[borough]?.areas.find(a => a.id === areaId)?.color || '#1d4ed8'
 }
 
+// Map the curated restaurant/bar DB cuisines and editorial venue domains onto
+// mood ACTIVITIES, so mood results can fill from EVERY real source — not just a
+// mood's own curated picks + the user's imports. Thin combos (e.g. UES · Drinks)
+// then surface whatever real venues exist in the database.
+const REST_CUISINE_ACT = { bar_tavern: 'drinks', steakhouse: 'eat', italian: 'eat', japanese: 'eat', korean: 'eat', pizza: 'eat', burger: 'eat', american: 'eat' }
+const DOMAIN_ACT = { food: 'eat', jazz: 'live', classical_music: 'live', theater: 'live', hip_hop: 'live', visual_art: 'culture', architecture: 'culture', history: 'culture' }
+
+// Category → fallback emoji + tile color for the no-photo state, so a card
+// without a photo reads as an intentional colored tile (icon + initial) instead
+// of an empty gray/blue box.
+const PLACE_CAT_EMOJI = { food: '🍽️', coffee: '☕', drinks: '🍷', music: '🎵', art: '🎨', culture: '🎭', outdoors: '🌳', shopping: '🛍️', place: '📍' }
+const PLACE_CAT_COLOR = { food: '#C1876B', coffee: '#C89A6A', drinks: '#AD8AA2', music: '#A3408C', art: '#8AA4C0', culture: '#8AA4C0', outdoors: '#6FAE8E', shopping: '#C89A6A', place: '#8AA4C0' }
+const placeInitial = (name) => ((name || '').trim()[0] || '?').toUpperCase()
+// Pull just today's open hours out of the "Monday: 9–5 | Tuesday: …" string.
+function todayHoursLine(hours) {
+  if (!hours || typeof hours !== 'string') return ''
+  const day = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date().getDay()]
+  const parts = hours.split('|').map(s => s.trim()).filter(Boolean)
+  const match = parts.find(p => p.toLowerCase().startsWith(day.toLowerCase()))
+  const line = (match || '').replace(/^[A-Za-z]+:\s*/, '')
+  return line ? `${day}: ${line}` : ''
+}
+
+// Lightweight in-app sheet for places without a full editorial page (imports,
+// the restaurant/bar DB, sights). Surfaces every objective field we have — photo,
+// rating, price, cuisine, neighborhood, description, address, today's hours,
+// website — so the card isn't a blank box. The Google Maps jump is a button here.
+function MoodPlaceSheet({ place = {}, onFull = null }) {
+  const g = useGooglePhoto(place)
+  const [imgFailed, setImgFailed] = React.useState(false)
+  const imageSrc = place.image || g?.photoUrl || null
+  const image = imageSrc && !imgFailed ? imageSrc : null
+  const neighborhood = (place.neighborhood && place.neighborhood !== 'Saved from Google Maps') ? place.neighborhood : (place.area || '')
+  const cuisine = Array.isArray(place.cuisine) ? place.cuisine.filter(Boolean).join(', ')
+    : Array.isArray(place.cuisines) ? place.cuisines.filter(Boolean).join(', ') : (place.cuisine || '')
+  const metaTop = [place.price, cuisine, neighborhood].filter(Boolean).join(' · ')
+  const desc = (place.description || place.googleSummary || place.blurb || '').trim()
+  const hrs = todayHoursLine(place.hours)
+  const url = place.sourceUrl || place.reservationUrl || place.mapsUrl || (place.name ? mapsUrl(place.name) : '')
+  const website = place.website || ''
+  let host = ''
+  try { host = website ? new URL(website).hostname.replace(/^www\./, '') : '' } catch (e) { host = website }
+  const catEmoji = PLACE_CAT_EMOJI[place.category] || '📍'
+  const tileColor = PLACE_CAT_COLOR[place.category] || '#8AA4C0'
+  const open = (u) => { if (u) { try { window.open(u, '_blank', 'noopener') } catch (e) {} } }
+  const Row = ({ icon, children }) => children ? (
+    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 8, fontSize: 13.5, color: 'var(--ink-2)' }}>
+      <span style={{ flexShrink: 0 }} aria-hidden="true">{icon}</span><span style={{ lineHeight: 1.45, wordBreak: 'break-word' }}>{children}</span>
+    </div>
+  ) : null
+  const btn = (primary) => ({ width: '100%', border: primary ? 'none' : '1.5px solid var(--gray-200)', borderRadius: 999, padding: '13px', background: primary ? 'var(--accent)' : 'var(--white)', color: primary ? '#fff' : 'var(--ink)', fontWeight: 800, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', marginTop: 10 })
+  return (
+    <div style={{ padding: '0 20px 36px' }}>
+      <div style={{ height: 150, borderRadius: 18, overflow: 'hidden', marginBottom: 16, background: image ? 'var(--gray-100)' : tileColor, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {image ? <img src={image} alt="" onError={() => setImgFailed(true)} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} /> : (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: '#fff' }}>
+            <span style={{ fontSize: 42, fontWeight: 800, lineHeight: 1 }}>{placeInitial(place.name)}</span>
+            <span style={{ fontSize: 18 }} aria-hidden="true">{catEmoji}</span>
+          </div>
+        )}
+      </div>
+      <h2 style={{ fontSize: 22, fontWeight: 800, lineHeight: 1.22, color: 'var(--ink)', margin: '0 0 6px' }}>{place.name}</h2>
+      {(place.rating || metaTop) ? (
+        <div style={{ fontSize: 13, color: 'var(--ink-2)', marginBottom: 12 }}>
+          {place.rating ? <span style={{ color: '#854F0B', fontWeight: 700 }}>★ {place.rating}</span> : null}{place.rating && metaTop ? ' · ' : ''}{metaTop}
+        </div>
+      ) : null}
+      {desc ? <p style={{ fontSize: 14, color: 'var(--ink-2)', lineHeight: 1.5, margin: '0 0 14px' }}>{clipWords(desc, 280)}</p> : null}
+      {(place.address || hrs || host) ? (
+        <div style={{ marginBottom: 4 }}>
+          <Row icon="📍">{place.address}</Row>
+          <Row icon="🕐">{hrs}</Row>
+          {host ? <Row icon="🌐"><a href={website} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: 'var(--accent-text)', fontWeight: 600 }}>{host}</a></Row> : null}
+        </div>
+      ) : null}
+      {onFull && <button onClick={onFull} style={btn(true)}>Full details →</button>}
+      {url && <button onClick={() => open(url)} style={btn(!onFull)}>📍 Open in Google Maps</button>}
+    </div>
+  )
+}
+
 // ── MoodFlowScreen — guided "Unhurried" flow ────────────────────────────────
 // Replaces the old all-at-once MoodScreen with one decision per step:
 //   place (neighborhood)  →  activity (the mood's own groups)  →  top 5.
@@ -4544,6 +4691,7 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
   const [activityId, setActivityId] = React.useState(null)
   const [geoStatus, setGeoStatus] = React.useState('idle')   // idle | locating | denied
   const [geoNote, setGeoNote]     = React.useState('')
+  const [moodSheet, setMoodSheet] = React.useState(null)     // tapped pick → in-app bottom sheet
   if (!mood) return <div style={{ padding: 24, color: 'var(--ink-2)' }}>Mood not found.</div>
 
   const resolvePick = (p) => {
@@ -4597,29 +4745,80 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
   const cardForUserVenue = (v) => (
     <UserVenueCard key={v.id} venue={v}
       cardVenue={{ id: v.id, name: v.name, neighborhood: (v.neighborhood && v.neighborhood !== 'Saved from Google Maps') ? v.neighborhood : 'Saved spot', character: v.blurb || '', color: COLOR_BY_ACT[CAT_TO_ACT[v.category]] || actColor }}
-      onPress={() => { try { window.open(v.sourceUrl || mapsUrl(v.name), '_blank', 'noopener') } catch (e) {} }} />
+      onPress={() => setMoodSheet({ kind: 'place', place: v })} />
+  )
+  // Single compact row style for EVERY mood pick (curated, import, restaurant,
+  // editorial) so the results list never mixes big hero cards with small rows.
+  const compactCard = (key, fields, onPress) => (
+    <UserVenueCard key={key}
+      venue={{ id: key, name: fields.name, neighborhood: fields.neighborhood, description: fields.desc || '', image: fields.image || null, rating: fields.rating, price: fields.price }}
+      cardVenue={{ id: key, name: fields.name, neighborhood: fields.neighborhood, character: fields.desc || '' }}
+      onPress={onPress} />
   )
   const cardForItem = (it) => {
-    if (it.kind === 'venue') return <VenueTapCard key={'v' + it.id} venue={it.venue} isSaved={!!savedItems['venue:' + it.id]} onPress={() => push({ screen: 'venue', venueId: it.id })} />
-    if (it.kind === 'sight') return <VenueTapCard key={'s' + it.id} venue={{ id: it.id, name: it.sight.name, neighborhood: [it.sight.neighborhood, it.sight.subArea].filter(Boolean).join(' · '), character: it.sight.longDesc || '', color: actColor }} onPress={() => push({ screen: 'sight', sightId: it.id })} />
-    return <VenueTapCard key={'c' + it.id} external venue={{ id: it.id, name: it.name, neighborhood: it.note || '', character: '', color: actColor }} onPress={() => { try { window.open(mapsUrl(it.name), '_blank', 'noopener') } catch (e) {} }} />
+    if (it.kind === 'venue') return compactCard('v' + it.id, { name: it.venue.name, neighborhood: it.venue.neighborhood, desc: it.venue.character || '', image: venueImages[it.id] || null }, () => setMoodSheet({ kind: 'venue', id: it.id }))
+    if (it.kind === 'sight') return compactCard('s' + it.id, { name: it.sight.name, neighborhood: [it.sight.neighborhood, it.sight.subArea].filter(Boolean).join(' · '), desc: it.sight.longDesc || '', image: venueImages[it.id] || null }, () => setMoodSheet({ kind: 'place', place: { name: it.sight.name, image: venueImages[it.id] || null, neighborhood: [it.sight.neighborhood, it.sight.subArea].filter(Boolean).join(' · '), description: it.sight.longDesc || '', category: 'culture' }, full: { screen: 'sight', sightId: it.id } }))
+    return compactCard('c' + it.id, { name: it.name, neighborhood: it.note || '' }, () => setMoodSheet({ kind: 'place', place: { name: it.name, neighborhood: it.note || '', category: 'place' } }))
   }
+  // Curated restaurant/bar DB entry (not in `venues`) — opens an in-app sheet with a Google Maps button.
+  const cardForRestaurant = (r) => compactCard('r' + r.id,
+    { name: r.name, neighborhood: r.neighborhood || r.area || '', desc: r.description || '', price: r.price },
+    () => setMoodSheet({ kind: 'place', place: { name: r.name, neighborhood: r.neighborhood || r.area || '', description: r.description || '', price: r.price, cuisines: r.cuisines, website: r.reservationUrl || '', mapsUrl: r.mapsUrl, sourceUrl: r.mapsUrl, category: 'food' } }))
 
   // My Picks — ONLY the viewer's hand-added places (the 62 Google imports are
   // NYC Stoop picks, not My Picks). Newest first; never cut off.
   const myPicks = byNewest(Object.values(userVenues || {}).filter(v => CAT_TO_ACT[v.category] === activityId && !isImportedV(v) && matchesArea(v))).slice(0, 5)
   const myPicksRendered = myPicks.map(cardForUserVenue)
 
-  // NYC Stoop picks — editorial + curated database venues + your 62 imports.
+  // NYC Stoop picks — filled from EVERY real source so each (area, activity)
+  // shows as many options as the database allows. Order of preference:
+  //   1) the mood's curated picks for this activity/area
+  //   2) the viewer's imported places (the 432 list)
+  //   3) the curated restaurant / bar database (coords → area)
+  //   4) editorial venues by domain (museums, jazz rooms, theaters…) in the area
+  // All deduped by name and capped. Genuinely empty combos stay empty — add the
+  // missing venues to the database later and they'll appear automatically.
   const stoopSeen = new Set()
   const stoopItems = [...userItems.filter(it => it.kind === 'venue'), ...results].filter(it => {
     if (stoopSeen.has(it.id)) return false
     stoopSeen.add(it.id); return true
   })
-  const stoopNames = new Set(stoopItems.map(it => ((it.venue ? it.venue.name : (it.sight ? it.sight.name : it.name)) || '').toLowerCase().trim()))
-  const importedRecs = byNewest(Object.values(userVenues || {}).filter(v => CAT_TO_ACT[v.category] === activityId && isImportedV(v) && matchesArea(v) && !stoopNames.has((v.name || '').toLowerCase().trim())))
   const stoopHead = stoopItems.slice(0, 6)
-  const stoopRendered = [...stoopHead.map(cardForItem), ...importedRecs.slice(0, Math.max(0, 6 - stoopHead.length)).map(cardForUserVenue)]
+
+  const inSelArea = (lat, lng) => {
+    if (!(place && place.scope === 'area')) return true
+    const w = classifyLatLngToArea(lat, lng)
+    return !!(w && w.borough === place.borough && w.areaId === place.areaId)
+  }
+  const restPool = activityId ? RESTAURANT_DATA.filter(r => {
+    const acts = (r.cuisines || []).map(c => REST_CUISINE_ACT[c]).filter(Boolean)
+    if (!acts.includes(activityId)) return false
+    const c = RESTAURANT_COORDS[r.id]
+    return c ? inSelArea(c[0], c[1]) : (place?.scope !== 'area')
+  }) : []
+  const editorialPool = activityId ? Object.keys(venueCoords).filter(id => {
+    const info = venueCoords[id]
+    if (!info || DOMAIN_ACT[info.domain] !== activityId || !venues[id]) return false
+    return inSelArea(info.lat, info.lng)
+  }) : []
+  const importPool = activityId
+    ? byNewest(Object.values(userVenues || {}).filter(v => CAT_TO_ACT[v.category] === activityId && isImportedV(v) && matchesArea(v)))
+    : []
+
+  const TARGET = 6
+  const shownNames = new Set(myPicks.map(v => (v.name || '').toLowerCase().trim()))
+  const stoopRendered = []
+  const addCard = (name, node, gated) => {
+    if (gated && stoopRendered.length >= TARGET) return
+    const k = (name || '').toLowerCase().trim()
+    if (k && shownNames.has(k)) return
+    if (k) shownNames.add(k)
+    stoopRendered.push(node)
+  }
+  stoopHead.forEach(it => addCard(it.venue ? it.venue.name : it.sight ? it.sight.name : it.name, cardForItem(it), false))
+  importPool.forEach(v => addCard(v.name, cardForUserVenue(v), true))
+  restPool.forEach(r => addCard(r.name, cardForRestaurant(r), true))
+  editorialPool.forEach(id => addCard(venues[id].name, compactCard('ep' + id, { name: venues[id].name, neighborhood: venues[id].neighborhood, desc: venues[id].character || '', image: venueImages[id] || null }, () => setMoodSheet({ kind: 'venue', id })), true))
 
   const Dots = ({ n }) => (
     <div style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
@@ -4764,7 +4963,7 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
             </button>
           )}
 
-          {/* NYC Stoop picks — editorial + curated + your 62 imports */}
+          {/* NYC Stoop picks — editorial + curated + your imports */}
           {stoopRendered.length > 0 && (
             <>
               <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--ink)', marginBottom: 8 }}>NYC Stoop picks</div>
@@ -4775,6 +4974,20 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
           )}
         </>
       )}
+
+      {/* Every pick opens this same in-app bottom sheet, so tapping is consistent:
+          editorial venues get the rich sheet (Add to My Trip / Full details),
+          everything else gets a compact sheet with an explicit Google Maps button. */}
+      <BottomSheet open={!!moodSheet} onClose={() => setMoodSheet(null)}>
+        {moodSheet?.kind === 'venue' && (
+          <VenueSheet venueId={moodSheet.id} savedItems={savedItems} toggleSave={toggleSave}
+            onFullPage={() => { const id = moodSheet.id; setMoodSheet(null); push({ screen: 'venue', venueId: id }) }} />
+        )}
+        {moodSheet?.kind === 'place' && (
+          <MoodPlaceSheet place={moodSheet.place}
+            onFull={moodSheet.full ? () => { const f = moodSheet.full; setMoodSheet(null); push(f) } : null} />
+        )}
+      </BottomSheet>
     </div>
   )
 }
@@ -5399,8 +5612,12 @@ function NeighborhoodScreen({ neighborhoodKey, subAreaName, push, savedItems = {
 
   // Personal saves (imported/added places) that fall in this neighborhood — shown
   // as a SEPARATE, clearly-labeled layer below the editorial picks, never blended.
+  // Don't double-list a place that's already an editorial pick in this area
+  // (e.g. Don Angie showing under both the curated list AND "From your list").
+  const editorialNames = new Set(nbVenues.map(v => (v.name || '').toLowerCase().trim()))
   const myPlaces = Object.values(userVenues || {}).filter(v => {
     if (!v.neighborhood) return false
+    if (editorialNames.has((v.name || '').toLowerCase().trim())) return false
     return subAreaInfo
       ? new RegExp(escapeRegExp(subAreaName), 'i').test(v.neighborhood)
       : group.match(v.neighborhood)
@@ -5446,7 +5663,7 @@ function NeighborhoodScreen({ neighborhoodKey, subAreaName, push, savedItems = {
           { key: 'sports',  label: 'Sports',        emoji: '🏆' },
           { key: 'other',   label: 'More',          emoji: '📍' },
         ]
-        const catOf = v => v.isRestaurant ? 'eat'
+        const catOf = v => (v.isRestaurant || VENUE_DOMAIN[v.id] === 'food') ? 'eat'
           : ['visual_art', 'architecture', 'history'].includes(VENUE_DOMAIN[v.id]) ? 'see'
           : ['jazz', 'classical_music', 'hip_hop', 'theater'].includes(VENUE_DOMAIN[v.id]) ? 'culture'
           : VENUE_DOMAIN[v.id] === 'sports' ? 'sports' : 'other'
@@ -5928,9 +6145,7 @@ function VenueTapCard({ venue, onPress, isSaved = false, image = null, attributi
   // Photo priority: explicit image prop → curated venue photo → first
   // work-at-this-venue image → none, in which case the category gradient shows.
   const photo = image || venueImages[venue.id] || getWorksAtVenue(venue.id).find(w => w.imageUrl)?.imageUrl || null
-  const preview = venue.character?.length > 110
-    ? venue.character.slice(0, 110).trimEnd() + '…'
-    : (venue.character || '')
+  const preview = clipWords(venue.character || '', 110)
   // Theater venues: surface what's currently playing. Users search by show
   // name ("where's Hamilton?"), not theater name, so the production needs to
   // be visible BEFORE you tap in. `isDark` means the theater is between
@@ -5941,15 +6156,7 @@ function VenueTapCard({ venue, onPress, isSaved = false, image = null, attributi
   // the High Line chaise loungers — and previously you only saw it after
   // tapping in. Now it lands one tap earlier as the differentiating moment
   // that separates NYC Stoop from Google Maps.
-  const tipPreview = (() => {
-    const tip = venue.insiderTip
-    if (!tip) return ''
-    // Split on common terminators but skip terminators inside common abbrevs.
-    const sentenceMatch = tip.match(/^[^.!?\n]+[.!?](?:["'])?/)
-    let first = sentenceMatch ? sentenceMatch[0].trim() : tip.split(/[\n]/)[0]
-    if (first.length > 120) first = first.slice(0, 120).trimEnd() + '…'
-    return first
-  })()
+  const tipPreview = firstSentence(venue.insiderTip, 120)
 
   return (
     <button
@@ -6122,7 +6329,7 @@ function useGooglePhoto(venue) {
     if (!fromGoogle || !venue?.name) return
     if (!isGooglePlacesAvailable()) return
     let alive = true
-    getPlacePhotoByName(venue.name).then(res => {
+    getPlacePhotoByName(venue.name, { hint: venue.address || venue.neighborhood || '' }).then(res => {
       if (!alive || !res || !res.photoUrl) return
       _googlePhotoCache[id] = res
       setPhoto(res)
@@ -6138,10 +6345,12 @@ function useGooglePhoto(venue) {
 // VenueTapCard; `venue` is the raw user_venue used to resolve the photo. ──
 function UserVenueCard({ venue, cardVenue, onPress, isSaved = false }) {
   const g = useGooglePhoto(venue)
-  const image = venue?.image || g?.photoUrl || null
+  const [imgFailed, setImgFailed] = React.useState(false)
+  const imageSrc = venue?.image || g?.photoUrl || null
+  const image = imageSrc && !imgFailed ? imageSrc : null
   // Layout C — compact row: small thumbnail + name + rating·price·neighborhood + one-line desc.
   const rawDesc = (venue?.description || venue?.googleSummary || cardVenue?.character || '').trim()
-  const desc = rawDesc.length > 84 ? rawDesc.slice(0, 84).trimEnd() + '…' : rawDesc
+  const desc = clipWords(rawDesc, 84)
   const place = (venue?.neighborhood && venue.neighborhood !== 'Saved from Google Maps')
     ? venue.neighborhood : (cardVenue?.neighborhood || 'Saved spot')
   const meta = []
@@ -6155,12 +6364,12 @@ function UserVenueCard({ venue, cardVenue, onPress, isSaved = false }) {
     }}>
       <div style={{
         width: 74, height: 74, flexShrink: 0, borderRadius: 10, overflow: 'hidden',
-        background: 'linear-gradient(135deg, #8aa4c0, #8aa4c099)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: image ? 'var(--gray-100)' : (PLACE_CAT_COLOR[venue?.category] || '#8AA4C0'),
+        display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff',
       }}>
         {image
-          ? <img src={image} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-          : <span style={{ fontSize: 22 }} aria-hidden="true">📍</span>}
+          ? <img src={image} alt="" loading="lazy" onError={() => setImgFailed(true)} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          : <span style={{ fontSize: 26, fontWeight: 800, lineHeight: 1 }}>{placeInitial(venue?.name || cardVenue?.name)}</span>}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gray-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{venue?.name || cardVenue?.name}</div>
@@ -6289,10 +6498,12 @@ function BottomNav({ activeTab, onTabPress, savedCount, onAddPlace }) {
       {tabs.map(({ id, icon, label, accent }) => {
         const active = activeTab === id
         const badge = id === 'saved' && savedCount > 0 ? savedCount : null
-        // Tonight is tinted with the accent color even when inactive so it
-        // reads as the signature destination; the active tab is always ink.
+        // The ACTIVE tab is the only one that reads as selected: accent color +
+        // bold label + filled icon. Tonight keeps a subtle accent icon tint when
+        // inactive (its signature), but its label goes gray/normal like the other
+        // inactive tabs — so the bar always shows which screen you're actually on.
         const iconColor = active ? 'var(--accent)' : (accent ? 'var(--accent)' : 'var(--ink-3)')
-        const labelColor = active ? 'var(--ink)' : (accent ? 'var(--accent)' : 'var(--gray-500)')
+        const labelColor = active ? 'var(--accent)' : 'var(--gray-500)'
         return (
           <button key={id} onClick={() => onTabPress(id)} style={{
             flex: 1, display: 'flex', flexDirection: 'column',
@@ -6302,7 +6513,7 @@ function BottomNav({ activeTab, onTabPress, savedCount, onAddPlace }) {
             position: 'relative',
           }}>
             <NavIcon name={icon} size={22} fill={active ? 'solid' : 'none'} />
-            <span style={{ fontSize: 10, fontWeight: active || accent ? 700 : 500, color: labelColor }}>{label}</span>
+            <span style={{ fontSize: 10, fontWeight: active ? 700 : 500, color: labelColor }}>{label}</span>
             {badge && (
               <span style={{
                 position: 'absolute', top: 7, right: '50%', transform: 'translateX(18px)',
@@ -6333,17 +6544,19 @@ const MAP_DOMAIN_COLORS = {
   theater:        '#A65B7B',
   history:        '#6A6A6A',
   hip_hop:        '#3A3A8C',
+  food:           '#C1876B',
 }
 const MAP_DOMAIN_LEGEND_LABELS = {
   visual_art: 'Art', jazz: 'Jazz', classical_music: 'Classical', sports: 'Sports',
-  architecture: 'Architecture', theater: 'Theater', history: 'History', hip_hop: 'Hip-Hop',
+  architecture: 'Architecture', theater: 'Theater', history: 'History', hip_hop: 'Hip-Hop', food: 'Food',
 }
 
 const MAP_FILTERS = [
   { id: 'all',             label: 'All' },
   { id: 'visual_art',      label: 'Art' },
   { id: 'jazz',            label: 'Jazz' },
-  { id: 'classical_music', label: 'Music' },
+  { id: 'classical_music', label: 'Classical' },
+  { id: 'food',            label: 'Food' },
   { id: 'sports',          label: 'Sports' },
   { id: 'architecture',    label: 'Architecture' },
   { id: 'theater',         label: 'Theater' },
@@ -6359,7 +6572,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
   const [selectedVenueId, setSelectedVenueId] = useState(null)
   // Map tab has two views: the detailed neighborhood schematic and the live
   // Leaflet pin map. Arriving via "View on map" (highlight) jumps to the live map.
-  const [view, setView]             = useState(highlight ? 'real' : 'schematic')
+  const [view, setView]             = useState('real')  // live Map is the default view
   const [schemArea, setSchemArea]   = useState(null)
   const [userLoc, setUserLoc]       = useState(null)   // {lat,lng} | null
   const [geoStatus, setGeoStatus]   = useState('idle') // idle | locating | denied
@@ -6497,10 +6710,10 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
       zIndex: 1,
     }}>
       {/* View toggle — Neighborhoods (schematic) vs Map (live pins) */}
-      <div style={{ display: 'flex', alignItems: 'center', padding: '8px 14px 6px', background: 'var(--white)', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', padding: '8px 14px 6px', background: 'var(--canvas)', flexShrink: 0 }}>
         <div style={{ width: 78, flexShrink: 0 }} />
         <div role="tablist" style={{ display: 'inline-flex', background: 'var(--gray-100)', borderRadius: 999, padding: 3, margin: '0 auto' }}>
-          {[{ id: 'schematic', label: 'Neighborhoods' }, { id: 'real', label: 'Map' }].map(opt => {
+          {[{ id: 'real', label: 'Map' }, { id: 'schematic', label: 'Neighborhoods' }].map(opt => {
             const on = view === opt.id
             return (
               <button key={opt.id} role="tab" aria-selected={on} onClick={() => setView(opt.id)} style={{
@@ -6525,7 +6738,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
       {view === 'real' && (
       <div style={{
         padding: '4px 14px 8px', display: 'flex', gap: 8, overflowX: 'auto',
-        flexShrink: 0, scrollbarWidth: 'none', background: 'var(--white)',
+        flexShrink: 0, scrollbarWidth: 'none', background: 'var(--canvas)',
         borderBottom: '1px solid var(--gray-100)',
       }}>
         {MAP_FILTERS.map(f => (
@@ -6545,7 +6758,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
       <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
         <div ref={mapContainerRef} style={{ position: 'absolute', inset: 0 }} />
         {view === 'schematic' && (
-          <div style={{ position: 'absolute', inset: 0, zIndex: 600, background: '#e7eef6' }}>
+          <div style={{ position: 'absolute', inset: 0, zIndex: 600, background: 'var(--canvas)' }}>
             <ManhattanDetailMap selectedArea={schemArea} onSelectArea={handleSchemSelect} />
           </div>
         )}
@@ -6683,7 +6896,89 @@ const TONIGHT_DOMAIN_COLORS = {
 const TONIGHT_DOMAIN_LABELS = {
   visual_art: 'Art', jazz: 'Jazz', classical_music: 'Classical',
   theater: 'Theater', sports: 'Sports', architecture: 'Architecture', history: 'History',
-  hip_hop:         'Hip-Hop',
+  hip_hop:         'Hip-Hop', food: 'Food',
+}
+
+const DAY_NAMES_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+// Rewrite a curated pick's dateNote for the selected night so relative words never
+// lie: "Tonight · Doors 8pm" reads "Friday · Doors 8pm" when previewing Friday.
+function relativeDateNote(note, dayIdx, todayIdx) {
+  if (!note || dayIdx === todayIdx) return note
+  const day = DAY_NAMES_FULL[dayIdx]
+  return note.replace(/^Tonight\b/i, day).replace(/^Today\b/i, day)
+}
+
+// Sheet-native venue card for the Tonight bottom sheet — mirrors EventDetail's
+// clean layout (contained rounded image, label, title, key facts, editorial hook,
+// clear actions) instead of cramming the full VenueScreen page into the sheet.
+function VenueSheet({ venueId, blurb, savedItems = {}, toggleSave = () => {}, onFullPage = () => {} }) {
+  const [failedSrc, setFailedSrc] = React.useState(null)  // broken image → fall back to gradient
+  const venue = venues[venueId]
+  if (!venue) return null
+  const colors = venueColors[venueId] || { bg: '#8aa4c0', text: '#fff' }
+  const photo = venueImages[venueId] || getWorksAtVenue(venueId).find(w => w.imageUrl)?.imageUrl || null
+  const domainId = VENUE_DOMAIN[venueId]
+  const kindLabel = domainId === 'food' ? 'Restaurant' : domainId ? (domains[domainId]?.name || 'NYC Stoop pick') : (venue.isRestaurant ? 'Restaurant' : 'NYC Stoop pick')
+  const isSaved = !!savedItems[`venue:${venueId}`]
+  const why = blurb || firstSentence(venue.insiderTip, 160) || ''
+  const place = [venue.neighborhood, venue.fullName && venue.fullName !== venue.name ? venue.fullName : null].filter(Boolean).join(' · ')
+  const open = (url) => { if (url) { try { window.open(url, '_blank', 'noopener') } catch (e) {} } }
+  const Row = ({ icon, children }) => children ? (
+    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 8, fontSize: 14, color: 'var(--ink-2)' }}>
+      <span style={{ flexShrink: 0 }} aria-hidden="true">{icon}</span><span style={{ lineHeight: 1.45 }}>{children}</span>
+    </div>
+  ) : null
+  return (
+    <div style={{ padding: '0 20px 36px' }}>
+      <div style={{ height: 150, borderRadius: 18, overflow: 'hidden', marginBottom: 16, background: `linear-gradient(135deg, ${colors.bg}, ${colors.bg}B0)` }}>
+        {photo && photo !== failedSrc && <img src={photo} alt="" onError={() => setFailedSrc(photo)} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
+      </div>
+      <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: colors.bg, marginBottom: 6 }}>{kindLabel}</div>
+      <h2 style={{ fontSize: 22, fontWeight: 800, lineHeight: 1.22, color: 'var(--ink)', margin: '0 0 10px' }}>{venue.name}</h2>
+      {why && (
+        <p style={{ fontSize: 14, color: 'var(--ink-2)', lineHeight: 1.5, fontStyle: 'italic', margin: '0 0 14px', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{why}</p>
+      )}
+      <Row icon="📍">{place}</Row>
+      <Row icon="💰">{venue.admissionCost}</Row>
+      <Row icon="⏱">{venue.visitDuration}</Row>
+      {/* Primary action sits directly under the facts (above the editorial blurb)
+          so it's visible the instant the sheet peeks open — adding to the trip is
+          the whole point of these cards. */}
+      <button onClick={() => toggleSave('venue', venueId)} style={{ width: '100%', marginTop: 4, border: 'none', borderRadius: 999, padding: '14px', background: isSaved ? 'var(--ink)' : 'var(--accent)', color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', boxShadow: isSaved ? 'none' : 'var(--shadow-accent)' }}>
+        {isSaved ? '✓ Saved to My Trip' : '+ Add to My Trip'}
+      </button>
+      <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+        <button onClick={() => open(venue.mapUrl)} style={{ flex: 1, border: '1.5px solid var(--gray-200)', borderRadius: 999, padding: '12px', background: 'var(--white)', color: 'var(--ink)', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>📍 Directions</button>
+        <button onClick={onFullPage} style={{ flex: 1, border: '1.5px solid var(--gray-200)', borderRadius: 999, padding: '12px', background: 'var(--white)', color: 'var(--ink)', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Full details →</button>
+      </div>
+    </div>
+  )
+}
+
+// Rank live (Ticketmaster) events for the Tonight feed: a rough notability score
+// (marquee venue + price + has-photo), then round-robin across event types so one
+// category (usually concerts) doesn't flood the list before the cap.
+const MARQUEE_VENUE = /madison square garden|barclays|radio city|carnegie|lincoln center|beacon theatre|brooklyn steel|blue note|village vanguard|bowery ballroom|webster hall|terminal 5|brooklyn bowl|apollo|forest hills|kings theatre|rooftop at pier 17|irving plaza|sony hall|gramercy theatre|le poisson rouge|racket nyc/i
+function liveEventScore(e) {
+  let s = 0
+  if (MARQUEE_VENUE.test(e.location || '')) s += 100
+  const m = /\$(\d+)/.exec(e.priceText || '')
+  if (m) s += Math.min(parseInt(m[1], 10), 200) / 4   // pricier ≈ bigger draw (capped)
+  if (e.image) s += 10
+  return s
+}
+function rankLiveEvents(events) {
+  const byKind = {}
+  events.forEach(e => { (byKind[e.kindLabel] = byKind[e.kindLabel] || []).push(e) })
+  Object.values(byKind).forEach(arr => arr.sort((a, b) => liveEventScore(b) - liveEventScore(a) || a.date - b.date))
+  const kinds = Object.keys(byKind).sort((a, b) => liveEventScore(byKind[b][0]) - liveEventScore(byKind[a][0]))
+  const out = []
+  let added = true
+  while (added) {
+    added = false
+    for (const k of kinds) { const e = byKind[k].shift(); if (e) { out.push(e); added = true } }
+  }
+  return out
 }
 
 function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onViewSaved = () => {}, onViewMap = null }) {
@@ -6704,11 +6999,34 @@ function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onV
     history: '#6A6A6A', hip_hop: '#3A3A8C',
   }
 
+  // Does a pick run on a given weekday? For venue-linked picks we derive the real
+  // EVENING performance days from the venue's weeklySchedule — so Hamilton (8pm
+  // Tue–Sat, matinee-only Sunday, dark Monday) only appears on nights it actually
+  // plays. Falls back to the hand-set bestDays, then to "every day".
+  const DAY_IDX = { Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6 }
+  const isEveningTime = (t) => {
+    const m = /(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i.exec(t || '')
+    if (!m) return true
+    let h = parseInt(m[1], 10) % 12
+    if (/pm/i.test(m[3])) h += 12
+    return h >= 17   // 5pm or later counts as an evening/late performance
+  }
+  const runsOn = (p, idx) => {
+    const v = p.venueId && venues[p.venueId]
+    const sched = v && Array.isArray(v.weeklySchedule) && v.weeklySchedule.length
+      ? new Set(v.weeklySchedule.filter(e => isEveningTime(e.time)).map(e => DAY_IDX[e.day]).filter(d => d != null))
+      : null
+    if (sched && sched.size) return sched.has(idx)
+    return !Array.isArray(p.bestDays) || p.bestDays.includes(idx)
+  }
+
   // Per-domain counts — drives the filter row (hides empty filters, shows count badges).
   // Recomputed when the selected day changes so the chips and badge numbers
   // reflect what's actually on for that night, not the absolute catalog total.
   const counts = React.useMemo(() => {
-    const onDay = tonightPicks.filter(p => !Array.isArray(p.bestDays) || p.bestDays.includes(dayIdx))
+    // Must match visiblePicks' filters (incl. dropping daytime) or the chip/day
+    // counts will claim picks that the feed then filters out ("1" but nothing shows).
+    const onDay = tonightPicks.filter(p => p.timeOfDay !== 'daytime' && runsOn(p, dayIdx))
     const c = { all: onDay.length }
     onDay.forEach(p => { c[p.domain] = (c[p.domain] || 0) + 1 })
     return c
@@ -6728,27 +7046,48 @@ function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onV
   // Only show filters that have content. Removes the "tap and get an empty state" trust hit.
   const visibleFilters = ALL_FILTERS.filter(f => f.key === 'all' || (counts[f.key] || 0) > 0)
 
-  // Day-of-week predicate. Picks without bestDays are treated as 7-days-a-week
-  // (most editorial picks — only the weekday-only sites and dark-Monday shows
-  // restrict this).
-  const dayMatches = (p) => !Array.isArray(p.bestDays) || p.bestDays.includes(dayIdx)
+  // Day-of-week predicate — schedule-aware (see runsOn above).
+  const dayMatches = (p) => runsOn(p, dayIdx)
 
   const visiblePicks = tonightPicks
     .filter(p => tonightFilter === 'all' || p.domain === tonightFilter)
     .filter(dayMatches)
+    .filter(p => p.timeOfDay !== 'daytime')   // Tonight is an evening page — daytime picks don't belong here
 
-  // Group picks by time-of-day. Order: Evening → Late night → Daytime → In season
-  // The Tonight tab leads with evening because most users open it after work.
+  // Tonight = Evening + Late night only. "Daytime" is removed (off-theme), and
+  // the old "In season" / untagged bucket folds into Evening so nothing is hidden.
   const SECTION_ORDER = [
     { key: 'evening',    label: 'Evening',     emoji: '🌆' },
     { key: 'late_night', label: 'Late night',  emoji: '🌙' },
-    { key: 'daytime',    label: 'Daytime',     emoji: '☀️' },
-    { key: 'anytime',    label: 'In season',   emoji: '⭐' },
   ]
+  const sectionOf = (p) => p.timeOfDay === 'late_night' ? 'late_night' : 'evening'
+  // Daily rotation: deterministically reorder picks by the selected day so the
+  // evening lineup leads differently each night (stable within a given day).
+  const seededShuffle = (arr, seed) => {
+    const hash = (str) => { let h = 2166136261 >>> 0; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) } return h >>> 0 }
+    return [...arr].sort((a, b) => hash(`${a.venueId || a.title || ''}:${seed}`) - hash(`${b.venueId || b.title || ''}:${seed}`))
+  }
   const grouped = {}
   SECTION_ORDER.forEach(s => {
-    grouped[s.key] = visiblePicks.filter(p => (p.timeOfDay || 'anytime') === s.key)
+    grouped[s.key] = seededShuffle(visiblePicks.filter(p => sectionOf(p) === s.key), dayIdx)
   })
+
+  // Live, ticketed events (Ticketmaster) for the selected night — the "what's
+  // actually on, bookable right now" layer on top of the editorial picks.
+  // Fails soft to [] when there's no API key, so the page is unchanged without it.
+  const [liveEvents, setLiveEvents] = React.useState([])
+  const [liveExpanded, setLiveExpanded] = React.useState(false)
+  React.useEffect(() => {
+    let alive = true
+    fetchTicketmaster().then(evs => { if (alive) setLiveEvents(Array.isArray(evs) ? evs : []) }).catch(() => {})
+    return () => { alive = false }
+  }, [])
+  const dayEvents = React.useMemo(() => {
+    const offset = (dayIdx - todayIdx + 7) % 7
+    const target = new Date(); target.setHours(0, 0, 0, 0); target.setDate(target.getDate() + offset)
+    const sameDay = d => d instanceof Date && d.getFullYear() === target.getFullYear() && d.getMonth() === target.getMonth() && d.getDate() === target.getDate()
+    return liveEvents.filter(ev => sameDay(ev.date))
+  }, [liveEvents, dayIdx, todayIdx])
 
   // How many of these picks has the user saved? Powers the saved-count link in the header.
   const savedCount = React.useMemo(
@@ -6903,6 +7242,53 @@ function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onV
         </div>
       </div>
 
+      {/* ── Live & ticketed (Ticketmaster) for the selected night ── */}
+      {tonightFilter === 'all' && dayEvents.length > 0 && (() => {
+        const DAY_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+        const when = dayIdx === todayIdx ? 'tonight' : `${DAY_FULL[dayIdx]} night`
+        const ranked = rankLiveEvents(dayEvents)
+        const shown = liveExpanded ? ranked : ranked.slice(0, 6)
+        const fmtTime = d => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+        return (
+          <div style={{ padding: '18px 20px 4px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <span style={{ fontSize: 15, lineHeight: 1 }} aria-hidden="true">🎟️</span>
+              <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-600)' }}>On sale {when}</span>
+              <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--ink-3)', fontWeight: 600 }}>{dayEvents.length} live</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {shown.map(ev => (
+                <button key={ev.id} onClick={() => onNavigate({ event: ev })} style={{
+                  width: '100%', display: 'flex', gap: 12, alignItems: 'center', textAlign: 'left', cursor: 'pointer',
+                  background: 'var(--white)', border: '1px solid var(--gray-200)', borderRadius: 14, padding: 10,
+                  boxShadow: '0 1px 2px rgba(29,39,51,0.05)',
+                }}>
+                  <div style={{ width: 74, height: 74, flexShrink: 0, borderRadius: 10, overflow: 'hidden', background: `linear-gradient(135deg, ${ev.color}, ${ev.color}B0)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {ev.image
+                      ? <img src={ev.image} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                      : <span style={{ fontSize: 24 }} aria-hidden="true">{ev.emoji}</span>}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: ev.color }}>{ev.kindLabel}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gray-900)', margin: '2px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.title}</div>
+                    <div style={{ fontSize: 12, color: 'var(--ink-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {fmtTime(ev.date)}{ev.location ? ` · ${ev.location}` : ''}{ev.priceText ? ` · ${ev.priceText}` : ''}
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 18, color: 'var(--gray-300)', flexShrink: 0 }} aria-hidden="true">›</span>
+                </button>
+              ))}
+            </div>
+            {dayEvents.length > 6 && !liveExpanded && (
+              <button onClick={() => setLiveExpanded(true)} style={{
+                marginTop: 12, width: '100%', background: 'var(--gray-100)', border: 'none', cursor: 'pointer',
+                borderRadius: 10, padding: '10px', fontSize: 13, fontWeight: 700, color: 'var(--gray-700)',
+              }}>Show all {dayEvents.length} on sale →</button>
+            )}
+          </div>
+        )
+      })()}
+
       {/* ── Grouped picks ── */}
       <div style={{ padding: '0 0 20px' }}>
         {visiblePicks.length === 0 && (() => {
@@ -7051,7 +7437,7 @@ function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onV
                         <div style={{
                           fontSize: 12, fontWeight: 700, color: 'var(--accent-text)', minWidth: 0,
                           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                        }}>{pick.dateNote}</div>
+                        }}>{relativeDateNote(pick.dateNote, dayIdx, todayIdx)}</div>
 
                         {/* Title — clamped to 2 lines so card stays scannable */}
                         <div style={{
@@ -7087,6 +7473,7 @@ function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onV
           )
         })}
       </div>
+
     </div>
   )
 }
@@ -7300,7 +7687,7 @@ function fmtHour(h) {
 // ── Restaurant Data ──────────────────────────────────────────────────────────
 const CUISINE_OPTIONS = [
   { id: 'japanese',   label: 'Japanese',    emoji: '🍣', color: '#e11d48' },
-  { id: 'korean',     label: 'Korean',      emoji: '🥩', color: '#ea580c' },
+  { id: 'korean',     label: 'Korean',      emoji: '🍲', color: '#ea580c' },
   { id: 'italian',    label: 'Italian',     emoji: '🍝', color: '#16a34a' },
   { id: 'pizza',      label: 'Pizza',       emoji: '🍕', color: '#dc2626' },
   { id: 'burger',     label: 'Burger',      emoji: '🍔', color: '#92400e' },
@@ -7406,17 +7793,44 @@ const RESTAURANT_COORDS = {
   sik_gaek: [40.7458, -73.9060], nan_xiang: [40.7595, -73.8310], de_mole: [40.7430, -73.9230],
 }
 
+// Itinerary area-cluster labels don't always equal the restaurant `area` field
+// (e.g. "Greenwich Village" → "Downtown Village"; "Evening Out" / "Central Park"
+// have no restaurants of their own). Map the common ones so meal lookups resolve;
+// anything still unmatched falls back to the full list ranked by walking distance,
+// so a meal card NEVER comes up empty.
+const AREA_TO_RESTAURANT_AREA = {
+  'Greenwich Village': 'Downtown Village',
+  'East Village':      'Downtown Village',
+  'West Village':      'Downtown Village',
+  'SoHo':              'Downtown Village',
+  'Chelsea':           'Downtown Village',
+  'Gramercy':          'Downtown Village',
+  'Tribeca':           'Lower Manhattan',
+  'Chinatown':         'Lower Manhattan',
+  'Financial District':'Lower Manhattan',
+  'Central Park':      'Midtown',
+  'The Bronx':         'Bronx',
+}
+
+// Candidate restaurants for an (area, cuisine), with graceful fallback:
+// exact area → aliased area → that cuisine anywhere → anything. Always non-empty
+// when RESTAURANT_DATA is non-empty, so cuisine selection always re-picks and
+// no day (incl. evening-only "Evening Out" plans) loses its meal suggestion.
+function restaurantPool(area, cuisineId) {
+  const byArea = a => RESTAURANT_DATA.filter(r => r.area === a)
+  const narrow = list => cuisineId ? list.filter(r => r.cuisines && r.cuisines.includes(cuisineId)) : list
+  let pool = narrow(byArea(area))
+  if (pool.length === 0 && AREA_TO_RESTAURANT_AREA[area]) pool = narrow(byArea(AREA_TO_RESTAURANT_AREA[area]))
+  if (pool.length === 0) pool = narrow(RESTAURANT_DATA)   // that cuisine, anywhere
+  if (pool.length === 0) pool = RESTAURANT_DATA           // last resort: anything
+  return pool
+}
+
 // Like getRestaurantSuggestion, but when given an `anchor` { lat, lng } (the stop
 // you're coming from) it ranks the candidate pool nearest-first, so "Show another"
 // walks outward from the closest spot. Restaurants without a known coord sort last.
 function getRestaurantSuggestionNear(area, cuisineId, offset = 0, anchor = null) {
-  let pool
-  if (cuisineId) {
-    pool = RESTAURANT_DATA.filter(r => r.cuisines && r.cuisines.includes(cuisineId) && r.area === area)
-    if (pool.length === 0) pool = RESTAURANT_DATA.filter(r => r.cuisines && r.cuisines.includes(cuisineId))
-  } else {
-    pool = RESTAURANT_DATA.filter(r => r.area === area)
-  }
+  let pool = restaurantPool(area, cuisineId)
   if (pool.length === 0) return null
   if (anchor && typeof anchor.lat === 'number') {
     const dist = r => {
@@ -7429,27 +7843,14 @@ function getRestaurantSuggestionNear(area, cuisineId, offset = 0, anchor = null)
 }
 
 function getRestaurantSuggestion(area, cuisineId, offset = 0) {
-  // With cuisine: filter by area + cuisine, falling back to anywhere if the area has none of that cuisine.
-  // Without cuisine: return any restaurant in the area (the "best of area" default so meal cards always show something).
-  let pool
-  if (cuisineId) {
-    pool = RESTAURANT_DATA.filter(r => r.cuisines && r.cuisines.includes(cuisineId) && r.area === area)
-    if (pool.length === 0) pool = RESTAURANT_DATA.filter(r => r.cuisines && r.cuisines.includes(cuisineId))
-  } else {
-    pool = RESTAURANT_DATA.filter(r => r.area === area)
-  }
+  const pool = restaurantPool(area, cuisineId)
   if (pool.length === 0) return null
   return pool[offset % pool.length]
 }
 
 // How many alternatives are available for this (area, cuisine) combo — used to know when to dim the refresh button.
 function countRestaurantOptions(area, cuisineId) {
-  if (cuisineId) {
-    const local = RESTAURANT_DATA.filter(r => r.cuisines && r.cuisines.includes(cuisineId) && r.area === area)
-    if (local.length > 0) return local.length
-    return RESTAURANT_DATA.filter(r => r.cuisines && r.cuisines.includes(cuisineId)).length
-  }
-  return RESTAURANT_DATA.filter(r => r.area === area).length
+  return restaurantPool(area, cuisineId).length
 }
 
 // Haversine distance between two lat/lng points, in miles.
@@ -8058,7 +8459,7 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
 
   const DOMAIN_ICONS = {
     visual_art: '🎨', jazz: '🎷', classical_music: '🎼', theater: '🎭',
-    history: '📜', architecture: '🏛️', sports: '🏆', hip_hop: '🎤',
+    history: '📜', architecture: '🏛️', sports: '🏆', hip_hop: '🎤', food: '🍴',
   }
   const PERIOD_COLORS = {
     Morning:   { bg: '#fef9c3', text: '#854d0e', dot: '#ca8a04' },
@@ -8307,6 +8708,73 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     })
   }
 
+  // Single source of truth for a day's ordered items + sequenced clock, so the
+  // Full-plan and Checklist views always agree on order AND times. (Previously
+  // the Checklist rendered each stop's raw buildItinerary startHour, which drifted
+  // from the Full plan's travel-aware clock and ignored drag/meal reordering — so
+  // the two views showed different times for the same stop.)
+  function computeDayPlan(day, dayIdx) {
+    const sortedDayStops = orderedStops(day.stops)
+    const hasAfternoon2 = sortedDayStops.some(s => s.period === 'Afternoon')
+    const hasDinner2 = sortedDayStops.some(s => s.period === 'Evening')
+    const defaultItemIds = []
+    let li2 = false, di2 = false
+    sortedDayStops.forEach(stop => {
+      if (!li2 && (stop.period === 'Afternoon' || (!hasAfternoon2 && stop.period === 'Evening'))) {
+        defaultItemIds.push('__lunch__'); li2 = true
+      }
+      if (!di2 && hasDinner2 && stop.period === 'Evening') {
+        defaultItemIds.push('__dinner__'); di2 = true
+      }
+      defaultItemIds.push(stop.id)
+    })
+    if (!li2) defaultItemIds.push('__lunch__')
+    if (!di2 && hasDinner2) defaultItemIds.push('__dinner__')
+    const isDraggingThisDay = dragId !== null && dragDayIdx === dayIdx
+    let activeItemIds
+    if (isDraggingThisDay) {
+      activeItemIds = dragOrder
+    } else if (dayItemOrders[dayIdx]) {
+      const saved = dayItemOrders[dayIdx]
+      const savedSet = new Set(saved)
+      const defaultSet = new Set(defaultItemIds)
+      activeItemIds = [
+        ...saved.filter(id => defaultSet.has(id)),
+        ...defaultItemIds.filter(id => !savedSet.has(id)),
+      ]
+    } else {
+      activeItemIds = defaultItemIds
+    }
+    const stopMap = {}; sortedDayStops.forEach(s => { stopMap[s.id] = s })
+    const reorderedItems = activeItemIds
+      .map(id => id === '__lunch__'  ? { type: 'restaurant', meal: 'lunch' }
+               : id === '__dinner__' ? { type: 'restaurant', meal: 'dinner' }
+               : stopMap[id]         ? { type: 'stop', stop: stopMap[id] }
+               : null)
+      .filter(Boolean)
+    // Sequenced clock — each stop's displayed start time accumulates the prior
+    // stops' durations, inter-stop travel time, and meal breaks, so two stops in
+    // the same period no longer both read "10:00am".
+    const stopClock = {}
+    {
+      const firstStop = reorderedItems.find(it => it.type === 'stop')?.stop
+      let clock = firstStop ? firstStop.startHour : 10
+      let prevId = null
+      reorderedItems.forEach(it => {
+        if (it.type === 'restaurant') { clock += 1.25; return }
+        const s = it.stop
+        if (prevId) {
+          const t = estimateTravel(prevId, s.id)
+          clock += (t?.mins ?? 12) / 60
+        }
+        stopClock[s.id] = clock
+        clock += (typeof s.duration === 'number' ? s.duration : 1)
+        prevId = s.id
+      })
+    }
+    return { sortedDayStops, reorderedItems, stopClock, defaultItemIds }
+  }
+
   // Restore saved snapshot on mount so returning users land on their plan
   const _snap = (() => { try { return JSON.parse(localStorage.getItem('nyc_plan_snapshot') || 'null') } catch { return null } })()
   // Show saved plan summary if user just saved OR if they're returning and have a snapshot
@@ -8357,6 +8825,11 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
         const importedFiltered = importQuery.trim()
           ? importedList.filter(v => (v.name || '').toLowerCase().includes(importQuery.trim().toLowerCase()))
           : importedList
+        // Only mount a window of rows — rendering all ~500 imported places at once
+        // froze the My Trip screen. The search box narrows; the rest stay off-DOM.
+        const IMPORT_RENDER_CAP = 50
+        const importedShown = importedFiltered.slice(0, IMPORT_RENDER_CAP)
+        const importedHidden = importedFiltered.length - importedShown.length
 
         // Compact row renderer — keeps the imported accordion light. Manual
         // section uses the richer card layout below to give them more weight.
@@ -8553,7 +9026,16 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
                         }}>
                           No imported place matches "{importQuery}"
                         </div>
-                      ) : importedFiltered.map(renderCompactRow)}
+                      ) : (
+                        <>
+                          {importedShown.map(renderCompactRow)}
+                          {importedHidden > 0 && (
+                            <div style={{ padding: '10px 12px', textAlign: 'center', fontSize: 11, color: 'var(--gray-400)' }}>
+                              +{importedHidden} more · search to narrow
+                            </div>
+                          )}
+                        </>
+                      )}
                     </div>
                   </div>
                 )}
@@ -8616,7 +9098,7 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
                   background: 'var(--accent)', color: '#fff', border: 'none',
                   borderRadius: 999, padding: '13px 32px',
                   fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                  boxShadow: '0 6px 16px rgba(61,155,255,.35)',
+                  boxShadow: '0 6px 16px rgba(224,85,44,.35)',
                 }}
               >
                 Build tonight&rsquo;s plan
@@ -8901,7 +9383,9 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
 
       {/* ── Today checklist view ── */}
       {todayMode && days.length > 0 && (() => {
-        const todayStops = orderedStops(days[0].stops)
+        // Same order + clock as the Full plan, so times match exactly.
+        const { reorderedItems, stopClock } = computeDayPlan(days[0], 0)
+        const todayStops = reorderedItems.filter(it => it.type === 'stop').map(it => it.stop)
         const total = todayStops.length
         const done = todayStops.filter(s => checkedStops.has(s.id)).length
         const pct = total > 0 ? Math.round((done / total) * 100) : 0
@@ -8954,7 +9438,7 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
                         {DOMAIN_ICONS[stop.domain] || '📍'} {stop.name}
                       </div>
                       <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 2 }}>
-                        {stop.period} · {fmtHour(stop.startHour)} · {stop.neighborhood}
+                        {stop.period} · {fmtHour(stopClock[stop.id] ?? stop.startHour)} · {stop.neighborhood}
                       </div>
                     </div>
                   </button>
@@ -9104,75 +9588,9 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
 
             {/* Stops + restaurant cards — hidden when day is collapsed */}
             {!isCollapsed && (() => {
-              const sortedDayStops = orderedStops(day.stops)
-              // Build auto-ordered item ID list (stops interleaved with __lunch__/__dinner__ markers)
-              const hasAfternoon2 = sortedDayStops.some(s => s.period === 'Afternoon')
-              const hasDinner2 = sortedDayStops.some(s => s.period === 'Evening')
-              const defaultItemIds = []
-              let li2 = false, di2 = false
-              sortedDayStops.forEach(stop => {
-                if (!li2 && (stop.period === 'Afternoon' || (!hasAfternoon2 && stop.period === 'Evening'))) {
-                  defaultItemIds.push('__lunch__'); li2 = true
-                }
-                if (!di2 && hasDinner2 && stop.period === 'Evening') {
-                  defaultItemIds.push('__dinner__'); di2 = true
-                }
-                defaultItemIds.push(stop.id)
-              })
-              if (!li2) defaultItemIds.push('__lunch__')
-              if (!di2 && hasDinner2) defaultItemIds.push('__dinner__')
-              // Use live drag order (same day), or a merge of saved order + defaults.
-              // The merge step is CRITICAL for cross-day drag: when a stop arrives from
-              // another day, the day's saved dayItemOrders[dayIdx] doesn't include it,
-              // so the naive `dayItemOrders[dayIdx] || defaultItemIds` would drop the
-              // new arrival. We preserve the user's ordering for items that are still
-              // here, then append anything that's in defaults but not in the saved order.
-              const isDraggingThisDay = dragId !== null && dragDayIdx === dayIdx
-              let activeItemIds
-              if (isDraggingThisDay) {
-                activeItemIds = dragOrder
-              } else if (dayItemOrders[dayIdx]) {
-                const saved = dayItemOrders[dayIdx]
-                const savedSet = new Set(saved)
-                const defaultSet = new Set(defaultItemIds)
-                activeItemIds = [
-                  // Keep saved order, but drop any IDs that no longer belong to this day
-                  // (e.g. moved out via cross-day drag).
-                  ...saved.filter(id => defaultSet.has(id)),
-                  // Append anything new that arrived in this day since the order was saved.
-                  ...defaultItemIds.filter(id => !savedSet.has(id)),
-                ]
-              } else {
-                activeItemIds = defaultItemIds
-              }
-              // Build reorderedItems from the active ordering
-              const stopMap = {}; sortedDayStops.forEach(s => { stopMap[s.id] = s })
-              const reorderedItems = activeItemIds
-                .map(id => id === '__lunch__'  ? { type: 'restaurant', meal: 'lunch' }
-                         : id === '__dinner__' ? { type: 'restaurant', meal: 'dinner' }
-                         : stopMap[id]         ? { type: 'stop', stop: stopMap[id] }
-                         : null)
-                .filter(Boolean)
-              // Sequenced clock — each stop's displayed start time accumulates the
-              // prior stops' durations, inter-stop travel time, and meal breaks, so
-              // two stops in the same period no longer both read "10:00am".
-              const stopClock = {}
-              {
-                const firstStop = reorderedItems.find(it => it.type === 'stop')?.stop
-                let clock = firstStop ? firstStop.startHour : 10
-                let prevId = null
-                reorderedItems.forEach(it => {
-                  if (it.type === 'restaurant') { clock += 1.25; return }
-                  const s = it.stop
-                  if (prevId) {
-                    const t = estimateTravel(prevId, s.id)
-                    clock += (t?.mins ?? 12) / 60
-                  }
-                  stopClock[s.id] = clock
-                  clock += (typeof s.duration === 'number' ? s.duration : 1)
-                  prevId = s.id
-                })
-              }
+              // Order + sequenced clock come from the shared helper so this Full-plan
+              // view and the Checklist view never disagree on order or times.
+              const { reorderedItems, stopClock, defaultItemIds } = computeDayPlan(day, dayIdx)
               const allStopIds = days.flatMap(d => d.stops.map(s => s.id))
               return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
@@ -11529,7 +11947,7 @@ function OnboardingModal({ onDismiss }) {
   // tint used for the emoji tile gradient and the eyebrow.
   const slides = [
     {
-      tint: '#3d9bff',
+      tint: '#E0552C',
       emoji: '🗽',
       eyebrow: 'NYC STOOP',
       title: "Discover what's on,\ntonight in New York.",
@@ -11645,7 +12063,7 @@ function OnboardingModal({ onDismiss }) {
           padding: '15px 24px',
           fontSize: 15, fontWeight: 800,
           cursor: 'pointer',
-          boxShadow: '0 10px 22px rgba(61,155,255,.45)',
+          boxShadow: '0 10px 22px rgba(224,85,44,.45)',
           letterSpacing: '-0.005em',
         }}>
           {isLast ? "Let's go →" : 'Next'}
@@ -12175,7 +12593,7 @@ function PlanNightSheet({ onClose, onBuild }) {
         </div>
         <button onClick={() => onBuild({ when, areaKey: area })} style={{
           width: '100%', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 14,
-          padding: '15px', fontSize: 16, fontWeight: 800, cursor: 'pointer', boxShadow: '0 6px 16px rgba(61,155,255,.35)',
+          padding: '15px', fontSize: 16, fontWeight: 800, cursor: 'pointer', boxShadow: '0 6px 16px rgba(224,85,44,.35)',
         }}>
           Build my plan →
         </button>
@@ -12331,17 +12749,47 @@ export default function App() {
       brooklyn: a => a && a.borough === 'brooklyn',
       surprise: () => true,
     }[areaKey] || (() => true)
+    // "Tonight" must actually feel like a NIGHT: pick evening venues (jazz /
+    // classical / theater) so the itinerary builder routes them into Evening
+    // slots and slots a dinner in front. "This weekend" stays daytime sights.
+    const EVENING_DOMAINS = new Set(['jazz', 'classical_music', 'theater'])
+    const wantEvening = when !== 'weekend'
     let ids = Object.keys(venues).filter(id => {
       const v = venues[id]
-      return v && !v.isRestaurant && v.neighborhood && inArea(neighborhoodToArea(v.neighborhood))
+      if (!v || v.isRestaurant || !v.neighborhood) return false
+      if (!inArea(neighborhoodToArea(v.neighborhood))) return false
+      const domain = venueCoords[id]?.domain
+      return wantEvening ? EVENING_DOMAINS.has(domain) : !EVENING_DOMAINS.has(domain)
     })
     // Prefer venues with coordinates so routing + meal anchoring work well.
     ids.sort((x, y) => (venueCoords[y] ? 1 : 0) - (venueCoords[x] ? 1 : 0))
     ids = ids.slice(0, 3)
-    if (ids.length < 2) ids = ['moma', 'met', 'village_vanguard', 'guggenheim'].filter(id => venues[id]).slice(0, 3)
+    // Fallback if the chosen area has too few of the right kind.
+    if (ids.length < 2) {
+      const fb = wantEvening
+        ? ['village_vanguard', 'blue_note', 'carnegie_hall', 'birdland', 'smalls']
+        : ['moma', 'met', 'guggenheim', 'empire_state']
+      ids = fb.filter(id => venues[id]).slice(0, 3)
+    }
 
+    // Add the picks to saves (non-destructive) so the itinerary can include them.
     const alreadySaved = new Set(Object.values(savedItems || {}).filter(i => i?.type === 'venue').map(i => i.id))
     ids.forEach(id => { if (!alreadySaved.has(id)) toggleSave('venue', id) })
+
+    // Focus the plan on JUST these picks. My Trip builds its itinerary from the
+    // plan SELECTION (nyc_plan_sel), not every saved venue — so by setting the
+    // selection to only tonight's picks (and marking everything currently saved
+    // as "known" so the auto-add effect doesn't re-add the user's other saves),
+    // "Plan my night" yields one coherent outing instead of merging the whole
+    // saved set into a multi-day daytime plan.
+    const allKnown = [...new Set([
+      ...Object.values(savedItems || {}).filter(i => i?.type === 'venue' && i.id).map(i => i.id),
+      ...ids,
+    ])]
+    try {
+      localStorage.setItem('nyc_plan_sel', JSON.stringify(ids))
+      localStorage.setItem('nyc_plan_known', JSON.stringify(allKnown))
+    } catch {}
 
     const days = when === 'weekend' ? 2 : 1
     const d = new Date()
@@ -12370,6 +12818,7 @@ export default function App() {
   const [mapSel,       setMapSel]       = useState(null)
   const [mapHighlight, setMapHighlight] = useState(null)
   const [tonightSel,   setTonightSel]   = useState(null)
+  const [tonightFull,  setTonightFull]  = useState(null)  // full-page detail opened FROM Tonight (so back returns here)
   const [savedSel,     setSavedSel]     = useState(null)
 
   function toggleSave(type, id) {
@@ -12412,7 +12861,7 @@ export default function App() {
     if (tab === activeTab) {
       if (tab === 'explore') resetExplore()
       if (tab === 'map')     setMapSel(null)
-      if (tab === 'tonight') setTonightSel(null)
+      if (tab === 'tonight') { setTonightSel(null); setTonightFull(null) }
       if (tab === 'saved')   setSavedSel(null)
     } else {
       setActiveTab(tab)
@@ -12449,9 +12898,12 @@ export default function App() {
     if (activeTab === 'map' && mapSel) {
       return { isHome: false, canGoBack: true, onBack: () => setMapSel(null), title: venues[mapSel]?.name || '' }
     }
-    if (activeTab === 'tonight' && tonightSel) {
-      const title = tonightSel.screen === 'venue' ? venues[tonightSel.id]?.name : works[tonightSel.id]?.title
-      return { isHome: false, canGoBack: true, onBack: () => setTonightSel(null), title: title || '' }
+    // Tonight: the quick detail opens in a bottom sheet (its own dismiss), so no
+    // back arrow for that. But "Full details" opens a full page INSIDE the Tonight
+    // tab — there the back arrow returns to the Tonight feed (not Explore/home).
+    if (activeTab === 'tonight' && tonightFull) {
+      const title = tonightFull.screen === 'venue' ? venues[tonightFull.id]?.name : works[tonightFull.id]?.title
+      return { isHome: false, canGoBack: true, onBack: () => setTonightFull(null), title: title || '' }
     }
     if (activeTab === 'saved' && savedSel) {
       const { type, id } = savedSel
@@ -12494,21 +12946,44 @@ export default function App() {
       case 'eat':
         return <EatScreen push={pushToExplore} savedItems={savedItems} />
 
-      case 'tonight':
-        if (tonightSel) {
-          if (tonightSel.screen === 'venue') return <VenueScreen venueId={tonightSel.id} fromTopicId={null} fromDomainId={null} push={pushToExplore} savedItems={savedItems} toggleSave={toggleSave} editorialCallout={tonightSel.blurb} onViewMap={venueCoords[tonightSel.id] ? () => { setMapHighlight(tonightSel.id); setActiveTab('map') } : null} />
-          return <WorkScreen workId={tonightSel.id} push={pushToExplore} savedItems={savedItems} toggleSave={toggleSave} />
+      case 'tonight': {
+        // Every Tonight card — curated venue/work AND live event — opens in the
+        // same expandable bottom sheet, so the interaction is consistent and you
+        // never lose your place in the feed. Onward navigation (a related venue)
+        // closes the sheet and switches to Explore.
+        const tonightPush = (entry) => { setTonightSel(null); pushToExplore(entry) }
+        // "Full details" opens the deep page WITHIN the Tonight tab (not Explore),
+        // so the back arrow returns here to the Tonight feed. Onward links from
+        // that page keep navigating within Tonight; anything else goes to Explore.
+        const tonightFullPush = (entry) =>
+          entry?.screen === 'venue' ? setTonightFull({ screen: 'venue', id: entry.venueId })
+          : entry?.screen === 'work' ? setTonightFull({ screen: 'work', id: entry.workId })
+          : (setTonightFull(null), pushToExplore(entry))
+        if (tonightFull) {
+          if (tonightFull.screen === 'venue') return <VenueScreen venueId={tonightFull.id} fromTopicId={null} fromDomainId={null} push={tonightFullPush} savedItems={savedItems} toggleSave={toggleSave} onViewMap={venueCoords[tonightFull.id] ? () => { setTonightFull(null); setMapHighlight(tonightFull.id); setActiveTab('map') } : null} />
+          return <WorkScreen workId={tonightFull.id} push={tonightFullPush} savedItems={savedItems} toggleSave={toggleSave} />
         }
-        return <TonightScreen
-          savedItems={savedItems}
-          toggleSave={toggleSave}
-          onViewSaved={() => setActiveTab('saved')}
-          onViewMap={() => setActiveTab('map')}
-          onNavigate={({ venueId, workId, blurb }) => {
-            if (venueId) setTonightSel({ screen: 'venue', id: venueId, blurb })
-            else if (workId) setTonightSel({ screen: 'work', id: workId, blurb })
-          }}
-        />
+        return (
+          <>
+            <TonightScreen
+              savedItems={savedItems}
+              toggleSave={toggleSave}
+              onViewSaved={() => setActiveTab('saved')}
+              onViewMap={() => setActiveTab('map')}
+              onNavigate={({ venueId, workId, blurb, event }) => {
+                if (event) setTonightSel({ screen: 'event', event })
+                else if (venueId) setTonightSel({ screen: 'venue', id: venueId, blurb })
+                else if (workId) setTonightSel({ screen: 'work', id: workId, blurb })
+              }}
+            />
+            <BottomSheet open={!!tonightSel} onClose={() => setTonightSel(null)}>
+              {tonightSel?.screen === 'venue' && <VenueSheet venueId={tonightSel.id} blurb={tonightSel.blurb} savedItems={savedItems} toggleSave={toggleSave} onFullPage={() => { setTonightSel(null); setTonightFull({ screen: 'venue', id: tonightSel.id }) }} />}
+              {tonightSel?.screen === 'work' && <WorkScreen workId={tonightSel.id} push={tonightPush} savedItems={savedItems} toggleSave={toggleSave} />}
+              {tonightSel?.screen === 'event' && <EventDetail event={tonightSel.event} />}
+            </BottomSheet>
+          </>
+        )
+      }
 
       case 'saved':
         if (savedSel) {
