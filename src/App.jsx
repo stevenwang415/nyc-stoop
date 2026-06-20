@@ -4070,13 +4070,17 @@ const MOOD_MAP_AREAS = {
     { id: 'bk_park_slope',    label: 'Park Slope',        sub: 'West of the park',      color: '#8aa873' },
     { id: 'bk_crown_hts',     label: 'Crown Heights',     sub: 'Central',               color: '#c98aa0' },
     { id: 'bk_prospect_park', label: 'Prospect Park',     sub: 'Parkland',              color: '#7cc285' },
+    { id: 'bk_east',          label: 'East Brooklyn',     sub: 'Bed-Stuy · Bushwick',   color: '#d39a5e' },
+    { id: 'bk_lower',         label: 'Lower Brooklyn',    sub: 'Red Hook · Sunset Park',color: '#6fa8b0' },
   ],
 }
 
-// Brooklyn neighborhood boundaries (real-ish, [lat,lng] rings) for the 9 mapped
-// areas. Used by classifyLatLngToArea via point-in-polygon so a coordinate lands
-// in the same shape drawn on the Brooklyn map. Points outside all 9 (Bushwick,
-// Bed-Stuy, Red Hook, Gowanus, …) are intentionally unmapped → "Anywhere" only.
+// Brooklyn neighborhood boundaries (real-ish, [lat,lng] rings). Used by
+// classifyLatLngToArea via point-in-polygon so a coordinate lands in the same
+// shape drawn on the Brooklyn map. bk_east and bk_lower are broad catch-alls
+// listed LAST, so the specific neighborhoods above win any overlap and these two
+// pick up the rest of central/east BK (Bed-Stuy, Bushwick) and south/west BK
+// (Red Hook, Carroll Gardens, Gowanus, Sunset Park, Bay Ridge).
 const BK_AREA_POLYS = {
   bk_greenpoint:   [[40.7385,-73.9605],[40.7392,-73.9505],[40.7360,-73.9360],[40.7268,-73.9338],[40.7240,-73.9440],[40.7248,-73.9560],[40.7295,-73.9612]],
   bk_williamsburg: [[40.7248,-73.9560],[40.7240,-73.9440],[40.7130,-73.9335],[40.7000,-73.9408],[40.7008,-73.9560],[40.7085,-73.9680],[40.7180,-73.9668],[40.7222,-73.9620]],
@@ -4087,6 +4091,8 @@ const BK_AREA_POLYS = {
   bk_park_slope:   [[40.6852,-73.9840],[40.6800,-73.9742],[40.6700,-73.9772],[40.6605,-73.9810],[40.6620,-73.9908],[40.6772,-73.9892]],
   bk_crown_hts:    [[40.6790,-73.9632],[40.6785,-73.9292],[40.6618,-73.9272],[40.6608,-73.9540],[40.6662,-73.9632]],
   bk_prospect_park:[[40.6742,-73.9705],[40.6700,-73.9610],[40.6608,-73.9622],[40.6532,-73.9682],[40.6602,-73.9742],[40.6702,-73.9730]],
+  bk_east:         [[40.7060,-73.9560],[40.7060,-73.8760],[40.6580,-73.8740],[40.6560,-73.9600]],
+  bk_lower:        [[40.6900,-74.0260],[40.6900,-73.9720],[40.6180,-73.9860],[40.6160,-74.0320]],
 }
 // Ray-casting point-in-polygon. ring is [[lat,lng],…].
 function pointInPoly(lat, lng, ring) {
@@ -4197,6 +4203,8 @@ function neighborhoodToArea(s) {
   if (has('prospect heights')) return { borough: 'brooklyn', areaId: 'bk_prospect_hts' }
   if (has('park slope')) return { borough: 'brooklyn', areaId: 'bk_park_slope' }
   if (has('crown heights')) return { borough: 'brooklyn', areaId: 'bk_crown_hts' }
+  if (has('bed-stuy', 'bedford-stuyvesant', 'bedford stuyvesant', 'stuyvesant heights', 'bushwick', 'east new york', 'ocean hill', 'brownsville')) return { borough: 'brooklyn', areaId: 'bk_east' }
+  if (has('red hook', 'carroll gardens', 'cobble hill', 'boerum hill', 'gowanus', 'sunset park', 'bay ridge', 'windsor terrace', 'columbia street')) return { borough: 'brooklyn', areaId: 'bk_lower' }
   if (has('harlem', 'morningside', 'washington heights', 'inwood')) return { borough: 'manhattan', areaId: 'uptown' }
   if (has('upper west', 'lincoln square')) return { borough: 'manhattan', areaId: 'uws' }
   if (has('upper east', 'yorkville', 'carnegie hill')) return { borough: 'manhattan', areaId: 'ues' }
@@ -4249,7 +4257,7 @@ const MOOD_MAP_SVG = {
   },
   brooklyn: {
     viewBox: '0 0 322 403',
-    baseLand: '197.6,42.0 239.9,54.3 246.3,89.7 247.2,142.9 225.9,192.9 196.1,204.5 259.8,275.7 265.6,340.0 145.9,373.1 108.0,346.9 79.9,339.2 57.4,262.2 56.6,194.8 70.0,175.6 145.0,160.2 150.0,123.6 166.3,79.3',
+    baseLand: '136,96 150,46 210,42 248,62 254,100 262,150 268,175 279,220 283,268 277,300 269,345 268,350 180,386 118,374 70,348 69,345 58,300 49,268 49,220 52,180 64,175 120,150 135,100',
     adjacent: [
       { kind: 'land', label: 'Manhattan', d: 'M 0,34 L 56,34 L 40,192 L 14,292 L 0,327 Z', labelAt: [34, 72] },
       { kind: 'land', label: 'Queens', d: 'M 264,34 L 322,34 L 322,134 L 274,112 Z', labelAt: [292, 72] },
@@ -4257,15 +4265,17 @@ const MOOD_MAP_SVG = {
       { kind: 'water-label', label: 'Upper Bay', at: [62, 387], rotate: 0 },
     ],
     areas: [
-      { id: 'bk_greenpoint', color: '#6fae8e', label: ['GREENPOINT'], points: '168.4,44.7 197.6,42.0 239.9,54.3 246.3,89.7 216.5,100.5 181.5,97.4 166.3,79.3', labelAt: [202.5, 70.5], labelSize: 9 },
-      { id: 'bk_williamsburg', color: '#7e93c4', label: ['WILLIAMS-', 'BURG'], points: '181.5,97.4 216.5,100.5 247.2,142.9 225.9,192.9 181.5,189.8 146.5,160.2 150.0,123.6 164.0,107.4', labelAt: [193.2, 146.7], labelSize: 9 },
-      { id: 'bk_dumbo', color: '#c89a6a', label: ['DUMBO'], points: '70.0,176.7 96.3,174.8 97.4,191.0 72.0,192.9', labelAt: [83.4, 183.7], labelSize: 7 },
-      { id: 'bk_downtown', color: '#c2a24e', label: ['DOWN-', 'TOWN'], points: '79.9,192.9 110.9,197.5 115.5,231.4 85.8,236.0 75.8,210.2', labelAt: [96.3, 213.7], labelSize: 8 },
-      { id: 'bk_clinton', color: '#cc7d92', label: ['CLINTON', 'HILL'], points: '140.1,202.5 174.2,204.5 169.8,269.9 134.2,268.0', labelAt: [153.8, 236.0], labelSize: 8.5 },
-      { id: 'bk_prospect_hts', color: '#9b86c4', label: ['PROS.', 'HTS'], points: '128.4,264.1 160.5,266.8 153.8,300.7 128.4,294.9', labelAt: [143.0, 281.5], labelSize: 7 },
-      { id: 'bk_park_slope', color: '#8aa873', label: ['PARK', 'SLOPE'], points: '99.8,249.9 128.4,269.9 119.6,308.4 108.5,345.0 79.9,339.2 84.6,280.7', labelAt: [96.3, 292.2], labelSize: 8.5 },
-      { id: 'bk_crown_hts', color: '#c98aa0', label: ['CROWN', 'HEIGHTS'], points: '160.5,273.8 259.8,275.7 265.6,340.0 187.4,343.8 160.5,323.0', labelAt: [219.5, 306.5], labelSize: 9 },
-      { id: 'bk_prospect_park', color: '#7cc285', label: ['PROSPECT', 'PARK'], points: '139.2,292.2 166.9,308.4 163.4,343.8 145.9,373.1 128.4,346.1 131.9,307.6', labelAt: [143.6, 328.4], labelSize: 8 },
+      { id: 'bk_greenpoint', color: '#6fae8e', label: ['GREENPOINT'], points: '135,100 136,96 150,46 210,42 248,62 254,100', labelAt: [193, 73], labelSize: 9 },
+      { id: 'bk_williamsburg', color: '#7e93c4', label: ['WILLIAMS-', 'BURG'], points: '135,100 254,100 262,150 268,175 64,175 120,150', labelAt: [166, 140], labelSize: 9 },
+      { id: 'bk_dumbo', color: '#c89a6a', label: ['DUMBO'], points: '64,175 118,175 118,220 49,220 52,180', labelAt: [83, 199], labelSize: 7 },
+      { id: 'bk_downtown', color: '#c2a24e', label: ['DOWN-', 'TOWN'], points: '49,220 118,220 118,268 49,268', labelAt: [83, 244], labelSize: 8 },
+      { id: 'bk_clinton', color: '#cc7d92', label: ['CLINTON', 'HILL'], points: '118,175 176,175 176,268 118,268', labelAt: [147, 222], labelSize: 8.5 },
+      { id: 'bk_east', color: '#d39a5e', label: ['EAST', 'BROOKLYN'], points: '176,175 268,175 279,220 283,268 176,268', labelAt: [225, 222], labelSize: 8.5 },
+      { id: 'bk_park_slope', color: '#8aa873', label: ['PARK', 'SLOPE'], points: '49,268 118,268 118,345 69,345 58,300', labelAt: [84, 306], labelSize: 8.5 },
+      { id: 'bk_prospect_hts', color: '#9b86c4', label: ['PROS.', 'HTS'], points: '118,268 176,268 176,300 118,300', labelAt: [147, 285], labelSize: 7 },
+      { id: 'bk_prospect_park', color: '#7cc285', label: ['PROSPECT', 'PARK'], points: '118,300 176,300 176,345 118,345', labelAt: [147, 323], labelSize: 7.5 },
+      { id: 'bk_crown_hts', color: '#c98aa0', label: ['CROWN', 'HEIGHTS'], points: '176,268 283,268 277,300 269,345 176,345', labelAt: [225, 306], labelSize: 9 },
+      { id: 'bk_lower', color: '#6fa8b0', label: ['LOWER', 'BROOKLYN'], points: '69,345 269,345 268,350 180,386 118,374 70,348', labelAt: [170, 366], labelSize: 8.5 },
     ],
   },
 }
@@ -4741,6 +4751,39 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
     const w = placeArea(v)
     return !!(w && w.borough === place.borough && w.areaId === place.areaId)
   }
+  const inAreaW = (w) => !(place && place.scope === 'area') || !!(w && w.borough === place.borough && w.areaId === place.areaId)
+  // How many picks an activity ACTUALLY has for the selected place — counted from
+  // the same sources the results screen pools (curated + user + imports + the
+  // restaurant DB + editorial-by-domain), deduped by name. Drives the activity-tile
+  // count so it can't promise "5" and then show 1.
+  const availableCount = (aid) => {
+    const names = new Set()
+    const add = (nm) => { const k = (nm || '').toLowerCase().trim(); if (k) names.add(k) }
+    const g = mood.groups.find(x => x.activity === aid)
+    if (g) g.picks.forEach(p => {
+      if (!inAreaW(classifyPickToArea(p))) return
+      if (p.type === 'venue' && venues[p.id]) add(venues[p.id].name)
+      else if (p.type === 'sight' && ALL_SIGHTS[p.id]) add(ALL_SIGHTS[p.id].name)
+    })
+    userPicks.filter(u => u.activity === aid).forEach(u => {
+      if (u.venueId && venues[u.venueId]) { if (inAreaW(classifyPickToArea({ type: 'venue', id: u.venueId }))) add(venues[u.venueId].name) }
+      else if (!(place && place.scope === 'area') || (u.borough === place.borough && u.area === place.areaId)) add(u.name)
+    })
+    Object.values(userVenues || {}).forEach(v => { if (CAT_TO_ACT[v.category] === aid && matchesArea(v)) add(v.name) })
+    RESTAURANT_DATA.forEach(r => {
+      if (!(r.cuisines || []).some(c => REST_CUISINE_ACT[c] === aid)) return
+      const c = RESTAURANT_COORDS[r.id]
+      if (!inAreaW(c ? classifyLatLngToArea(c[0], c[1]) : null)) return
+      add(r.name)
+    })
+    Object.keys(venueCoords).forEach(id => {
+      const info = venueCoords[id]
+      if (!info || DOMAIN_ACT[info.domain] !== aid || !venues[id]) return
+      if (!inAreaW(classifyLatLngToArea(info.lat, info.lng))) return
+      add(venues[id].name)
+    })
+    return names.size
+  }
   const byNewest = (arr) => arr.slice().sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0))
   const cardForUserVenue = (v) => (
     <UserVenueCard key={v.id} venue={v}
@@ -4903,9 +4946,8 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
             {shownActivities.map(aid => {
               const g = mood.groups.find(x => x.activity === aid)
               const meta = ACTIVITIES[aid]
-              const uc = userPicks.filter(u => u.activity === aid).length
-              const ready = !!g || uc > 0
-              const n = (g ? g.picks.length : 0) + uc
+              const n = availableCount(aid)
+              const ready = n > 0
               return (
                 <button
                   key={aid}
@@ -8444,8 +8486,9 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
       const anchor = mealAnchor(day, 'dinner')
       let pick = getRestaurantSuggestionNear(day.area, cuisine, off, anchor)
       // Don't suggest the same restaurant for lunch and dinner on the same day.
-      const lunchCuisine = mealCuisines[`${di}:lunch`] || null
-      const lunchPick = lunchCuisine ? getRestaurantSuggestionNear(day.area, lunchCuisine, restaurantOffsets[`lunch:${di}`] || 0, mealAnchor(day, 'lunch')) : null
+      // (Compute the lunch pick regardless of whether a lunch cuisine is set —
+      // otherwise the no-cuisine default gave lunch and dinner the same spot.)
+      const lunchPick = getRestaurantSuggestionNear(day.area, mealCuisines[`${di}:lunch`] || null, restaurantOffsets[`lunch:${di}`] || 0, mealAnchor(day, 'lunch'))
       if (pick && lunchPick && pick.name === lunchPick.name) {
         const alt = getRestaurantSuggestionNear(day.area, cuisine, off + 1, anchor)
         if (alt && alt.name !== lunchPick.name) pick = alt
@@ -8715,21 +8758,24 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
   // the two views showed different times for the same stop.)
   function computeDayPlan(day, dayIdx) {
     const sortedDayStops = orderedStops(day.stops)
-    const hasAfternoon2 = sortedDayStops.some(s => s.period === 'Afternoon')
-    const hasDinner2 = sortedDayStops.some(s => s.period === 'Evening')
+    const hasEvening2 = sortedDayStops.some(s => s.period === 'Evening')
+    // Lunch belongs ONLY to days with a daytime (Morning/Afternoon) portion — never
+    // on an evening-only night out (that gets dinner only). Dinner shows whenever
+    // the day has an Evening stop.
+    const hasDaytime2 = sortedDayStops.some(s => s.period === 'Morning' || s.period === 'Afternoon')
     const defaultItemIds = []
     let li2 = false, di2 = false
     sortedDayStops.forEach(stop => {
-      if (!li2 && (stop.period === 'Afternoon' || (!hasAfternoon2 && stop.period === 'Evening'))) {
+      if (hasDaytime2 && !li2 && (stop.period === 'Afternoon' || stop.period === 'Evening')) {
         defaultItemIds.push('__lunch__'); li2 = true
       }
-      if (!di2 && hasDinner2 && stop.period === 'Evening') {
+      if (!di2 && hasEvening2 && stop.period === 'Evening') {
         defaultItemIds.push('__dinner__'); di2 = true
       }
       defaultItemIds.push(stop.id)
     })
-    if (!li2) defaultItemIds.push('__lunch__')
-    if (!di2 && hasDinner2) defaultItemIds.push('__dinner__')
+    if (hasDaytime2 && !li2) defaultItemIds.push('__lunch__')
+    if (!di2 && hasEvening2) defaultItemIds.push('__dinner__')
     const isDraggingThisDay = dragId !== null && dragDayIdx === dayIdx
     let activeItemIds
     if (isDraggingThisDay) {
@@ -8772,7 +8818,14 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
         prevId = s.id
       })
     }
-    return { sortedDayStops, reorderedItems, stopClock, defaultItemIds }
+    // Day start/end taken from the sequenced clock (incl. meals + travel) so the
+    // day-summary strip matches the actual stop times shown on the cards.
+    const stopList = reorderedItems.filter(it => it.type === 'stop').map(it => it.stop)
+    const firstStopC = stopList[0]
+    const lastStopC = stopList[stopList.length - 1]
+    const dayStart = firstStopC ? stopClock[firstStopC.id] : null
+    const dayEnd = lastStopC ? stopClock[lastStopC.id] + (typeof lastStopC.duration === 'number' ? lastStopC.duration : 1) : null
+    return { sortedDayStops, reorderedItems, stopClock, defaultItemIds, dayStart, dayEnd, hasDaytime: hasDaytime2, hasEvening: hasEvening2 }
   }
 
   // Restore saved snapshot on mount so returning users land on their plan
@@ -8785,9 +8838,9 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
   // Stops + meal count for the header subtitle (totals across all days)
   const totalStops = days.reduce((n, d) => n + d.stops.length, 0)
   const totalMeals = days.reduce((n, d) => {
-    const hasAft = d.stops.some(s => s.period === 'Afternoon')
+    const hasDaytime = d.stops.some(s => s.period === 'Morning' || s.period === 'Afternoon')
     const hasEve = d.stops.some(s => s.period === 'Evening')
-    return n + (d.stops.length > 0 ? 1 : 0) + (hasEve ? 1 : 0)  // always 1 lunch when there are stops + 1 dinner if any evening
+    return n + (hasDaytime ? 1 : 0) + (hasEve ? 1 : 0)  // lunch only on daytime days + dinner if any evening
   }, 0)
 
   return (
@@ -9486,48 +9539,19 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
 
       {/* ── Plan view ── */}
       {!todayMode && days.map((day, dayIdx) => {
-        const hasLunch = true
-        const hasDinner = (day.stops || []).some(s => s.period === 'Evening')
+        // Single source of truth for ordering, clock, meals, and the summary range.
+        const dayPlan = computeDayPlan(day, dayIdx)
 
-        // Build render items: inject lunch before first Afternoon, dinner before first Evening
-        // Lunch goes before first Afternoon stop, OR before first Evening stop if no Afternoon
-        const hasAfternoon = day.stops.some(s => s.period === 'Afternoon')
-        const renderItems = []
-        let lunchInserted = false
-        let dinnerInserted = false
-        day.stops.forEach((stop, stopIdx) => {
-          // Lunch: before Afternoon, or before Evening when no Afternoon stops exist
-          if (!lunchInserted && hasLunch && (stop.period === 'Afternoon' || (!hasAfternoon && stop.period === 'Evening'))) {
-            renderItems.push({ type: 'restaurant', meal: 'lunch' })
-            lunchInserted = true
-          }
-          // Dinner: always before first Evening stop (after Lunch if both present)
-          if (!dinnerInserted && hasDinner && stop.period === 'Evening') {
-            renderItems.push({ type: 'restaurant', meal: 'dinner' })
-            dinnerInserted = true
-          }
-          renderItems.push({ type: 'stop', stop })
-        })
-        // Fallback: if all stops are Morning-only, append Lunch then Dinner at end
-        if (!lunchInserted && hasLunch) {
-          renderItems.push({ type: 'restaurant', meal: 'lunch' })
-        }
-        if (!dinnerInserted && hasDinner) {
-          renderItems.push({ type: 'restaurant', meal: 'dinner' })
-        }
-
-        // Day summary computation — drives the glance-level strip under the day header.
+        // Day summary strip — start/end from the sequenced clock so it matches the
+        // card times; meal label reflects which meals actually render.
         const dayStops = day.stops
-        const dayStartHour = dayStops[0]?.startHour ?? null
-        const lastStop = dayStops[dayStops.length - 1]
-        const dayEndHour = lastStop ? lastStop.startHour + lastStop.duration : null
-        const hasEveningForDinner = dayStops.some(s => s.period === 'Evening')
         const summaryBits = []
-        if (dayStartHour != null && dayEndHour != null) summaryBits.push(`${fmtHour(dayStartHour)} – ${fmtHour(dayEndHour)}`)
+        if (dayPlan.dayStart != null && dayPlan.dayEnd != null) summaryBits.push(`${fmtHour(dayPlan.dayStart)} – ${fmtHour(dayPlan.dayEnd)}`)
         summaryBits.push(`${dayStops.length} stop${dayStops.length !== 1 ? 's' : ''}`)
-        if (dayStops.length > 0) {
-          summaryBits.push(hasEveningForDinner ? 'Lunch + Dinner' : 'Lunch')
-        }
+        const mealLabel = dayPlan.hasDaytime && dayPlan.hasEvening ? 'Lunch + Dinner'
+          : dayPlan.hasEvening ? 'Dinner'
+          : dayPlan.hasDaytime ? 'Lunch' : ''
+        if (mealLabel) summaryBits.push(mealLabel)
 
         const isCollapsed = collapsedDays.has(dayIdx)
         // Highlight this day's container when it's the cross-day drop target.
@@ -9590,7 +9614,7 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
             {!isCollapsed && (() => {
               // Order + sequenced clock come from the shared helper so this Full-plan
               // view and the Checklist view never disagree on order or times.
-              const { reorderedItems, stopClock, defaultItemIds } = computeDayPlan(day, dayIdx)
+              const { reorderedItems, stopClock, defaultItemIds } = dayPlan
               const allStopIds = days.flatMap(d => d.stops.map(s => s.id))
               return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
@@ -12763,13 +12787,30 @@ export default function App() {
     })
     // Prefer venues with coordinates so routing + meal anchoring work well.
     ids.sort((x, y) => (venueCoords[y] ? 1 : 0) - (venueCoords[x] ? 1 : 0))
-    ids = ids.slice(0, 3)
-    // Fallback if the chosen area has too few of the right kind.
-    if (ids.length < 2) {
+    if (wantEvening) {
+      // A realistic night is 1–2 venues, ideally of DIFFERENT kinds (dinner + a
+      // show, not three jazz sets back-to-back ending at 3am). Take the top pick
+      // from distinct evening domains; only double up a domain if nothing else is
+      // available in the area.
+      const seen = new Set()
+      const diverse = []
+      for (const id of ids) {
+        const d = venueCoords[id]?.domain
+        if (seen.has(d)) continue
+        seen.add(d); diverse.push(id)
+        if (diverse.length >= 2) break
+      }
+      if (diverse.length < 2) { const extra = ids.find(id => !diverse.includes(id)); if (extra) diverse.push(extra) }
+      ids = diverse.slice(0, 2)
+    } else {
+      ids = ids.slice(0, 3)
+    }
+    // Fallback if the chosen area has none of the right kind.
+    if (ids.length < 1) {
       const fb = wantEvening
-        ? ['village_vanguard', 'blue_note', 'carnegie_hall', 'birdland', 'smalls']
+        ? ['village_vanguard', 'carnegie_hall', 'blue_note', 'apollo_theater_hh', 'smalls']
         : ['moma', 'met', 'guggenheim', 'empire_state']
-      ids = fb.filter(id => venues[id]).slice(0, 3)
+      ids = fb.filter(id => venues[id]).slice(0, wantEvening ? 2 : 3)
     }
 
     // Add the picks to saves (non-destructive) so the itinerary can include them.
