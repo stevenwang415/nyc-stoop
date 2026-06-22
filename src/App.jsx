@@ -4384,7 +4384,7 @@ function BoroughAreaMap({ borough, countsByArea, selectedArea, onSelectArea, hei
       width: '100%',
       borderRadius: 14,
       overflow: 'hidden',
-      background: '#e7eef6', // water
+      background: 'var(--canvas)', // warm backdrop, matches the app theme
       border: '1px solid var(--gray-200)',
     }}>
       <svg
@@ -4398,8 +4398,8 @@ function BoroughAreaMap({ borough, countsByArea, selectedArea, onSelectArea, hei
           margin: '0 auto',
         }}
       >
-        {/* Water-tone background fills the viewBox. */}
-        <rect x="0" y="0" width="100%" height="100%" fill="#e7eef6" />
+        {/* Warm backdrop fills the viewBox (matches the page canvas). */}
+        <rect x="0" y="0" width="100%" height="100%" fill="#FBF3EE" />
 
         {/* Adjacent landmasses + park + water labels */}
         {(data.adjacent || []).map((g, i) => {
@@ -4634,14 +4634,20 @@ function todayHoursLine(hours) {
 // the restaurant/bar DB, sights). Surfaces every objective field we have — photo,
 // rating, price, cuisine, neighborhood, description, address, today's hours,
 // website — so the card isn't a blank box. The Google Maps jump is a button here.
+// Friendly labels for the internal cuisine ids (e.g. "bar_tavern" → "Bar").
+const CUISINE_LABELS = { bar_tavern: 'Bar', steakhouse: 'Steak' }
+const prettyCuisine = (c) => CUISINE_LABELS[c] || String(c || '').replace(/_/g, ' ').replace(/\b\w/g, m => m.toUpperCase())
+
 function MoodPlaceSheet({ place = {}, onFull = null }) {
   const g = useGooglePhoto(place)
   const [imgFailed, setImgFailed] = React.useState(false)
   const imageSrc = place.image || g?.photoUrl || null
   const image = imageSrc && !imgFailed ? imageSrc : null
   const neighborhood = (place.neighborhood && place.neighborhood !== 'Saved from Google Maps') ? place.neighborhood : (place.area || '')
-  const cuisine = Array.isArray(place.cuisine) ? place.cuisine.filter(Boolean).join(', ')
-    : Array.isArray(place.cuisines) ? place.cuisines.filter(Boolean).join(', ') : (place.cuisine || '')
+  const cuisineArr = Array.isArray(place.cuisine) ? place.cuisine
+    : Array.isArray(place.cuisines) ? place.cuisines
+    : (place.cuisine ? [place.cuisine] : [])
+  const cuisine = cuisineArr.filter(Boolean).map(prettyCuisine).join(', ')
   const metaTop = [place.price, cuisine, neighborhood].filter(Boolean).join(' · ')
   const desc = (place.description || place.googleSummary || place.blurb || '').trim()
   const hrs = todayHoursLine(place.hours)
@@ -4769,7 +4775,11 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
       if (u.venueId && venues[u.venueId]) { if (inAreaW(classifyPickToArea({ type: 'venue', id: u.venueId }))) add(venues[u.venueId].name) }
       else if (!(place && place.scope === 'area') || (u.borough === place.borough && u.area === place.areaId)) add(u.name)
     })
-    Object.values(userVenues || {}).forEach(v => { if (CAT_TO_ACT[v.category] === aid && matchesArea(v)) add(v.name) })
+    // imports capped at the top 5 by Google rating (matches the displayed list)
+    Object.values(userVenues || {}).filter(v => CAT_TO_ACT[v.category] === aid && isImportedV(v) && matchesArea(v))
+      .sort((a, b) => (b.rating || 0) - (a.rating || 0)).slice(0, 5).forEach(v => add(v.name))
+    // the viewer's own (non-imported) saved places are kept in full
+    Object.values(userVenues || {}).forEach(v => { if (CAT_TO_ACT[v.category] === aid && !isImportedV(v) && matchesArea(v)) add(v.name) })
     RESTAURANT_DATA.forEach(r => {
       if (!(r.cuisines || []).some(c => REST_CUISINE_ACT[c] === aid)) return
       const c = RESTAURANT_COORDS[r.id]
@@ -4844,8 +4854,12 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
     if (!info || DOMAIN_ACT[info.domain] !== activityId || !venues[id]) return false
     return inSelArea(info.lat, info.lng)
   }) : []
+  // Imported recommendations: keep only the 5 highest Google-rated in this area+
+  // activity (unrated sink to the bottom). Editorial/curated picks are kept
+  // separately as the leads — this cap is imports-only.
+  const byRating = (arr) => arr.slice().sort((a, b) => (b.rating || 0) - (a.rating || 0))
   const importPool = activityId
-    ? byNewest(Object.values(userVenues || {}).filter(v => CAT_TO_ACT[v.category] === activityId && isImportedV(v) && matchesArea(v)))
+    ? byRating(Object.values(userVenues || {}).filter(v => CAT_TO_ACT[v.category] === activityId && isImportedV(v) && matchesArea(v))).slice(0, 5)
     : []
 
   const TARGET = 6
@@ -5663,7 +5677,7 @@ function NeighborhoodScreen({ neighborhoodKey, subAreaName, push, savedItems = {
     return subAreaInfo
       ? new RegExp(escapeRegExp(subAreaName), 'i').test(v.neighborhood)
       : group.match(v.neighborhood)
-  })
+  }).sort((a, b) => (b.rating || 0) - (a.rating || 0))  // highest Google rating first
 
   return (
     <div className="screen">
