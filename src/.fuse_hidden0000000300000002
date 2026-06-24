@@ -4066,9 +4066,10 @@ const MOOD_MAP_AREAS = {
     { id: 'bk_dumbo',         label: 'DUMBO',             sub: 'Waterfront',            color: '#c89a6a' },
     { id: 'bk_downtown',      label: 'Downtown Brooklyn', sub: 'Downtown',              color: '#c2a24e' },
     { id: 'bk_clinton',       label: 'Clinton Hill',      sub: 'Brownstone',            color: '#cc7d92' },
-    { id: 'bk_prospect_hts',  label: 'Prospect Heights',  sub: 'Park · museum · gardens', color: '#9b86c4' },
+    { id: 'bk_prospect_hts',  label: 'Prospect Heights',  sub: 'Central',               color: '#9b86c4' },
     { id: 'bk_park_slope',    label: 'Park Slope',        sub: 'West of the park',      color: '#8aa873' },
     { id: 'bk_crown_hts',     label: 'Crown Heights',     sub: 'Central',               color: '#c98aa0' },
+    { id: 'bk_prospect_park', label: 'Prospect Park',     sub: 'Parkland',              color: '#7cc285' },
     { id: 'bk_east',          label: 'East Brooklyn',     sub: 'Bed-Stuy · Bushwick',   color: '#d39a5e' },
     { id: 'bk_lower',         label: 'Lower Brooklyn',    sub: 'Red Hook · Sunset Park',color: '#6fa8b0' },
   ],
@@ -4083,15 +4084,13 @@ const MOOD_MAP_AREAS = {
 const BK_AREA_POLYS = {
   bk_greenpoint:   [[40.7385,-73.9605],[40.7392,-73.9505],[40.7360,-73.9360],[40.7268,-73.9338],[40.7240,-73.9440],[40.7248,-73.9560],[40.7295,-73.9612]],
   bk_williamsburg: [[40.7248,-73.9560],[40.7240,-73.9440],[40.7130,-73.9335],[40.7000,-73.9408],[40.7008,-73.9560],[40.7085,-73.9680],[40.7180,-73.9668],[40.7222,-73.9620]],
-  bk_dumbo:        [[40.7058,-73.9995],[40.7047,-73.9852],[40.7005,-73.9848],[40.6970,-73.9990]],
-  bk_downtown:     [[40.7000,-73.9908],[40.6988,-73.9760],[40.6850,-73.9770],[40.6800,-73.9880],[40.6830,-73.9945],[40.6960,-73.9945]],
+  bk_dumbo:        [[40.7042,-73.9942],[40.7047,-73.9852],[40.7005,-73.9848],[40.7000,-73.9935]],
+  bk_downtown:     [[40.7000,-73.9908],[40.6988,-73.9802],[40.6900,-73.9786],[40.6888,-73.9888],[40.6955,-73.9922]],
   bk_clinton:      [[40.6975,-73.9702],[40.6970,-73.9585],[40.6800,-73.9600],[40.6805,-73.9722]],
-  // Prospect Heights now ALSO covers Prospect Park + its Eastern Parkway ring
-  // (Brooklyn Museum, Botanic Garden, Library, Grand Army Plaza) — Prospect Park
-  // was merged in here since standalone parkland never had its own venues.
-  bk_prospect_hts: [[40.6815,-73.9742],[40.6805,-73.9610],[40.6700,-73.9595],[40.6530,-73.9685],[40.6600,-73.9745],[40.6770,-73.9748]],
+  bk_prospect_hts: [[40.6815,-73.9742],[40.6808,-73.9632],[40.6720,-73.9655],[40.6735,-73.9742]],
   bk_park_slope:   [[40.6852,-73.9840],[40.6800,-73.9742],[40.6700,-73.9772],[40.6605,-73.9810],[40.6620,-73.9908],[40.6772,-73.9892]],
   bk_crown_hts:    [[40.6790,-73.9632],[40.6785,-73.9292],[40.6618,-73.9272],[40.6608,-73.9540],[40.6662,-73.9632]],
+  bk_prospect_park:[[40.6742,-73.9705],[40.6700,-73.9610],[40.6608,-73.9622],[40.6532,-73.9682],[40.6602,-73.9742],[40.6702,-73.9730]],
   bk_east:         [[40.7060,-73.9560],[40.7060,-73.8760],[40.6580,-73.8740],[40.6560,-73.9600]],
   bk_lower:        [[40.6900,-74.0260],[40.6900,-73.9720],[40.6180,-73.9860],[40.6160,-74.0320]],
 }
@@ -4200,7 +4199,8 @@ function neighborhoodToArea(s) {
   if (has('dumbo')) return { borough: 'brooklyn', areaId: 'bk_dumbo' }
   if (has('downtown brooklyn')) return { borough: 'brooklyn', areaId: 'bk_downtown' }
   if (has('clinton hill')) return { borough: 'brooklyn', areaId: 'bk_clinton' }
-  if (has('prospect park', 'prospect heights')) return { borough: 'brooklyn', areaId: 'bk_prospect_hts' }
+  if (has('prospect park')) return { borough: 'brooklyn', areaId: 'bk_prospect_park' }
+  if (has('prospect heights')) return { borough: 'brooklyn', areaId: 'bk_prospect_hts' }
   if (has('park slope')) return { borough: 'brooklyn', areaId: 'bk_park_slope' }
   if (has('crown heights')) return { borough: 'brooklyn', areaId: 'bk_crown_hts' }
   if (has('bed-stuy', 'bedford-stuyvesant', 'bedford stuyvesant', 'stuyvesant heights', 'bushwick', 'east new york', 'ocean hill', 'brownsville')) return { borough: 'brooklyn', areaId: 'bk_east' }
@@ -4272,7 +4272,8 @@ const MOOD_MAP_SVG = {
       { id: 'bk_clinton', color: '#cc7d92', label: ['CLINTON', 'HILL'], points: '118,175 176,175 176,268 118,268', labelAt: [147, 222], labelSize: 8.5 },
       { id: 'bk_east', color: '#d39a5e', label: ['EAST', 'BROOKLYN'], points: '176,175 268,175 279,220 283,268 176,268', labelAt: [225, 222], labelSize: 8.5 },
       { id: 'bk_park_slope', color: '#8aa873', label: ['PARK', 'SLOPE'], points: '49,268 118,268 118,345 69,345 58,300', labelAt: [84, 306], labelSize: 8.5 },
-      { id: 'bk_prospect_hts', color: '#9b86c4', label: ['PROSPECT', 'HTS & PARK'], points: '118,268 176,268 176,345 118,345', labelAt: [147, 306], labelSize: 8 },
+      { id: 'bk_prospect_hts', color: '#9b86c4', label: ['PROS.', 'HTS'], points: '118,268 176,268 176,300 118,300', labelAt: [147, 285], labelSize: 7 },
+      { id: 'bk_prospect_park', color: '#7cc285', label: ['PROSPECT', 'PARK'], points: '118,300 176,300 176,345 118,345', labelAt: [147, 323], labelSize: 7.5 },
       { id: 'bk_crown_hts', color: '#c98aa0', label: ['CROWN', 'HEIGHTS'], points: '176,268 283,268 277,300 269,345 176,345', labelAt: [225, 306], labelSize: 9 },
       { id: 'bk_lower', color: '#6fa8b0', label: ['LOWER', 'BROOKLYN'], points: '69,345 269,345 268,350 180,386 118,374 70,348', labelAt: [170, 366], labelSize: 8.5 },
     ],
@@ -4722,10 +4723,7 @@ function MoodPlaceSheet({ place = {}, onFull = null, savedItems = {}, toggleSave
   const desc = (place.description || place.googleSummary || place.blurb || '').trim()
   const hrs = todayHoursLine(place.hours)
   const openSt = openStatusNow(place.hours)
-  // Disambiguate the Maps search with the address (or neighborhood) so an
-  // ambiguous name like "Mama Fox" can't resolve to the wrong business.
-  const mapQuery = [place.name, place.address || place.neighborhood].filter(Boolean).join(' ')
-  const url = place.sourceUrl || place.reservationUrl || place.mapsUrl || (place.name ? mapsUrl(mapQuery) : '')
+  const url = place.sourceUrl || place.reservationUrl || place.mapsUrl || (place.name ? mapsUrl(place.name) : '')
   const website = place.website || ''
   let host = ''
   try { host = website ? new URL(website).hostname.replace(/^www\./, '') : '' } catch (e) { host = website }
@@ -7896,6 +7894,7 @@ const RESTAURANT_DATA = [
   { id: 'ootoya_midtown',  name: 'Ootoya',             cuisines: ['japanese'],   area: 'Midtown', price: '$$',  neighborhood: 'Midtown',         description: 'Homestyle Japanese teishoku sets — rice, miso soup, pickles, grilled fish or tonkatsu.',      reservationUrl: 'https://www.opentable.com/ootoya-chelsea',          mapsUrl: 'https://maps.google.com/?q=Ootoya+Midtown+New+York' },
   { id: 'marea',           name: 'Marea',              cuisines: ['italian'],    area: 'Midtown', price: '$$$$',neighborhood: 'Central Park South', description: 'Michelin-starred coastal Italian — impeccable seafood pastas and crudo overlooking the park.', reservationUrl: 'https://www.opentable.com/marea',                   mapsUrl: 'https://maps.google.com/?q=Marea+Restaurant+New+York' },
   { id: 'the_modern',      name: 'The Modern',         cuisines: ['american'],   area: 'Midtown', price: '$$$$',neighborhood: 'Midtown (MoMA)',   description: 'Danny Meyer\'s MoMA restaurant with floor-to-ceiling sculpture garden views and seasonal tasting menus.', reservationUrl: 'https://www.opentable.com/the-modern',         mapsUrl: 'https://maps.google.com/?q=The+Modern+Restaurant+MoMA+New+York' },
+  { id: 'shake_shack_midtown', name: 'Shake Shack',   cuisines: ['burger'],     area: 'Midtown', price: '$',   neighborhood: 'Midtown',         description: 'The original ShackBurger — crispy edges, special sauce, fresh potato bun. Perfect quick stop.', reservationUrl: null, walkIn: true,                        mapsUrl: 'https://maps.google.com/?q=Shake+Shack+Madison+Square+Park+New+York' },
   { id: 'campbell',        name: 'The Campbell',       cuisines: ['bar_tavern'], area: 'Midtown', price: '$$',  neighborhood: 'Grand Central',    description: 'Jaw-dropping 1920s Gilded Age bar inside Grand Central — gilded ceiling, roaring fireplace, craft cocktails.', reservationUrl: 'https://thecampbellnyc.com',                    mapsUrl: 'https://maps.google.com/?q=The+Campbell+Grand+Central+New+York' },
   { id: 'benjamin_steak',  name: 'Benjamin Steakhouse',cuisines: ['steakhouse'], area: 'Midtown', price: '$$$$',neighborhood: 'Midtown East',    description: 'Classic NYC prime steakhouse — USDA prime dry-aged porterhouses in an elegant Helmsley Building room.', reservationUrl: 'https://www.opentable.com/benjamin-steakhouse', mapsUrl: 'https://maps.google.com/?q=Benjamin+Steakhouse+New+York' },
   { id: 'jongno_midtown',  name: 'Jongno Gopchang',   cuisines: ['korean'],     area: 'Midtown', price: '$$',  neighborhood: 'Koreatown',       description: 'Sizzling Korean BBQ specializing in beef intestines and offcuts — bold, smoky, deeply satisfying.', reservationUrl: null,mapsUrl: 'https://maps.google.com/?q=Jongno+Gopchang+New+York' },
@@ -7910,6 +7909,7 @@ const RESTAURANT_DATA = [
 
   // ── UPPER WEST SIDE ──
   { id: 'carmines_uws',    name: 'Carmine\'s',          cuisines: ['italian'],    area: 'Upper West Side', price: '$$', neighborhood: 'Upper West Side', description: 'Legendary family-style Italian — enormous platters of linguine alle vongole and chicken parmigiana built for sharing.', reservationUrl: 'https://www.carminesnyc.com', mapsUrl: 'https://maps.google.com/?q=Carmine\'s+Upper+West+Side+New+York' },
+  { id: 'shake_shack_uws', name: 'Shake Shack (UWS)',   cuisines: ['burger'],     area: 'Upper West Side', price: '$',  neighborhood: 'Upper West Side', description: 'The Shake Shack nearest Lincoln Center — ideal pre-concert ShackBurger or custard stop.',           reservationUrl: null, walkIn: true, mapsUrl: 'https://maps.google.com/?q=Shake+Shack+Upper+West+Side+New+York' },
   { id: 'amsterdam_ale',   name: 'Amsterdam Ale House', cuisines: ['bar_tavern'], area: 'Upper West Side', price: '$$', neighborhood: 'Upper West Side', description: '60 taps of craft and import beer in a classic neighborhood tavern — excellent wings and a relaxed vibe.', reservationUrl: null, mapsUrl: 'https://maps.google.com/?q=Amsterdam+Ale+House+New+York' },
   { id: 'kefi_uws',        name: 'Kefi',                cuisines: ['american'],   area: 'Upper West Side', price: '$$', neighborhood: 'Upper West Side', description: 'Michael Psilakis\'s beloved Greek-American taverna — roasted lamb, spreads, and casual neighborhood warmth.', reservationUrl: 'https://www.opentable.com/kefi', mapsUrl: 'https://maps.google.com/?q=Kefi+Restaurant+New+York' },
   { id: 'sushi_yasaka',    name: 'Sushi Yasaka',        cuisines: ['japanese'],   area: 'Upper West Side', price: '$$', neighborhood: 'Upper West Side', description: 'Quiet neighborhood sushi bar known for generous omakase value and pristine fish sourced daily.',           reservationUrl: 'https://www.opentable.com/sushi-yasaka', mapsUrl: 'https://maps.google.com/?q=Sushi+Yasaka+New+York' },
@@ -7947,6 +7947,7 @@ const RESTAURANT_DATA = [
   { id: 'insa_korean',     name: 'Insa',                cuisines: ['korean'],     area: 'Brooklyn', price: '$$$', neighborhood: 'Gowanus',           description: 'Korean BBQ and karaoke under one roof — premium galbi, wagyu short ribs, and private karaoke rooms.',        reservationUrl: 'https://www.insabrooklyn.com', mapsUrl: 'https://maps.google.com/?q=Insa+Korean+BBQ+Brooklyn' },
   { id: 'okonomi_bk',      name: 'Okonomi',             cuisines: ['japanese'],   area: 'Brooklyn', price: '$$',  neighborhood: 'Williamsburg',      description: 'Intimate all-day Japanese breakfast and lunch omakase — pristine simplicity using the finest seasonal ingredients.', reservationUrl: 'https://www.opentable.com/okonomi', mapsUrl: 'https://maps.google.com/?q=Okonomi+Williamsburg+Brooklyn' },
   { id: 'brooklyn_inn',    name: 'Brooklyn Inn',         cuisines: ['bar_tavern'], area: 'Brooklyn', price: '$',   neighborhood: 'Cobble Hill',       description: 'Historic 1800s bar with original mahogany furniture — quiet, literary, the perfect neighborhood pub.',         reservationUrl: null, mapsUrl: 'https://maps.google.com/?q=Brooklyn+Inn+Cobble+Hill' },
+  { id: 'shake_bk',        name: 'Shake Shack (Bklyn)',  cuisines: ['burger'],     area: 'Brooklyn', price: '$',   neighborhood: 'Brooklyn Bridge Park', description: 'The Brooklyn Bridge Park location — great burgers with an unbeatable view of Manhattan and the bridge.',    reservationUrl: null, walkIn: true, mapsUrl: 'https://maps.google.com/?q=Shake+Shack+Brooklyn+Bridge+Park' },
 
   // ── BRONX ──
   { id: 'roberto_bronx',   name: 'Roberto Restaurant',  cuisines: ['italian'],    area: 'Bronx', price: '$$$',  neighborhood: 'Belmont (Bronx)',   description: 'Arthur Avenue\'s finest — authentic Calabrian Italian in the heart of the Bronx\'s Little Italy since 1983.', reservationUrl: 'https://www.opentable.com/roberto-restaurant-the-bronx', mapsUrl: 'https://maps.google.com/?q=Roberto+Restaurant+Bronx+New+York' },
@@ -12869,14 +12870,6 @@ export default function App() {
           changed = true
         }
       })
-      // Prune seed places that have been REMOVED from the seed (e.g. venues that
-      // closed). The merge is otherwise additive, so without this a closed spot
-      // already cached in localStorage would linger forever. Only seed_* ids are
-      // pruned — the user's own custom/imported places are never touched.
-      const seedIds = new Set((seedUserPlaces || []).map(p => p.id))
-      for (const id of Object.keys(next)) {
-        if (id.startsWith('seed_') && !seedIds.has(id)) { delete next[id]; changed = true }
-      }
       if (!changed) return prev
       try { localStorage.setItem('nyc_user_venues', JSON.stringify(next)) } catch {}
       return next

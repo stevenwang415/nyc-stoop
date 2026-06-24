@@ -103,7 +103,7 @@ function pickNeighborhood(components = []) {
   return hood
 }
 
-async function lookup(name) {
+async function lookup(name, neighborhood) {
   const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
     method: 'POST',
     headers: {
@@ -118,11 +118,13 @@ async function lookup(name) {
             'places.displayName', 'places.formattedAddress', 'places.addressComponents', 'places.location',
             'places.priceLevel', 'places.primaryType', 'places.types',
             'places.regularOpeningHours.weekdayDescriptions', 'places.rating',
-            'places.websiteUri', 'places.editorialSummary',
+            'places.websiteUri', 'places.editorialSummary', 'places.businessStatus',
           ]).join(','),
     },
     body: JSON.stringify({
-      textQuery: `${name}, New York, NY`,
+      // Include the neighborhood so an ambiguous name resolves to the RIGHT
+      // business (e.g. "Mama Fox, Clinton Hill" not a same-ish name elsewhere).
+      textQuery: `${name}${neighborhood ? ', ' + neighborhood : ''}, New York, NY`,
       locationBias: { circle: { center: NYC, radius: 30000 } },
       maxResultCount: 1, regionCode: 'US',
     }),
@@ -142,6 +144,7 @@ async function lookup(name) {
     rating: typeof p.rating === 'number' ? p.rating : null,
     website: p.websiteUri || '',
     googleSummary: p.editorialSummary?.text || '',
+    businessStatus: p.businessStatus || '',
   }
 }
 
@@ -207,12 +210,20 @@ const todo = entries
   .slice(0, LIMIT)
 console.log(`Parsed ${entries.length} places · ${todo.length} to ${ADDR_ONLY ? 'address-fill' : 'enrich'}${DRY ? ' (dry run)' : ''}${FORCE ? ' (force)' : ''}\n`)
 
-let ok = 0, miss = 0, i = 0
+let ok = 0, miss = 0, closed = 0, i = 0
+const closedList = []
 for (const e of todo) {
   i++
   try {
-    const r = await lookup(e.name)
+    const r = await lookup(e.name, e.neighborhood)
     if (r) {
+      // Flag permanently-closed places: leave them unenriched so they stand out
+      // for removal rather than silently writing a dead venue's data.
+      if (!ADDR_ONLY && (r.businessStatus === 'CLOSED_PERMANENTLY' || r.businessStatus === 'CLOSED_TEMPORARILY')) {
+        closed++; closedList.push(`${e.name} (${r.businessStatus === 'CLOSED_TEMPORARILY' ? 'temp' : 'perm'})`)
+        console.log(`  [${i}/${todo.length}] ⚠ CLOSED: ${e.name} — left unenriched, review/remove`)
+        await sleep(DELAY); continue
+      }
       if (r.address) e.address = r.address
       if (!ADDR_ONLY) {
         // objective fields only — never description / insiderTip
@@ -233,7 +244,8 @@ for (const e of todo) {
   await sleep(DELAY)
 }
 
-console.log(`\nEnriched ${ok}, missed ${miss}.`)
+console.log(`\nEnriched ${ok}, missed ${miss}, closed ${closed}.`)
+if (closedList.length) console.log('⚠ Permanently closed (remove from places.js):\n  - ' + closedList.join('\n  - '))
 if (DRY) console.log('Dry run — no file written.')
 else if (ok > 0) { fs.writeFileSync(FILE, emit(src, entries), 'utf8'); console.log(`Wrote ${FILE}`) }
 else console.log('Nothing to write.')

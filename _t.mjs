@@ -1,0 +1,6 @@
+const FAST_FOOD_RE = /\b(mc\s?donald'?s|burger king|wendy'?s|kfc|popeyes|taco bell|subway|chipotle|five guys|sbarro|domino'?s|pizza hut|dunkin|chick[- ]?fil[- ]?a|white castle|wingstop|panda express|sweetgreen|chopt|pret a manger|shake shack|fast food)\b/i
+const isFastFood = n => FAST_FOOD_RE.test(n||'')
+const RECO_LOC_RE = /\b(nomad|murray hill|west village|east village|greenwich village|soho|noho|tribeca|chelsea|nolita|lower east side|upper east side|upper west side|ues|uws|fidi|financial district|midtown|harlem|williamsburg|greenpoint|bushwick|dumbo|park slope|prospect heights|crown heights|clinton hill|brooklyn|bklyn|queens|astoria|flushing|manhattan|nyc|new york)\b/g
+function recoBaseName(n){let s=(n||'').toLowerCase().trim();s=s.replace(/\s*\(.*$/,'');s=s.replace(/\s+[-–—]\s+.*$/,'');s=s.replace(/&/g,'and').replace(/[^a-z0-9 ]+/g,' ');s=s.replace(RECO_LOC_RE,' ').replace(/\s+/g,' ').trim();return s||(n||'').toLowerCase().trim()}
+for (const n of ['Hole In The Wall - Murray Hill','Hole In The Wall','Shake Shack','Shake Shack (UWS)','La Pecora Bianca NoMad','Jua','Thai Villa','Jean-Georges','Wah Fung No.1 Fast Food','Joe’s Pizza Williamsburg','Joe’s Pizza'])
+  console.log(`${isFastFood(n)?'FASTFOOD':'ok      '} | base="${recoBaseName(n)}" | ${n}`)
