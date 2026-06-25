@@ -103,6 +103,20 @@ export const venueImages = {
   hamilton_grange:        wm('Hamilton Grange late 2010 morn jeh.jpg'),
   lever_house:            wm('Lever House 390 Park Avenue.jpg'),
   ny_aquarium:            wm('Coney Island behind NY Aquarium Sep 2019 11.jpg'),
+
+  // ── Theaters, concert halls, landmarks & restaurants (verified via Wikipedia pageimages) ──
+  minskoff_theatre:       wm('Minskoff Theatre NYC 2007.jpg'),
+  alice_tully_hall:       wm('Alice Tully Hall (48047494177).jpg'),
+  jazz_lincoln_center:    wm('Jazz at Lincoln Center (51395662326).jpg'),
+  ninety_second_st_y:     wm('92Y (48059227562).jpg'),
+  angelika_film_center:   wm('AngelikaByLuigiNovi4.jpg'),
+  african_burial_ground:  wm('African Burial Ground.jpg'),
+  peter_luger:            wm('Peter Luger Steak House (Brooklyn, New York) 001 crop.jpg'),
+  carbone:                wm('Carbone Restaurant Sign 6.4.22.jpg'),
+  eleven_madison_park:    wm('Portrait Shot of Eleven Madison Park (9284511683).jpg'),
+  le_bernardin:           wm('Interior of Le Bernardin.jpg'),
+  russ_and_daughters_cafe: wm('Russ & Daughters (51624125108).jpg'),
+  veselka:                wm('Veselka (1).jpg'),
 }
 
 export default venueImages

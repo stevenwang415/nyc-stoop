@@ -8073,8 +8073,10 @@ function estimateTravel(fromId, toId) {
 function SavedPlanSummary({ snapshot, onBack }) {
   const [shareCopied, setShareCopied] = React.useState(false)
   if (!snapshot) return null
-  const { savedAt, venueIds, tripDays: snapTripDays, lunchCuisine, dinnerCuisine, mealCuisines, lunchRestaurants, dinnerRestaurants } = snapshot
-  const days = capDays(buildItinerary(venueIds), snapTripDays)
+  const { savedAt, venueIds, days: snapDays, tripDays: snapTripDays, lunchCuisine, dinnerCuisine, mealCuisines, lunchRestaurants, dinnerRestaurants } = snapshot
+  // Prefer the snapshotted itinerary (exactly what was saved). Fall back to
+  // re-deriving for old snapshots that predate day-snapshotting.
+  const days = (Array.isArray(snapDays) && snapDays.length) ? snapDays : capDays(buildItinerary(venueIds), snapTripDays)
 
   const PERIOD_COLORS = {
     Morning:   { bg: '#fef9c3', text: '#854d0e', dot: '#ca8a04' },
@@ -8153,6 +8155,61 @@ function SavedPlanSummary({ snapshot, onBack }) {
         w.document.write('<pre style="font-family:monospace;padding:20px">' + text.replace(/</g,'&lt;') + '</pre>')
       })
     }
+  }
+
+  // Export this saved plan as a clean, printable PDF (browser "Save as PDF").
+  function exportSavedPlanPdf() {
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+    const sub = `${venueIds.length} stop${venueIds.length !== 1 ? 's' : ''}${snapTripDays ? ` · ${snapTripDays} day${snapTripDays !== 1 ? 's' : ''}` : ''}`
+    let body = ''
+    days.forEach((day, dayIdx) => {
+      const lunchR = lunchAt(dayIdx, day), dinnerR = dinnerAt(dayIdx, day)
+      const hasAfternoon = (day.stops || []).some(s => s.period === 'Afternoon')
+      const items = []
+      let la = false, da = false
+      ;(day.stops || []).forEach(stop => {
+        if (!la && lunchR && (stop.period === 'Afternoon' || (!hasAfternoon && stop.period === 'Evening'))) { items.push({ type: 'meal', meal: 'lunch', r: lunchR, cuisine: lunchCuisineAt(dayIdx) }); la = true }
+        if (!da && dinnerR && stop.period === 'Evening') { items.push({ type: 'meal', meal: 'dinner', r: dinnerR, cuisine: dinnerCuisineAt(dayIdx) }); da = true }
+        items.push({ type: 'stop', stop })
+      })
+      if (!la && lunchR) items.push({ type: 'meal', meal: 'lunch', r: lunchR, cuisine: lunchCuisineAt(dayIdx) })
+      if (!da && dinnerR) items.push({ type: 'meal', meal: 'dinner', r: dinnerR, cuisine: dinnerCuisineAt(dayIdx) })
+      let rows = ''
+      items.forEach(it => {
+        if (it.type === 'meal') {
+          rows += `<div class="meal">🍴 ${it.meal === 'lunch' ? 'Lunch' : 'Dinner'}${it.cuisine ? ' · ' + esc(cuisineLabel(it.cuisine)) : ''} — ${esc(it.r.name)}<span class="mm">${[it.r.price, it.r.neighborhood].filter(Boolean).map(esc).join(' · ')}</span></div>`
+          return
+        }
+        const s = it.stop
+        const meta = [s.period, s.neighborhood].filter(Boolean).map(esc).join(' · ')
+        rows += `<div class="stop"><div class="time">${esc(fmtHour(s.startHour))}</div><div class="b"><div class="name">${esc(s.name)}</div>${meta ? `<div class="meta">${meta}</div>` : ''}</div></div>`
+      })
+      body += `<div class="day"><div class="dh"><span>${esc(String(getDayLabel(dayIdx, null)).toUpperCase())}${day.area ? ' · ' + esc(day.area) : ''}</span></div>${rows}</div>`
+    })
+    const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>My NYC Trip</title><style>
+*{box-sizing:border-box}body{font-family:-apple-system,system-ui,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1d2733;margin:0;padding:28px 24px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+h1{font-size:23px;margin:0 0 2px}.sub{color:#7a8694;font-size:13px;margin-bottom:22px}
+.day{margin-bottom:20px;page-break-inside:avoid}
+.dh{background:#1d2733;color:#fff;border-radius:8px;padding:8px 12px;font-size:12.5px;font-weight:800;letter-spacing:.04em}
+.stop{display:flex;gap:12px;padding:9px 4px;border-bottom:1px solid #eef1f4}
+.time{width:78px;flex:none;color:#993C1D;font-weight:700;font-size:13px}
+.b{flex:1}.name{font-weight:700;font-size:14px}.meta{color:#7a8694;font-size:12px;margin-top:1px}
+.meal{color:#54606e;font-size:12.5px;font-weight:600;padding:8px 4px;border-bottom:1px solid #eef1f4}
+.meal .mm{color:#9aa4b0;font-weight:500;display:block;font-size:11.5px;margin-top:1px}
+.foot{margin-top:18px;color:#9aa4b0;font-size:11px}
+.bar{position:sticky;top:0;background:#fff;padding:10px 0 14px}
+.bar button{background:#E0552C;color:#fff;border:none;border-radius:999px;padding:11px 20px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit}
+@media print{.noprint{display:none!important}body{padding:0}@page{margin:14mm}}
+</style></head><body>
+<div class="bar noprint"><button onclick="window.print()">⬇ Save as PDF</button></div>
+<h1>My NYC Trip</h1><div class="sub">${esc(sub)}</div>
+${body}
+<div class="foot">Made with NYC Stoop</div>
+<script>window.addEventListener('load',function(){setTimeout(function(){try{window.print()}catch(e){}},350)})</script>
+</body></html>`
+    const w = window.open('', '_blank')
+    if (!w) { alert('Please allow pop-ups to download your schedule, then tap again.'); return }
+    w.document.open(); w.document.write(html); w.document.close()
   }
 
   return (
@@ -8269,6 +8326,16 @@ function SavedPlanSummary({ snapshot, onBack }) {
 
       {/* Open route button */}
       <div style={{ padding: '4px 20px 100px' }}>
+        <button
+          onClick={exportSavedPlanPdf}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            padding: '14px', borderRadius: 12, background: 'var(--accent)', color: '#fff',
+            border: 'none', cursor: 'pointer', fontSize: 15, fontWeight: 700, marginBottom: 10, fontFamily: 'inherit',
+          }}
+        >
+          <span style={{ fontSize: 16 }}>⬇</span><span>Download schedule (PDF)</span>
+        </button>
         {(() => {
           const url = buildRouteUrl()
           return url ? (
@@ -8481,7 +8548,16 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
   }
 
   const venueIds = allVenueIds.filter(id => planSelection.has(id)).map(id => venueSwaps[id] || id)
-  const _rawDays = buildItinerary(venueIds, userVenues)
+  const _rawClusters = buildItinerary(venueIds, userVenues)
+  // Honor the chosen trip length: pad with empty days so stops can be spread
+  // across N days, or cap when there are more clusters than days. null = Auto.
+  const _rawDays = (() => {
+    if (!tripDays) return _rawClusters
+    if (_rawClusters.length > tripDays) return capDays(_rawClusters, tripDays)
+    const out = _rawClusters.slice()
+    while (out.length < tripDays) out.push({ area: `Day ${out.length + 1}`, stops: [] })
+    return out
+  })()
 
   // Apply user's day-reassignment overrides on top of the auto-built itinerary.
   // A stop with no override stays where buildItinerary put it.
@@ -8794,7 +8870,14 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     const startY = point.clientY
     // Light vibrate as feedback that the grip was engaged.
     navigator.vibrate?.(20)
-    const base = dayItemOrders[thisDayIdx] || defaultItemIds
+    // Seed the drag with the SAME reconciled order the render uses: a stale
+    // saved order can be missing items that exist now (stops added since, or
+    // trip-length padding). Using it raw made those un-listed cards vanish
+    // mid-drag. Reconcile saved-order ∩ current items, then append any new ones.
+    const saved = dayItemOrders[thisDayIdx]
+    const base = saved
+      ? [...saved.filter(id => defaultItemIds.includes(id)), ...defaultItemIds.filter(id => !saved.includes(id))]
+      : defaultItemIds
     setDragId(itemId)
     setDragDayIdx(thisDayIdx)
     setDragOrder([...base])
@@ -8977,6 +9060,64 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     return { sortedDayStops, reorderedItems, stopClock, defaultItemIds, dayStart, dayEnd, hasDaytime: hasDaytime2, hasEvening: hasEvening2 }
   }
 
+  // ── Export the itinerary as a clean, printable PDF ──────────────────────────
+  // Opens a self-contained, print-styled page and auto-prints; the browser's
+  // "Save as PDF" produces the file. Dependency-free so it works offline and in
+  // a future native app wrapper. Shows time/order, neighborhood, meals, notes.
+  function exportItineraryPdf() {
+    const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+    const dayCount = days.length
+    const sub = `${totalStops} stop${totalStops !== 1 ? 's' : ''}${dayCount > 1 ? ` · ${dayCount} days` : ''}`
+    let body = ''
+    days.forEach((day, dayIdx) => {
+      const dp = computeDayPlan(day, dayIdx)
+      const range = (dp.dayStart != null && dp.dayEnd != null) ? `${fmtHour(dp.dayStart)} – ${fmtHour(dp.dayEnd)}` : ''
+      const label = getDayLabel(dayIdx, tripStartDate)
+      let rows = ''
+      dp.reorderedItems.forEach(it => {
+        if (it.type === 'restaurant') {
+          rows += `<div class="meal">🍴 ${it.meal === 'lunch' ? 'Lunch' : 'Dinner'}</div>`
+          return
+        }
+        const s = it.stop
+        const t = fmtHour(dp.stopClock[s.id] ?? s.startHour)
+        const meta = [s.period, s.neighborhood].filter(Boolean).map(esc).join(' · ')
+        const note = (venueNotes[s.id] || '').trim()
+        rows += `<div class="stop"><div class="time">${esc(t)}</div><div class="b">`
+          + `<div class="name">${esc(s.name)}</div>`
+          + (meta ? `<div class="meta">${meta}</div>` : '')
+          + (note ? `<div class="note">${esc(note)}</div>` : '')
+          + `</div></div>`
+      })
+      body += `<div class="day"><div class="dh"><span>${esc(String(label).toUpperCase())}${day.area ? ' · ' + esc(day.area) : ''}</span>${range ? `<span class="rg">${esc(range)}</span>` : ''}</div>${rows}</div>`
+    })
+    const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>My NYC Trip</title><style>
+*{box-sizing:border-box}body{font-family:-apple-system,system-ui,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1d2733;margin:0;padding:28px 24px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+h1{font-size:23px;margin:0 0 2px}.sub{color:#7a8694;font-size:13px;margin-bottom:22px}
+.day{margin-bottom:20px;page-break-inside:avoid}
+.dh{background:#1d2733;color:#fff;border-radius:8px;padding:8px 12px;font-size:12.5px;font-weight:800;letter-spacing:.04em;display:flex;justify-content:space-between;align-items:center}
+.dh .rg{font-weight:600;opacity:.82}
+.stop{display:flex;gap:12px;padding:9px 4px;border-bottom:1px solid #eef1f4}
+.time{width:78px;flex:none;color:#993C1D;font-weight:700;font-size:13px}
+.b{flex:1}.name{font-weight:700;font-size:14px}.meta{color:#7a8694;font-size:12px;margin-top:1px}
+.note{color:#54606e;font-size:12px;font-style:italic;margin-top:3px}
+.meal{color:#7a8694;font-size:12.5px;font-weight:600;padding:7px 4px 7px 90px;border-bottom:1px solid #eef1f4}
+.foot{margin-top:18px;color:#9aa4b0;font-size:11px}
+.bar{position:sticky;top:0;background:#fff;padding:10px 0 14px;display:flex;gap:10px}
+.bar button{background:#E0552C;color:#fff;border:none;border-radius:999px;padding:11px 20px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit}
+@media print{.noprint{display:none!important}body{padding:0}@page{margin:14mm}}
+</style></head><body>
+<div class="bar noprint"><button onclick="window.print()">⬇ Save as PDF</button></div>
+<h1>My NYC Trip</h1><div class="sub">${esc(sub)}</div>
+${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'}
+<div class="foot">Made with NYC Stoop</div>
+<script>window.addEventListener('load',function(){setTimeout(function(){try{window.print()}catch(e){}},350)})</script>
+</body></html>`
+    const w = window.open('', '_blank')
+    if (!w) { alert('Please allow pop-ups to download your schedule, then tap again.'); return }
+    w.document.open(); w.document.write(html); w.document.close()
+  }
+
   // Restore saved snapshot on mount so returning users land on their plan
   const _snap = (() => { try { return JSON.parse(localStorage.getItem('nyc_plan_snapshot') || 'null') } catch { return null } })()
   // Show saved plan summary if user just saved OR if they're returning and have a snapshot
@@ -9006,6 +9147,15 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
         <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 6, lineHeight: 1.4 }}>
           Plan your visit · Built from your saves
         </div>
+        {totalStops > 0 && (
+          <button onClick={exportItineraryPdf} style={{
+            marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 7,
+            background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 999,
+            padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+          }}>
+            <span style={{ fontSize: 14, lineHeight: 1 }}>⬇</span> Download schedule (PDF)
+          </button>
+        )}
       </div>
 
       {/* ══ Your Places — user-added venues. They auto-flow into the itinerary below.
@@ -10020,6 +10170,18 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
                       <span style={{ marginLeft: 'auto', fontSize: 11, color: pc.text, opacity: 0.7 }}>
                         ~{stop.duration < 1 ? `${Math.round(stop.duration * 60)} min` : stop.duration % 1 === 0 ? `${stop.duration} hrs` : `${stop.duration.toFixed(1)} hrs`}
                       </span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleVenueInPlan(stop.id) }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onTouchStart={(e) => e.stopPropagation()}
+                        aria-label="Remove from trip"
+                        title="Remove from trip"
+                        style={{
+                          marginLeft: 10, flexShrink: 0, background: 'none', border: 'none',
+                          cursor: 'pointer', color: pc.text, opacity: 0.5, fontSize: 14,
+                          lineHeight: 1, padding: '0 2px', fontFamily: 'inherit',
+                        }}
+                      >✕</button>
                     </div>
 
                     {/* Venue info */}
@@ -10287,6 +10449,10 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
                 const snap = {
                   savedAt: Date.now(),
                   venueIds,
+                  // Snapshot the EXACT days the user arranged (incl. trip-length
+                  // padding + drag reassignments) so the saved view matches 1:1
+                  // instead of re-deriving a different itinerary.
+                  days,
                   tripDays,
                   mealCuisines,
                   // Restaurants keyed by dayIdx (matches the live data structure now)
