@@ -33,6 +33,13 @@ const PERMIT_KEEP = new Set([
 // "Special Event" rows are really lawn closures, permits, or internal records.
 const PERMIT_NOISE = /maintenance|closed|closure|close to|bus operation|transportation operation|load[\s-]?in|load[\s-]?out|set[\s-]?up|break ?down|clean ?up|rehearsal|staging|lane closure|no event|sanitation|miscellaneous|hold for|^tbd|placeholder|test event|permit|\bripa\b|parks event|tree (work|removal)|\bfilm\b|production|photo ?shoot|repair|construction|inspection/i
 
+// Promotional / private permits — brand activations, product launches, sampling
+// pop-ups, corporate & press functions. These are marketing stunts or private
+// events, not public happenings a city guide should recommend, and they have no
+// real event page (searching their permit name returns agency/ad spam). Dropped.
+// ("corporate" is qualified so the public J.P. Morgan Corporate Challenge stays.)
+const PERMIT_PROMO = /\bactivation\b|brand experience|product launch|launch event|\bsampling\b|promotional|sponsored by|\badvertis|press (event|junket|preview)|influencer|private event|corporate (event|outing|function|party|picnic)|company (picnic|outing)/i
+
 // Internal permit codes masquerading as event names ("FWC2026", "AB12"): a short
 // letters-then-digits token with no real words. Dropped — they mean nothing to a user.
 const PERMIT_CODE_NAME = /^[a-z]{2,6}\d{2,4}[a-z]?$/i
@@ -66,7 +73,7 @@ export function normalizePermitted(rows) {
     const type = (r.event_type || '').trim()
     const name = (r.event_name || '').trim()
     if (!PERMIT_KEEP.has(type)) continue
-    if (!name || PERMIT_NOISE.test(name) || PERMIT_CODE_NAME.test(name)) continue
+    if (!name || PERMIT_NOISE.test(name) || PERMIT_PROMO.test(name) || PERMIT_CODE_NAME.test(name)) continue
     const boro = (r.event_borough || '').trim()
     if (!COVERED_BOROUGH.test(boro)) continue          // Manhattan + Brooklyn only
     const start = r.start_date_time ? new Date(r.start_date_time) : null
@@ -114,16 +121,108 @@ export function normalizeMarkets(rows) {
   }))
 }
 
-// Google Maps search link for an event/market (we don't republish source pages).
+// ── Editorial signal ranking ────────────────────────────────────────────────
+// The home "This Week" strip should read like a tastemaker's pick, not a civic
+// bulletin. We score every item by how likely a discerning user is to actually
+// GO, then sort by it. Ticketed culture (concerts, shows) tops the list; real
+// street events (parades, festivals) come next; generic civic entries (plaza
+// notices, health fairs, religious gatherings) sink; recurring greenmarkets are
+// kept but capped so they never flood the strip the way they used to.
+const KIND_SIGNAL = {
+  // Ticketed culture & sports — richest cards, highest intent
+  'Music': 100, 'Arts & Theatre': 98, 'Show': 98, 'Concert': 100, 'Sports': 90,
+  // Real, walk-up consumer street events
+  'Parade': 74, 'Single Block Festival': 72, 'Street Event': 68, 'Block Party': 64,
+  'Sidewalk Sale': 58, 'Athletic Race / Tour': 52,
+  // Lower-signal civic entries
+  'Plaza Partner Event': 48, 'Plaza Event': 48, 'Special Event': 44,
+  'Health Fair': 30, 'Religious Event': 28,
+  // Evergreen, but demoted + capped
+  'Farmers Market': 24,
+}
+
+export function signalScore(e) {
+  if (!e) return 0
+  let s = e.source === 'ticketmaster' ? (KIND_SIGNAL[e.kind] ?? 92) : (KIND_SIGNAL[e.kind] ?? 40)
+  if (e.image) s += 6        // a real photo = a far better card
+  if (e.priceText) s += 2    // ticketed → concrete, attendable
+  return s
+}
+
+// Merge events + markets into one editorially-ranked strip: signal desc, then
+// soonest first. Low-signal markets are capped (default 2) so the feel stays
+// curated even when the permit feed is thin.
+//
+// The home "This week" strip sits right above a dedicated "Tonight" tab that
+// already lists tonight's ticketed shows. Showing the same ticketed concerts
+// here (all dated today) made the two read as duplicates — so we PREFER the
+// "week ahead" set (later-day ticketed events + the week's street festivals,
+// parades, and markets, which the Tonight tab never shows).
+//
+// BUT this is adaptive, not a hard drop: if there isn't enough non-tonight
+// content to carry the strip (some weeks the street-event / market feeds are
+// thin), we fall back to including tonight's ticketed shows so the section is
+// never empty. `minDifferentiated` is the floor of non-tonight items required
+// before we hide tonight's ticketed events.
+export function rankThisWeek(events = [], markets = [], { marketCap = 2, limit = 12, minDifferentiated = 4, windowDays = 7 } = {}) {
+  const today = startOfToday()
+  const tomorrow = new Date(today.getTime() + 24 * 60 * 60 * 1000)
+  const windowEnd = new Date(today.getTime() + windowDays * 24 * 60 * 60 * 1000)
+  const isTicketedToday = (e) =>
+    e && e.source === 'ticketmaster' && e.date instanceof Date && !isNaN(e.date) && e.date >= today && e.date < tomorrow
+  const dateRank = (e) => (e && e.date instanceof Date && !isNaN(e.date)) ? (e.date - today) : Number.MAX_SAFE_INTEGER
+
+  // The underlying ticket fetch now spans ~18 days for the events browser; the
+  // home strip is "this WEEK", so drop anything dated beyond the window. Markets
+  // are recurring (no date) and always allowed.
+  const inWindow = (e) => !(e.date instanceof Date) || isNaN(e.date) || (e.date >= today && e.date < windowEnd)
+
+  const everything = [...events, ...markets].filter(inWindow)
+  const nonTonight = everything.filter(e => !isTicketedToday(e))
+  // Differentiate from the Tonight tab only when we can still fill the strip.
+  const pool = nonTonight.length >= minDifferentiated ? nonTonight : everything
+
+  pool.sort((a, b) => {
+    const ds = signalScore(b) - signalScore(a)
+    return ds !== 0 ? ds : dateRank(a) - dateRank(b)
+  })
+  const out = []
+  let marketsUsed = 0
+  for (const e of pool) {
+    if (e.source === 'market') {
+      if (marketsUsed >= marketCap) continue
+      marketsUsed++
+    }
+    out.push(e)
+    if (out.length >= limit) break
+  }
+  return out
+}
+
+// Google Maps link for an event/market. Maps the LOCATION (venue or street),
+// not the event title — searching a street-fair's name on Maps returns nothing,
+// whereas the venue/street drops a real pin.
 export function eventMapsUrl(e) {
-  const q = [e.title, e.location || e.locationFull, e.borough, 'New York'].filter(Boolean).join(' ')
+  const q = [e.location || e.locationFull, e.borough, 'New York'].filter(Boolean).join(' ')
   return 'https://www.google.com/maps/search/' + encodeURIComponent(q)
+}
+
+// Ticket-finding search → reliably lands on the box office for shows whose
+// Ticketmaster URL is unreliable (Broadway / theatre is often sold elsewhere).
+export function eventTicketSearchUrl(e) {
+  const q = [e.title, e.location, 'tickets', e.borough, 'New York'].filter(Boolean).join(' ')
+  return 'https://www.google.com/search?q=' + encodeURIComponent(q)
 }
 
 // Web search link → the organizer's own page (where the real description, hours,
 // and tickets live). This is how we send users to details we can't host.
 export function eventSearchUrl(e) {
-  const q = [e.title, e.borough, 'NYC', e.source === 'market' ? 'greenmarket' : 'event'].filter(Boolean).join(' ')
+  // Include the event TYPE ("Street festival", "Parade", "Greenmarket") — it
+  // gives Google enough context to surface what a vaguely-named permit actually
+  // is, instead of returning unrelated brand/agency spam.
+  const kind = e.source === 'market' ? 'greenmarket' : (e.kindLabel || 'event')
+  const q = [e.title, kind, e.borough, 'New York', e.date instanceof Date && !isNaN(e.date) ? e.date.getFullYear() : '']
+    .filter(Boolean).join(' ')
   return 'https://www.google.com/search?q=' + encodeURIComponent(q)
 }
 
@@ -152,12 +251,42 @@ export async function fetchFarmersMarkets() {
   catch (e) { console.warn('[nycEvents] farmers markets failed:', e); return [] }
 }
 
-// Combined loader for the "This Week in NYC" home section.
+// ── Session cache ────────────────────────────────────────────────────────────
+// Both the home "This week" strip and the Tonight events browser call
+// fetchThisWeek, and the browser remounts on every tab visit. Without a cache
+// that meant a fresh network fetch (and a ~1s loading flash) each time. We cache
+// the combined result for a few minutes and de-dupe in-flight requests, so
+// revisits are instant and we don't hammer the APIs.
+const FETCH_CACHE_MS = 5 * 60 * 1000
+let _twCache = null        // { at, data }
+let _twPromise = null      // in-flight de-dupe
+
+// Synchronous peek at the cache — lets a component initialise its state from
+// already-loaded data so it renders populated on the first frame (no flash).
+export function getThisWeekCached() {
+  return (_twCache && (Date.now() - _twCache.at) < FETCH_CACHE_MS) ? _twCache.data : null
+}
+
+// Combined loader for the "This Week in NYC" home section + Tonight browser.
 export async function fetchThisWeek() {
-  const [permitted, tickets, markets] = await Promise.all([
-    fetchThisWeekEvents(), fetchTicketmaster(), fetchFarmersMarkets(),
-  ])
-  // Ticketmaster (rich) + permitted (breadth), interleaved by date.
-  const events = [...tickets, ...permitted].sort((a, b) => a.date - b.date)
-  return { events, markets }
+  const cached = getThisWeekCached()
+  if (cached) return cached
+  if (_twPromise) return _twPromise
+  _twPromise = (async () => {
+    const [permitted, tickets, markets] = await Promise.all([
+      fetchThisWeekEvents(), fetchTicketmaster(), fetchFarmersMarkets(),
+    ])
+    // Ticketmaster (rich) + permitted (breadth), interleaved by date.
+    const events = [...tickets, ...permitted].sort((a, b) => a.date - b.date)
+    // Editorially-ranked strip for the home section (high-signal first, markets capped).
+    const ranked = rankThisWeek(events, markets)
+    const data = { events, markets, ranked }
+    _twCache = { at: Date.now(), data }
+    return data
+  })()
+  try {
+    return await _twPromise
+  } finally {
+    _twPromise = null
+  }
 }

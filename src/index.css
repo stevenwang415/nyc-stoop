@@ -1,39 +1,49 @@
+@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500;1,6..72,600&display=swap');
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
-/* ── Design tokens — light, airy, photo-forward (redesign v2) ──
-   Legacy --gray-* names are kept but remapped onto the new blue-gray
-   ink scale so the 1,100+ inline styles in App.jsx inherit the reskin. */
+/* ── Design tokens — "The City Guide" warm editorial palette (Claude Design) ──
+   Cream backgrounds, dark-brown ink, terracotta accent, warm taupe grays.
+   Legacy --gray-* names are remapped onto the warm taupe scale so the 1,100+
+   inline styles in App.jsx inherit the reskin. Headings use --serif (Newsreader). */
 :root {
-  --ink:    #1d2733;  /* primary text */
-  --ink-2:  #5d6b7c;  /* secondary text */
-  --ink-3:  #6e7a88;  /* tertiary text — darkened for small-text legibility */
-  --canvas: #FBF3EE;  /* warm sunrise-coral page background — vital, not melancholic */
-  --card:   #ffffff;
-  --accent: #E0552C;  /* sunrise coral — action FILLS: pills, FAB, glows, large text */
-  --accent-text: #993C1D; /* darker coral for text < 18px (≥4.5:1 on white) */
-  --love:   #ff4d7d;  /* pink — ONLY hearts/saves */
-  --shadow: 0 10px 28px rgba(29,39,51,.12);
-  --shadow-accent: 0 10px 22px rgba(224,85,44,.42);
+  --serif:  'Newsreader', Georgia, 'Times New Roman', serif;
+  --ink:    #211B14;  /* primary text — warm near-black */
+  --ink-2:  #5A5247;  /* secondary text */
+  --ink-3:  #6E655A;  /* tertiary text */
+  --canvas: #F3EBDC;  /* cream page background */
+  --card:   #FBF6EC;  /* warm off-white surface */
+  --accent: #BE4D2B;  /* terracotta — action FILLS: pills, FAB, glows, large text */
+  --accent-text: #A93C1E; /* darker terracotta for small text */
+  --love:   #C4542F;  /* warm red — hearts/saves */
+  --shadow: 0 10px 28px rgba(33,27,20,.10);
+  --shadow-accent: 0 10px 22px rgba(190,77,43,.35);
 
-  /* Legacy aliases → new palette */
-  --black: #1d2733;
+  /* Legacy aliases → warm taupe palette */
+  --black: #211B14;
   --white: #ffffff;
-  --gray-50:  #f4f7fa;
-  --gray-100: #edf1f6;
-  --gray-200: #dfe6ee;
-  --gray-300: #c3cdd8;
-  --gray-400: #6e7a88; /* darkened for small-text legibility */
-  --gray-500: #65717f; /* darkened for ≥4.5:1 small-text compliance */
-  --gray-600: #5d6b7c;
-  --gray-700: #455363;
-  --gray-800: #2b3848;
-  --gray-900: #1d2733;
-  --accent-warm: #E0552C;
-  --surface: #ffffff;
+  --gray-50:  #FBF6EC;
+  --gray-100: #EFE6D6;
+  --gray-200: #E3D6C0;
+  --gray-300: #CBBCA4;
+  --gray-400: #9A8E7E;
+  --gray-500: #7A7062;
+  --gray-600: #6E655A;
+  --gray-700: #5A5247;
+  --gray-800: #3A3128;
+  --gray-900: #211B14;
+  --accent-warm: #BE4D2B;
+  --surface: #FBF6EC;
+  --field-red:   #B7472A;
+  --field-gold:  #C6892F;
+  --field-olive: #6F7A45;
+  --field-slate: #475A66;
+  --field-mauve: #6B4453;
+  --field-clay:  #A8826B;
   --max-width: 480px;
   --nav-height: 56px;
 }
@@ -48,7 +58,7 @@ html, body {
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: var(--ink);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;

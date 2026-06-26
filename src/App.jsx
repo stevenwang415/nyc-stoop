@@ -18,7 +18,7 @@ import { AuthModal, ResetPasswordScreen } from './auth/components.jsx'
 // Google Places search — used by AddStopToDayModal to let users add places
 // that aren't in our curated catalog. Falls back gracefully if the key is unset.
 import { isGooglePlacesAvailable, searchGooglePlaces, getGooglePlaceDetails, getPlacePhotoByName } from './lib/googlePlaces'
-import { fetchThisWeek, eventMapsUrl, eventSearchUrl } from './lib/nycEvents'
+import { fetchThisWeek, getThisWeekCached, eventMapsUrl, eventSearchUrl, eventTicketSearchUrl } from './lib/nycEvents'
 import { fetchTicketmaster } from './lib/ticketmaster'
 import { parseTakeoutFile } from './lib/googleTakeout'
 import { extractShareHash, decodeTrip, buildShareUrl } from './lib/tripShare'
@@ -1052,16 +1052,46 @@ function BottomSheet({ open, onClose, children }) {
 // ── EventDetail — fact-only detail shown inside the BottomSheet ──────────────
 // NYC Open Data gives us facts (name/when/where) but no description, so the
 // blurb here is our OWN generic, category-based copy — never source text.
+// ── Event hero fallback — borrow a place photo when an event has none ────────
+// Permitted street events (block parties, festivals) carry no image, but many
+// are held in parks/plazas we already have photos of (Bryant Park, Central
+// Park, …). If the event's location text names such a place, reuse its photo;
+// otherwise the card keeps its colored panel + serif initial.
+const _normPlace = (s) => (s || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').replace(/\s+/g, ' ').trim()
+const _EVENT_PLACE_PHOTOS = (() => {
+  const out = []
+  for (const id of Object.keys(venueImages)) {
+    const nm = _normPlace(venues[id]?.name)
+    if (nm.length >= 6) out.push([nm, venueImages[id]])
+  }
+  // Match the most specific (longest) place name first.
+  out.sort((a, b) => b[0].length - a[0].length)
+  return out
+})()
+function eventHeroImage(e) {
+  if (!e) return null
+  if (e.image) return e.image
+  const hay = _normPlace((e.location || '') + ' ' + (e.locationFull || ''))
+  if (!hay) return null
+  for (const [nm, img] of _EVENT_PLACE_PHOTOS) {
+    if (hay.includes(nm)) return img
+  }
+  return null
+}
+
 function EventDetail({ event }) {
   if (!event) return null
   const e = event
+  const heroImg = eventHeroImage(e)
   const WD = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
   const MO = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
   const fullWhen = (() => {
     if (e.source === 'market') return [e.days && `Every ${e.days}`, e.hours].filter(Boolean).join(' · ') || 'Weekly'
     const d = e.date
     const base = `${WD[d.getDay()]}, ${MO[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`
-    const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0
+    // Permitted events store the street-closure/setup time, not a public start
+    // time — show day only for those; keep real showtimes for ticketed events.
+    const hasTime = e.source === 'ticketmaster' && (d.getHours() !== 0 || d.getMinutes() !== 0)
     const tm = hasTime ? ` · ${(d.getHours() % 12) || 12}${d.getMinutes() ? ':' + String(d.getMinutes()).padStart(2, '0') : ''}${d.getHours() < 12 ? 'am' : 'pm'}` : ''
     return base + tm
   })()
@@ -1092,7 +1122,9 @@ function EventDetail({ event }) {
     const day = (x) => `${x.getFullYear()}${z(x.getMonth() + 1)}${z(x.getDate())}`
     const stamp = (x) => `${day(x)}T${z(x.getHours())}${z(x.getMinutes())}00`
     const esc = (s) => String(s || '').replace(/([,;\\])/g, '\\$1').replace(/\n/g, '\\n')
-    const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0
+    // Only ticketed events get a timed calendar entry; permitted street events
+    // (whose stored time is the permit/closure start) become all-day entries.
+    const hasTime = e.source === 'ticketmaster' && (d.getHours() !== 0 || d.getMinutes() !== 0)
     const dt = hasTime
       ? `DTSTART:${stamp(d)}\r\nDTEND:${stamp(new Date(d.getTime() + 2 * 3600 * 1000))}`
       : `DTSTART;VALUE=DATE:${day(d)}\r\nDTEND;VALUE=DATE:${day(new Date(d.getTime() + 86400000))}`
@@ -1108,16 +1140,28 @@ function EventDetail({ event }) {
       setTimeout(() => URL.revokeObjectURL(url), 2000)
     } catch (err) {}
   }
-  const primaryUrl = e.ticketUrl || eventSearchUrl(e)
-  const primaryLabel = e.ticketUrl ? 'Get tickets →' : 'Find official details →'
+  const isTicketed = e.source === 'ticketmaster'
+  // Ticketmaster's own URL is reliable for concerts/sports but frequently 404s
+  // for Arts & Theatre (Broadway is sold elsewhere) — so only deep-link the URL
+  // for non-theatre ticketed events; theatre falls back to a "find tickets"
+  // search that lands on the real box office. Free (permitted/market) events
+  // have no ticket page and the map answers "where" but not "what", so they lead
+  // with an info lookup instead.
+  const reliableTickets = isTicketed && e.kind !== 'Arts & Theatre' && !!e.ticketUrl
+  const primaryUrl = reliableTickets ? e.ticketUrl
+    : isTicketed ? eventTicketSearchUrl(e)
+    : eventSearchUrl(e)
+  const primaryLabel = reliableTickets ? 'Get tickets →'
+    : isTicketed ? '🔎 Find tickets & info →'
+    : '🔎 What’s happening? →'
   const sourceLine = e.source === 'ticketmaster'
-    ? 'Source: Ticketmaster — full lineup and tickets on their page.'
-    : 'From NYC’s public event permits — tap “Find official details” for the organizer’s page.'
+    ? 'Source: Ticketmaster. Theatre tickets may be sold via the venue box office.'
+    : 'From NYC’s public event permits — we list the date and place; tap above to find out more.'
   return (
     <div style={{ padding: '0 20px 36px' }}>
-      {e.image ? (
+      {heroImg ? (
         <div style={{ height: 150, borderRadius: 18, overflow: 'hidden', marginBottom: 16, background: `linear-gradient(135deg, ${e.color}, ${e.color}B0)` }}>
-          <img src={e.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          <img src={heroImg} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
         </div>
       ) : (
         <div style={{ height: 120, borderRadius: 18, background: `linear-gradient(135deg, ${e.color}, ${e.color}B0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 52, marginBottom: 16 }}>{e.emoji}</div>
@@ -1158,9 +1202,13 @@ function ThisWeekSection() {
   React.useEffect(() => {
     let alive = true
     fetchThisWeek()
-      .then(({ events, markets }) => {
+      .then(({ events, markets, ranked }) => {
         if (!alive) return
-        const items = [...events.slice(0, 8), ...markets.slice(0, 6)].slice(0, 12)
+        // Editorially-ranked strip (high-signal first, greenmarkets capped).
+        // Fall back to the old blend only if ranking somehow came back empty.
+        const items = (ranked && ranked.length)
+          ? ranked
+          : [...events.slice(0, 8), ...markets.slice(0, 6)].slice(0, 12)
         setState({ loading: false, items })
       })
       .catch(() => { if (alive) setState({ loading: false, items: [] }) })
@@ -1177,37 +1225,46 @@ function ThisWeekSection() {
     const d = e.date, t0 = new Date(); t0.setHours(0, 0, 0, 0)
     const diff = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - t0) / 86400000)
     const day = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : `${WD[d.getDay()]} ${MO[d.getMonth()]} ${d.getDate()}`
+    // Only show a clock time for ticketed events (Ticketmaster), which carry a
+    // real public start time. Permitted street fairs / block parties store the
+    // STREET-CLOSURE / setup time in start_date_time (often 7–10am), which is
+    // not when the event is actually happening — so we show the day only.
     const hasTime = d.getHours() !== 0 || d.getMinutes() !== 0
-    const tm = hasTime ? ` · ${(d.getHours() % 12) || 12}${d.getMinutes() ? ':' + String(d.getMinutes()).padStart(2, '0') : ''}${d.getHours() < 12 ? 'am' : 'pm'}` : ''
+    const tm = (e.source === 'ticketmaster' && hasTime)
+      ? ` · ${(d.getHours() % 12) || 12}${d.getMinutes() ? ':' + String(d.getMinutes()).padStart(2, '0') : ''}${d.getHours() < 12 ? 'am' : 'pm'}`
+      : ''
     return day + tm
   }
 
   return (
-    <div style={{ padding: '16px 0 4px' }}>
-      <div className="section-row" style={{ padding: '0 20px', marginBottom: 12 }}>
-        <h2 style={{ fontSize: 24, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.15, color: 'var(--ink)' }}>This Week<br />in NYC</h2>
+    <div style={{ padding: '26px 0 0' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '0 20px' }}>
+        <h2 style={{ fontFamily: 'var(--serif)', fontWeight: 500, fontSize: 25, margin: 0, letterSpacing: '0.01em', color: 'var(--ink)' }}>This week in NYC</h2>
       </div>
-      <div className="hide-scrollbar" style={{ display: 'flex', gap: 12, overflowX: 'auto', padding: '0 20px 4px', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
+      <div style={{ fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--field-clay)', fontWeight: 600, padding: '6px 20px 0' }}>Live from NYC Open Data · updates daily</div>
+      <div className="hide-scrollbar" style={{ display: 'flex', gap: 14, overflowX: 'auto', padding: '16px 20px 4px', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
         {loading
-          ? [0, 1, 2].map(i => <div key={i} style={{ flexShrink: 0, width: 210, height: 150, borderRadius: 20, background: 'var(--gray-100)' }} />)
-          : items.map(e => (
+          ? [0, 1, 2].map(i => <div key={i} style={{ flexShrink: 0, width: 252, height: 232, borderRadius: 16, background: 'var(--gray-100)' }} />)
+          : items.map(e => {
+            const initial = (e.title || '?').trim().charAt(0).toUpperCase()
+            const heroImg = eventHeroImage(e)
+            return (
             <button key={e.id} onClick={() => setSelected(e)}
-              style={{ flexShrink: 0, width: 210, border: 'none', borderRadius: 20, overflow: 'hidden', background: 'var(--white)', boxShadow: '0 6px 18px rgba(29,39,51,0.08)', cursor: 'pointer', textAlign: 'left', padding: 0, fontFamily: 'inherit', display: 'flex', flexDirection: 'column' }}>
-              <div style={{ position: 'relative', height: 60, background: `linear-gradient(135deg, ${e.color}, ${e.color}B0)`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 14px', flexShrink: 0, overflow: 'hidden' }}>
-                {e.image && <img src={e.image} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
-                {e.image && <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(13,18,25,0.55), rgba(13,18,25,0.05))' }} />}
-                <span style={{ position: 'relative', fontSize: 24, lineHeight: 1 }}>{e.image ? '' : e.emoji}</span>
-                <span style={{ position: 'relative', fontSize: 9.5, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.97)' }}>{e.kindLabel}</span>
+              style={{ flexShrink: 0, width: 252, border: '1px solid rgba(33,27,20,0.10)', borderRadius: 16, overflow: 'hidden', background: 'var(--card)', boxShadow: '0 6px 18px rgba(33,27,20,0.05)', cursor: 'pointer', textAlign: 'left', padding: 0, fontFamily: 'inherit', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ position: 'relative', height: 134, background: e.color, overflow: 'hidden', flexShrink: 0 }}>
+                {heroImg && <img src={heroImg} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
+                <div style={{ position: 'absolute', inset: 0, background: heroImg ? 'linear-gradient(to top, rgba(13,18,25,0.55), rgba(13,18,25,0.05))' : 'linear-gradient(160deg, rgba(255,255,255,0.16), rgba(0,0,0,0.18))' }} />
+                {!heroImg && <div style={{ position: 'absolute', top: 12, left: 14, fontFamily: 'var(--serif)', fontStyle: 'italic', fontSize: 40, color: 'rgba(255,255,255,0.30)', lineHeight: 1 }}>{initial}</div>}
+                <div style={{ position: 'absolute', top: 13, right: 14, fontSize: 9.5, letterSpacing: '0.2em', fontWeight: 700, color: '#fff', textTransform: 'uppercase', background: 'rgba(0,0,0,0.22)', padding: '4px 8px', borderRadius: 999 }}>{e.kindLabel}</div>
               </div>
-              <div style={{ padding: '10px 12px 12px', flex: 1 }}>
-                <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--ink)', lineHeight: 1.25, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{e.title}</div>
-                <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--accent-text)', marginTop: 6 }}>{whenLabel(e)}</div>
-                <div style={{ fontSize: 11, color: 'var(--ink-2)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{[e.location, e.borough].filter(Boolean).join(' · ')}</div>
+              <div style={{ padding: '14px 16px 16px' }}>
+                <div style={{ fontFamily: 'var(--serif)', fontSize: 19, fontWeight: 600, lineHeight: 1.15, color: 'var(--ink)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{e.title}</div>
+                <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700, color: 'var(--accent)', marginTop: 8 }}>{whenLabel(e)}</div>
+                <div style={{ fontSize: 13.5, color: 'var(--ink-3)', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{[e.location, e.borough].filter(Boolean).join(' · ')}</div>
               </div>
             </button>
-          ))}
+          )})}
       </div>
-      <div style={{ fontSize: 10.5, color: 'var(--ink-3)', padding: '6px 20px 0' }}>Live from NYC Open Data · updates daily</div>
       <BottomSheet open={!!selected} onClose={() => setSelected(null)}>
         <EventDetail event={selected} />
       </BottomSheet>
@@ -1291,7 +1348,7 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
             update so users only see each refresh once. */}
         {whatsNewVisible && (
           <div style={{
-            background: 'rgba(224,85,44,0.12)',
+            background: 'rgba(190,77,43,0.12)',
             color: 'var(--ink)',
             padding: '8px 14px 8px 16px',
             display: 'flex', alignItems: 'center', gap: 10,
@@ -1317,23 +1374,40 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
             >✕</button>
           </div>
         )}
-        {/* ── Light shell top bar — 2×2 menu dots left, 38px avatar right ── */}
-        <div className="top-bar">
-          <button className="menu-dots" onClick={onOpenSettings} aria-label="Menu and settings">
-            <NavIcon name="dots" size={20} />
+        {/* ── Header — circular menu · serif wordmark + eyebrow · circular avatar ── */}
+        <div style={{
+          padding: 'calc(env(safe-area-inset-top, 0px) + 12px) 20px 10px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--canvas)',
+        }}>
+          <button onClick={onOpenSettings} aria-label="Menu and settings" style={{
+            width: 40, height: 40, borderRadius: 999, background: 'var(--card)',
+            border: '1px solid rgba(33,27,20,0.10)', cursor: 'pointer', padding: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}>
+            <NavIcon name="dots" size={18} color="#5A5247" />
           </button>
-          <span className="nav-wordmark">NYC Stoop</span>
-          <button className="avatar-38" onClick={onOpenSettings} aria-label="Profile and settings">
+          <div style={{ textAlign: 'center', lineHeight: 1 }}>
+            <div style={{ fontSize: 9, letterSpacing: '0.28em', color: 'var(--field-clay)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 3 }}>The City Guide</div>
+            <div style={{ fontFamily: 'var(--serif)', fontSize: 25, fontWeight: 500, letterSpacing: '0.01em', color: 'var(--ink)' }}>
+              NYC <span style={{ fontStyle: 'italic', color: 'var(--accent)' }}>Stoop</span>
+            </div>
+          </div>
+          <button onClick={onOpenSettings} aria-label="Profile and settings" style={{
+            width: 40, height: 40, borderRadius: 999, background: 'var(--accent)',
+            border: 'none', cursor: 'pointer', padding: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            boxShadow: '0 2px 8px rgba(190,77,43,0.35)',
+          }}>
             <NavIcon name="user" size={18} color="#fff" />
           </button>
         </div>
-        <div style={{ padding: '4px 20px 12px', background: 'var(--canvas)' }}>
+        <div style={{ padding: '6px 20px 12px', background: 'var(--canvas)' }}>
           <div style={{
-            display: 'flex', alignItems: 'center', gap: 10,
-            background: 'var(--white)', borderRadius: 16, padding: '11px 14px',
-            boxShadow: '0 4px 14px rgba(29,39,51,.06)',
+            display: 'flex', alignItems: 'center', gap: 11,
+            background: 'var(--card)', border: '1px solid rgba(33,27,20,0.12)',
+            borderRadius: 14, padding: '13px 16px',
           }}>
-            <span style={{ color: 'var(--ink-3)', flexShrink: 0, display: 'inline-flex' }}><NavIcon name="search" size={17} /></span>
+            <span style={{ color: 'var(--gray-400)', flexShrink: 0, display: 'inline-flex' }}><NavIcon name="search" size={17} /></span>
             <input
               type="search"
               placeholder="Search venues, sights, artists…"
@@ -1361,8 +1435,8 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
           {searchResults.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px 20px 24px', color: 'var(--gray-500)' }}>
               <div style={{ fontSize: 32, marginBottom: 10 }}>&#128269;</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gray-800)', marginBottom: 6 }}>
-                NYC Stoop hasn&#8217;t curated &#8220;{query}&#8221; yet
+              <div style={{ fontFamily: 'var(--serif)', fontSize: 21, fontWeight: 500, color: 'var(--ink)', marginBottom: 8, lineHeight: 1.2 }}>
+                Not curated &#8220;{query}&#8221; yet
               </div>
               <div style={{ fontSize: 13, lineHeight: 1.5, maxWidth: 280, margin: '0 auto 20px' }}>
                 We focus on hand-picked spots with editorial detail. For broader coverage of bookstores, wine bars, and everything else, Google Maps is still your friend.
@@ -1373,11 +1447,11 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                 rel="noopener noreferrer"
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 8,
-                  background: '#4285f4', color: '#fff',
-                  padding: '10px 18px', borderRadius: 10,
+                  background: 'var(--accent)', color: '#fff',
+                  padding: '11px 18px', borderRadius: 12,
                   textDecoration: 'none', fontFamily: 'inherit',
                   fontSize: 13, fontWeight: 700,
-                  boxShadow: '0 1px 3px rgba(66,133,244,0.3)',
+                  boxShadow: '0 6px 16px rgba(190,77,43,0.30)',
                 }}
               >
                 <span>🗺️</span>
@@ -1408,7 +1482,7 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                 }
                 return (
                   <button key={r.type + ':' + r.id} onClick={onPress} disabled={r.type === 'user_venue'} style={{
-                    width: '100%', background: 'var(--white)', border: '1px solid var(--gray-200)',
+                    width: '100%', background: 'var(--card)', border: '1px solid rgba(33,27,20,0.10)',
                     borderRadius: 12, padding: '13px 16px',
                     cursor: r.type === 'user_venue' ? 'default' : 'pointer',
                     textAlign: 'left',
@@ -1448,19 +1522,26 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
             const carouselPicks = tonightPicks.filter(p => p.id !== heroPick?.id).slice(0, 4)
             return (
               <>
-                {/* ── Plan my night — the one-tap happy path to a routed plan ── */}
-                <div style={{ padding: '10px 20px 0' }}>
+                {/* ── Plan my night — gradient hero card ── */}
+                <div style={{ padding: '16px 20px 4px' }}>
                   <button onClick={onPlanNight} style={{
-                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 16,
-                    padding: '15px 18px', fontSize: 16, fontWeight: 800, cursor: 'pointer',
-                    boxShadow: '0 8px 20px rgba(224,85,44,.35)',
+                    width: '100%', textAlign: 'left', position: 'relative', overflow: 'hidden',
+                    border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                    borderRadius: 18, background: 'linear-gradient(135deg, #C4542F 0%, #A93C1E 100%)',
+                    padding: 20, boxShadow: '0 10px 26px rgba(169,60,30,0.30)',
                   }}>
-                    <span aria-hidden="true">✨</span> Plan my night
+                    <div style={{ position: 'absolute', right: -28, top: -28, width: 130, height: 130, borderRadius: 999, background: 'rgba(255,255,255,0.07)' }} />
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                      <div>
+                        <div style={{ fontSize: 9.5, letterSpacing: '0.26em', color: 'rgba(255,255,255,0.72)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>Tonight, curated</div>
+                        <div style={{ fontFamily: 'var(--serif)', fontSize: 27, fontWeight: 500, color: '#fff', lineHeight: 1.05 }}>Plan my night</div>
+                        <div style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.82)', marginTop: 6, maxWidth: 220, lineHeight: 1.35 }}>A routed plan with food, in a couple of taps.</div>
+                      </div>
+                      <span style={{ flexShrink: 0, width: 44, height: 44, borderRadius: 999, background: 'rgba(255,255,255,0.16)', border: '1px solid rgba(255,255,255,0.28)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M3 9h11M10 4.5L14.5 9 10 13.5" stroke="#fff" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </span>
+                    </div>
                   </button>
-                  <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--ink-3)', marginTop: 6 }}>
-                    A routed plan with food, in a couple taps
-                  </div>
                 </div>
 
                 {/* ── This Week in NYC — live events, the new top section ── */}
@@ -1473,103 +1554,53 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                     bottom nav already surfaces the full set of picks, so showing
                     a teaser here was redundant. */}
 
-                {/* ── Moods — vibe-based curation (Just Chilling, Date Night, etc.) ── */}
+                {/* ── What kind of day? — numbered mood cards with colored headers ── */}
                 <div style={{ padding: '24px 0 0' }}>
-                  <div className="section-row" style={{ padding: '0 20px', marginBottom: 12 }}>
-                    <h3 style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--ink)' }}>
-                      What kind of day?
-                    </h3>
-                    <span style={{ fontSize: 11, color: 'var(--ink-3)', fontWeight: 600 }}>{moods.length} moods</span>
+                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '0 20px' }}>
+                    <h2 style={{ fontFamily: 'var(--serif)', fontWeight: 500, fontSize: 25, margin: 0, letterSpacing: '0.01em', color: 'var(--ink)' }}>What kind of day?</h2>
+                    <span style={{ fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--field-clay)', fontWeight: 600 }}>{moods.length} moods</span>
                   </div>
-                  <div style={{
-                    display: 'flex', gap: 12, overflowX: 'auto',
-                    padding: '0 20px 4px',
-                    WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none',
-                  }} className="hide-scrollbar">
-                    {/* "Where to eat" card — Eat no longer has its own nav tab, so it
-                        lives here as the first card and routes to the restaurant browser. */}
-                    <button
-                      key="eat"
-                      onClick={() => push({ screen: 'eat' })}
-                      style={{
-                        flexShrink: 0, width: 132,
-                        background: 'var(--white)', color: 'var(--ink)',
-                        border: 'none', borderRadius: 22,
-                        padding: 0,
-                        cursor: 'pointer', textAlign: 'left',
-                        display: 'flex', flexDirection: 'column',
-                        fontFamily: 'inherit', overflow: 'hidden',
-                        boxShadow: '0 6px 18px rgba(29,39,51,0.08)',
-                      }}
-                    >
-                      <span style={{
-                        height: 88, width: '100%',
-                        background: 'linear-gradient(135deg, #E0552C, #F0997B)',
-                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 32,
-                      }}>🍽️</span>
-                      <span style={{ padding: '10px 12px 12px', display: 'block' }}>
-                        <span style={{
-                          display: 'block', fontSize: 13, fontWeight: 800, lineHeight: 1.25, letterSpacing: '-0.01em',
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                        }}>
-                          Where to eat
-                        </span>
-                        <span style={{ display: 'block', fontSize: 10.5, color: 'var(--ink-2)', marginTop: 3, lineHeight: 1.35 }}>
-                          Restaurants &amp; bars
-                        </span>
-                      </span>
-                    </button>
-                    {moods.map(m => (
-                      <button
-                        key={m.id}
-                        onClick={() => push({ screen: 'mood', moodId: m.id })}
-                        style={{
-                          flexShrink: 0, width: 132,
-                          background: 'var(--white)', color: 'var(--ink)',
-                          border: 'none', borderRadius: 22,
-                          padding: 0,
-                          cursor: 'pointer', textAlign: 'left',
-                          display: 'flex', flexDirection: 'column',
-                          fontFamily: 'inherit', overflow: 'hidden',
-                          boxShadow: '0 6px 18px rgba(29,39,51,0.08)',
-                        }}
-                      >
-                        <span style={{
-                          height: 88, width: '100%',
-                          background: `linear-gradient(135deg, ${m.heroColor}, ${m.heroColor}B0)`,
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 32,
-                        }}>{m.emoji}</span>
-                        <span style={{ padding: '10px 12px 12px', display: 'block' }}>
-                          <span style={{
-                            display: 'block', fontSize: 13, fontWeight: 800, lineHeight: 1.25, letterSpacing: '-0.01em',
-                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                          }}>
-                            {m.label}
-                          </span>
-                          <span style={{ display: 'block', fontSize: 10.5, color: 'var(--ink-2)', marginTop: 3, lineHeight: 1.35 }}>
-                            {flattenMoodPicks(m).length} picks · {(m.groups || []).length} groups
-                          </span>
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+                  {(() => {
+                    const FIELD = ['#B7472A', '#C6892F', '#6B4453', '#6F7A45', '#475A66']
+                    const items = [
+                      { key: 'eat', title: 'Where to eat', meta: 'Restaurants & bars', onClick: () => push({ screen: 'eat' }) },
+                      ...moods.map(m => ({ key: m.id, title: m.label, meta: `${flattenMoodPicks(m).length} picks · ${(m.groups || []).length} groups`, onClick: () => push({ screen: 'mood', moodId: m.id }) })),
+                    ]
+                    return (
+                      <div style={{ display: 'flex', gap: 13, overflowX: 'auto', padding: '16px 20px 4px', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }} className="hide-scrollbar">
+                        {items.map((it, i) => {
+                          const field = FIELD[i % FIELD.length]
+                          return (
+                            <button key={it.key} onClick={it.onClick} style={{
+                              flexShrink: 0, width: 158, padding: 0, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
+                              borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(33,27,20,0.10)', background: 'var(--card)',
+                              boxShadow: '0 6px 18px rgba(33,27,20,0.05)', display: 'flex', flexDirection: 'column',
+                            }}>
+                              <span style={{ height: 150, position: 'relative', background: field, display: 'block' }}>
+                                <span style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(255,255,255,0.10), rgba(0,0,0,0.22))' }} />
+                                <span style={{ position: 'absolute', top: 12, left: 14, fontSize: 11, letterSpacing: '0.1em', fontWeight: 700, color: 'rgba(255,255,255,0.78)' }}>{String(i + 1).padStart(2, '0')}</span>
+                                <span style={{ position: 'absolute', left: 14, right: 14, bottom: 12, fontFamily: 'var(--serif)', fontSize: 21, fontWeight: 600, color: '#fff', lineHeight: 1.08 }}>{it.title}</span>
+                              </span>
+                              <span style={{ background: 'var(--card)', padding: '11px 14px 13px', fontSize: 12.5, color: 'var(--ink-3)' }}>{it.meta}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )
+                  })()}
                 </div>
 
                 {/* ── Browse by topic / neighborhood — toggle pill + horizontal chip scroll ── */}
                 <div style={{ padding: '20px 0 8px' }}>
                   {/* Section header row: small label + toggle pill */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', marginBottom: 12, gap: 12 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-400)' }}>
-                      Browse by
-                    </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', marginBottom: 14, gap: 12 }}>
+                    <h2 style={{ fontFamily: 'var(--serif)', fontWeight: 500, fontSize: 25, margin: 0, letterSpacing: '0.01em', color: 'var(--ink)' }}>Browse by</h2>
                     <div role="tablist" style={{
-                      display: 'inline-flex', background: 'var(--gray-100)', borderRadius: 999, padding: 3,
+                      display: 'inline-flex', background: '#EBE0CD', border: '1px solid rgba(33,27,20,0.10)', borderRadius: 999, padding: 3,
                     }}>
                       {[
                         { id: 'topics',        label: 'Topics' },
-                        { id: 'neighborhoods', label: 'Neighborhoods' },
+                        { id: 'neighborhoods', label: 'Areas' },
                       ].map(opt => {
                         const isActive = browseBy === opt.id
                         return (
@@ -1578,13 +1609,12 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                             aria-selected={isActive}
                             onClick={() => setBrowseBy(opt.id)}
                             style={{
-                              border: 'none', cursor: 'pointer',
-                              padding: '6px 14px', borderRadius: 999,
-                              fontSize: 12, fontWeight: 700,
-                              background: isActive ? 'var(--white)' : 'transparent',
-                              color: isActive ? 'var(--gray-900)' : 'var(--gray-500)',
-                              boxShadow: isActive ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
-                              transition: 'background 120ms ease, color 120ms ease',
+                              border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                              padding: '6px 15px', borderRadius: 999,
+                              fontSize: 13, fontWeight: 600, letterSpacing: '0.01em',
+                              background: isActive ? '#211B14' : 'transparent',
+                              color: isActive ? '#F3EBDC' : '#7A7062',
+                              transition: 'all 0.18s ease',
                             }}>
                             {opt.label}
                           </button>
@@ -1607,23 +1637,17 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                         <button key={domain.id}
                           onClick={() => push({ screen: 'domain', domainId: domain.id })}
                           style={{
-                            display: 'flex', alignItems: 'center', gap: 8,
-                            padding: '10px 12px 10px 12px',
-                            borderRadius: 14,
-                            background: 'var(--white)',
-                            border: '1px solid var(--gray-200)',
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
-                            cursor: 'pointer',
-                            minWidth: 0, // allow children to shrink/ellipsize
-                            width: '100%',
-                            textAlign: 'left',
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                            padding: '14px 15px', borderRadius: 12,
+                            background: 'var(--card)', border: '1px solid rgba(33,27,20,0.10)',
+                            cursor: 'pointer', minWidth: 0, width: '100%', textAlign: 'left', fontFamily: 'inherit',
                           }}>
-                          <span style={{ fontSize: 17, lineHeight: 1, flexShrink: 0 }}>{domain.icon}</span>
                           <span style={{
-                            fontSize: 13, fontWeight: 700, color: 'var(--gray-900)',
+                            fontSize: 15, fontWeight: 500, color: 'var(--ink)',
                             flex: 1, minWidth: 0,
                             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                           }}>{domain.name}</span>
+                          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ flexShrink: 0 }}><path d="M3.5 9.5L9.5 3.5M5 3.5h4.5V8" stroke="#BE4D2B" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                         </button>
                       )
                     })}
@@ -1636,34 +1660,26 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                         <button key={grp.key}
                           onClick={() => push({ screen: 'neighborhood', neighborhoodKey: grp.key })}
                           style={{
-                            display: 'flex', alignItems: 'center', gap: 8,
-                            padding: '10px 12px 10px 12px',
-                            borderRadius: 14,
-                            background: 'var(--white)',
-                            border: '1px solid var(--gray-200)',
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
-                            cursor: 'pointer',
-                            // Coming-soon boroughs stay fully opaque now — the "Soon" badge does the talking,
-                            // and dimming them made them look broken next to Brooklyn.
-                            opacity: 1,
-                            minWidth: 0,
-                            width: '100%',
-                            textAlign: 'left',
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                            padding: '14px 15px', borderRadius: 12,
+                            background: 'var(--card)', border: '1px solid rgba(33,27,20,0.10)',
+                            cursor: 'pointer', minWidth: 0, width: '100%', textAlign: 'left', fontFamily: 'inherit',
                           }}>
-                          <span style={{ fontSize: 17, lineHeight: 1, flexShrink: 0 }}>{grp.emoji}</span>
                           <span style={{
-                            fontSize: 13, fontWeight: 700,
-                            color: showSoonBadge ? 'var(--gray-500)' : 'var(--gray-900)',
+                            fontSize: 15, fontWeight: 500,
+                            color: showSoonBadge ? 'var(--gray-500)' : 'var(--ink)',
                             flex: 1, minWidth: 0,
                             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                           }}>{grp.label}</span>
-                          {showSoonBadge && (
+                          {showSoonBadge ? (
                             <span style={{
                               fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
                               color: '#92400e', background: '#fef3c7',
                               padding: '2px 7px', borderRadius: 999,
                               flexShrink: 0,
                             }}>Soon</span>
+                          ) : (
+                            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ flexShrink: 0 }}><path d="M3.5 9.5L9.5 3.5M5 3.5h4.5V8" stroke="#BE4D2B" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                           )}
                         </button>
                       )
@@ -3483,12 +3499,78 @@ function VenueGroupScreen({ domainId, groupIndex, push, savedItems = {} }) {
 // Different from MoodScreen: filterable UI, not pre-grouped lists. Designed for
 // the most common dining decision flow: "I want X cuisine, in Y area, at Z price."
 function EatScreen({ push, savedItems = {} }) {
-  // All venues flagged isRestaurant: true become the dataset for this screen.
-  // Future: also include user_venues with cuisine fields filled in via enrichment.
-  const allRestaurants = React.useMemo(
-    () => Object.values(venues).filter(v => v.isRestaurant),
-    []
-  )
+  // ── Unified restaurant dataset ──────────────────────────────────────────────
+  // Three sources, normalized to one shape: editorial venues (rich detail pages),
+  // the curated RESTAURANT_DATA, and the enriched food imports. Deduped by brand
+  // name; fast food excluded. This is what makes "Where to eat" broad instead of
+  // showing only the ~19 editorial restaurants.
+  const CUISINE_NORM = {
+    italian: 'Italian', pizza: 'Pizza', japanese: 'Japanese', sushi: 'Sushi', ramen: 'Ramen',
+    korean: 'Korean', mexican: 'Mexican', french: 'French', steakhouse: 'Steakhouse',
+    bakery: 'Bakery', bar_tavern: 'Bar', bar: 'Bar', american: 'American', cafe: 'Café',
+    coffee: 'Café', dessert: 'Dessert', chinese: 'Chinese', thai: 'Thai', vietnamese: 'Vietnamese',
+    seafood: 'Seafood', indian: 'Indian', burger: 'Burgers', deli: 'Deli', brunch: 'Brunch',
+    caribbean: 'Caribbean', spanish: 'Spanish', mediterranean: 'Mediterranean', soul_food: 'Soul Food',
+    cajun: 'Cajun', greek: 'Greek', spanish_restaurant: 'Spanish',
+  }
+  const normCuisine = (tok) => {
+    if (!tok) return null
+    const t = String(tok).toLowerCase().trim()
+    if (CUISINE_NORM[t]) return CUISINE_NORM[t]
+    for (const k in CUISINE_NORM) { if (t.includes(k)) return CUISINE_NORM[k] }
+    return String(tok).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  }
+  const parsePrice = (p) => {
+    if (typeof p === 'number') return p
+    if (!p) return null
+    const m = (String(p).match(/\$/g) || []).length
+    return m || null
+  }
+  const allRestaurants = React.useMemo(() => {
+    const out = []; const seen = new Set()
+    const add = (o) => { const k = recoBaseName(o.name); if (!k || seen.has(k)) return; seen.add(k); out.push(o) }
+    // 1) editorial (rich detail page)
+    Object.values(venues).filter(v => v.isRestaurant).forEach(v => {
+      const c = venueCoords[v.id]
+      const lbl = normCuisine(v.cuisine)
+      add({
+        id: v.id, kind: 'editorial', venueId: v.id, name: v.name, neighborhood: v.neighborhood,
+        cuisine: lbl || v.cuisine || 'Restaurant', cuisineLabels: lbl ? [lbl] : [],
+        price: typeof v.price === 'number' ? v.price : parsePrice(v.price),
+        rating: v.rating ?? null, lat: c?.lat, lng: c?.lng,
+        mustOrder: v.mustOrder, bookingDifficulty: v.bookingDifficulty,
+        vibe: v.vibe, meals: v.meals, dietary: v.dietary,
+      })
+    })
+    // 2) curated RESTAURANT_DATA
+    RESTAURANT_DATA.forEach(r => {
+      if (isFastFood(r.name)) return
+      const c = RESTAURANT_COORDS[r.id]
+      const labels = (r.cuisines || []).map(normCuisine).filter(Boolean)
+      add({
+        id: 'rd_' + r.id, kind: 'curated', name: r.name, neighborhood: r.neighborhood || r.area || '',
+        cuisine: labels[0] || 'Restaurant', cuisineLabels: labels, price: parsePrice(r.price),
+        rating: r.rating ?? null, lat: c?.[0], lng: c?.[1],
+        reservationUrl: r.reservationUrl, mapsUrl: r.mapsUrl, mustOrder: r.mustOrder,
+        bookingDifficulty: r.walkIn ? 'walk-in' : (r.reservationUrl ? 'hard' : undefined),
+      })
+    })
+    // 3) enriched food imports
+    seedUserPlaces.forEach(p => {
+      if (p.category !== 'food' || isFastFood(p.name) || typeof p.lat !== 'number') return
+      const labels = (Array.isArray(p.cuisine) ? p.cuisine : (p.cuisine ? [p.cuisine] : [])).map(normCuisine).filter(Boolean)
+      add({
+        id: 'imp_' + p.id, kind: 'import', name: p.name, neighborhood: p.neighborhood || '',
+        cuisine: labels[0] || 'Restaurant', cuisineLabels: labels, price: parsePrice(p.price),
+        rating: p.rating ?? null, lat: p.lat, lng: p.lng, address: p.address, hours: p.hours,
+        website: p.website, description: p.description || p.googleSummary || '',
+        sourceUrl: p.sourceUrl || p.mapsUrl || '',
+      })
+    })
+    // Editorial picks lead (hand-curated marquee), then everything by Google rating.
+    out.sort((a, b) => (b.kind === 'editorial' ? 1 : 0) - (a.kind === 'editorial' ? 1 : 0) || (b.rating || 0) - (a.rating || 0))
+    return out
+  }, [])
 
   // Multi-select filter state. Each set holds the active value(s). Empty set = "All".
   const [cuisines, setCuisines]         = React.useState(new Set())
@@ -3510,31 +3592,20 @@ function EatScreen({ push, savedItems = {} }) {
   // Brooklyn would be invisible.
   React.useEffect(() => { setMapArea(null) }, [mapBorough])
 
-  // ── Cuisine taxonomy (CURATED, not auto-derived) ──
-  // Hardcoded so we control which pills show — empty categories are intentional
-  // placeholders for editorial growth (Ramen, Bar will populate as restaurants
-  // are added). Auto-deriving from data would make the filter mirror whatever
-  // happens to be in the database, which leaks data gaps into UX.
-  const ALL_CUISINES = [
-    'Italian',
-    'Pizza',
-    'Sushi',
-    'Ramen',
-    'Korean',
-    'Mexican',
-    'French',
-    'Steakhouse',
-    'Bakery',
-    'Bar',
-    'Brunch',
-    'Deli',
-  ]
-  // Neighborhoods stay auto-derived — these come from real venue addresses and
-  // listing a neighborhood with zero restaurants would be misleading.
-  const allNeighborhoods = React.useMemo(
-    () => Array.from(new Set(allRestaurants.map(r => r.neighborhood).filter(Boolean))).sort(),
-    [allRestaurants]
+  // ── Cuisine taxonomy — data-derived, ordered by how many restaurants have each.
+  // With ~300 restaurants a flat pill row would be a wall, so we show the top N
+  // and tuck the long tail behind a "More" expander.
+  const cuisineCounts = React.useMemo(() => {
+    const c = {}
+    allRestaurants.forEach(r => (r.cuisineLabels || []).forEach(l => { c[l] = (c[l] || 0) + 1 }))
+    return c
+  }, [allRestaurants])
+  const ALL_CUISINES = React.useMemo(
+    () => Object.keys(cuisineCounts).sort((a, b) => cuisineCounts[b] - cuisineCounts[a] || a.localeCompare(b)),
+    [cuisineCounts]
   )
+  const TOP_CUISINES_N = 12
+  const [cuisinesExpanded, setCuisinesExpanded] = React.useState(false)
   const ALL_PRICES = [1, 2, 3, 4]
   const ALL_VIBES = ['date_night', 'casual', 'iconic', 'splurge', 'quick', 'late_night', 'family_friendly', 'hidden_gem']
   const ALL_MEALS = ['breakfast', 'brunch', 'lunch', 'dinner', 'late_night']
@@ -3547,8 +3618,7 @@ function EatScreen({ push, savedItems = {} }) {
   const restaurantArea = React.useMemo(() => {
     const m = new Map()
     allRestaurants.forEach(r => {
-      const c = venueCoords[r.id]
-      m.set(r.id, c ? classifyLatLngToArea(c.lat, c.lng) : null)
+      m.set(r.id, typeof r.lat === 'number' ? classifyLatLngToArea(r.lat, r.lng) : null)
     })
     return m
   }, [allRestaurants])
@@ -3559,9 +3629,8 @@ function EatScreen({ push, savedItems = {} }) {
   const restaurantCountsByArea = React.useMemo(() => {
     const acc = { manhattan: {}, brooklyn: {} }
     allRestaurants.forEach(r => {
-      if (cuisines.size > 0 && !cuisines.has(r.cuisine)) return
+      if (cuisines.size > 0 && !(r.cuisineLabels || []).some(c => cuisines.has(c))) return
       if (prices.size > 0 && !prices.has(r.price)) return
-      if (neighborhoods.size > 0 && !neighborhoods.has(r.neighborhood)) return
       if (vibes.size > 0 && !(r.vibe || []).some(v => vibes.has(v))) return
       if (meals.size > 0 && !(r.meals || []).some(m => meals.has(m))) return
       if (dietary.size > 0 && !(r.dietary || []).some(d => dietary.has(d))) return
@@ -3584,16 +3653,15 @@ function EatScreen({ push, savedItems = {} }) {
   // map-area filter on top).
   const chipFiltered = React.useMemo(() => {
     return allRestaurants.filter(r => {
-      if (cuisines.size > 0 && !cuisines.has(r.cuisine)) return false
+      if (cuisines.size > 0 && !(r.cuisineLabels || []).some(c => cuisines.has(c))) return false
       if (prices.size > 0 && !prices.has(r.price)) return false
-      if (neighborhoods.size > 0 && !neighborhoods.has(r.neighborhood)) return false
       if (vibes.size > 0 && !(r.vibe || []).some(v => vibes.has(v))) return false
       if (meals.size > 0 && !(r.meals || []).some(m => meals.has(m))) return false
       if (dietary.size > 0 && !(r.dietary || []).some(d => dietary.has(d))) return false
       if (walkInOnly && !['walk-in', 'easy'].includes(r.bookingDifficulty)) return false
       return true
     })
-  }, [allRestaurants, cuisines, prices, neighborhoods, vibes, meals, dietary, walkInOnly])
+  }, [allRestaurants, cuisines, prices, vibes, meals, dietary, walkInOnly])
 
   // Final result set adds the "Near me" area filter on top of the chip filters.
   const filtered = React.useMemo(() => {
@@ -3624,11 +3692,10 @@ function EatScreen({ push, savedItems = {} }) {
     chipFiltered.forEach(r => {
       const a = restaurantArea.get(r.id)
       if (!a || a.borough !== mapBorough) return
-      const c = venueCoords[r.id]
-      if (!c) return
+      if (typeof r.lat !== 'number') return
       out.push({
         id: r.id,
-        lat: c.lat, lng: c.lng,
+        lat: r.lat, lng: r.lng,
         name: r.name,
         areaId: a.areaId,
         color: colorForArea(mapBorough, a.areaId),
@@ -3665,6 +3732,10 @@ function EatScreen({ push, savedItems = {} }) {
     Italian: '🍝', Pizza: '🍕', Sushi: '🍣', Ramen: '🍜',
     Korean: '🥢', Mexican: '🌮', French: '🥖', Steakhouse: '🥩',
     Bakery: '🍪', Bar: '🍷', Brunch: '🍳', Deli: '🥪',
+    Japanese: '🍱', American: '🍔', 'Café': '☕', Chinese: '🥡',
+    Thai: '🍲', Vietnamese: '🍜', Seafood: '🦞', Indian: '🍛',
+    Burgers: '🍔', Dessert: '🍰', Caribbean: '🏝', 'Soul Food': '🍗',
+    Cajun: '🦐', Greek: '🥙', Mediterranean: '🫒', Spanish: '🥘',
   }
   function fmtCuisine(c)    { return `${CUISINE_EMOJI[c] || '🍽'} ${c}` }
   function fmtPrice(p)      { return '$'.repeat(p) }
@@ -3728,14 +3799,15 @@ function EatScreen({ push, savedItems = {} }) {
 
   // Filter drawer state — moved off-screen by default so users see results
   // first. They tap "Filters" when they're ready to narrow.
-  const [filtersExpanded, setFiltersExpanded] = React.useState(true)
+  const [filtersExpanded, setFiltersExpanded] = React.useState(false)
+  const [moreFiltersOpen, setMoreFiltersOpen] = React.useState(false)
   // Map starts collapsed.
   const [mapExpanded, setMapExpanded] = React.useState(false)
   // Default to a short list when no filters are active — 19 stacked cards
   // is overwhelming. Filters narrow naturally, so we show everything when
   // the user has expressed any intent. Reset when filter state changes.
   const [showAllResults, setShowAllResults] = React.useState(false)
-  const VISIBLE_LIMIT = 3
+  const VISIBLE_LIMIT = 12
   React.useEffect(() => { setShowAllResults(false) }, [cuisines, prices, neighborhoods, vibes, meals, dietary, nearArea, walkInOnly])
 
   return (
@@ -3757,10 +3829,10 @@ function EatScreen({ push, savedItems = {} }) {
           }}>Eat</span>
         </div>
         <div style={{ fontSize: 24, fontWeight: 800, lineHeight: 1.2, marginBottom: 6 }}>
-          What to order, where to book.
+          Where to eat in NYC.
         </div>
         <div style={{ fontSize: 13, lineHeight: 1.55, opacity: 0.9 }}>
-          Hand-picked NYC restaurants — with insider must-orders, booking difficulty, and price.
+          Every restaurant in your guide — filter by cuisine, price, and neighborhood.
         </div>
         <div style={{
           marginTop: 10, fontSize: 11, fontWeight: 700, opacity: 0.75,
@@ -3845,26 +3917,41 @@ function EatScreen({ push, savedItems = {} }) {
       {/* Filter sections */}
       <div style={{ padding: '14px 0 4px', background: 'var(--white)', borderBottom: '1px solid var(--gray-100)' }}>
         <FilterRow label="Cuisine" count={cuisines.size}>
-          {ALL_CUISINES.map(c => (
+          {(cuisinesExpanded ? ALL_CUISINES : ALL_CUISINES.slice(0, TOP_CUISINES_N)).map(c => (
             <Pill key={c} active={cuisines.has(c)} onClick={() => toggleIn(setCuisines, c)}>{fmtCuisine(c)}</Pill>
           ))}
+          {ALL_CUISINES.length > TOP_CUISINES_N && (
+            <Pill active={false} onClick={() => setCuisinesExpanded(v => !v)}>
+              {cuisinesExpanded ? '− Less' : `+ ${ALL_CUISINES.length - TOP_CUISINES_N} more`}
+            </Pill>
+          )}
         </FilterRow>
         <FilterRow label="Price" count={prices.size}>
           {ALL_PRICES.map(p => (
             <Pill key={p} active={prices.has(p)} onClick={() => toggleIn(setPrices, p)}>{fmtPrice(p)} · {priceRange(p)}</Pill>
           ))}
         </FilterRow>
-        <FilterRow label="Where" count={neighborhoods.size + (nearArea ? 1 : 0)}>
+        <FilterRow label="Where" count={nearArea ? 1 : 0}>
           <Pill active={!!nearArea} onClick={nearArea ? () => setNearArea(null) : handleNearMeEat} style={geoStatus === 'denied' ? { opacity: 0.5 } : {}}>
             📍 {geoStatus === 'locating' ? 'Locating…' : nearArea ? `Near me · ${nearArea.label}` : geoStatus === 'denied' ? 'Location off' : 'Near me'}
           </Pill>
-          {allNeighborhoods.map(n => (
-            <Pill key={n} active={neighborhoods.has(n)} onClick={() => toggleIn(setNeighborhoods, n)}>{n}</Pill>
-          ))}
+          <span style={{ fontSize: 11, color: 'var(--gray-400)', alignSelf: 'center', whiteSpace: 'nowrap', paddingLeft: 2 }}>or tap an area on the map below ↓</span>
         </FilterRow>
         <div style={{ padding: '2px 20px 0', fontSize: 10.5, color: 'var(--gray-500)', lineHeight: 1.4 }}>
           {geoStatus === 'denied' ? 'Location is off — enable it in your browser to use Near me.' : 'Tap “Near me” to filter by your location — we only use it to find nearby spots, and you can say no.'}
         </div>
+        {/* Vibe / Meal / Dietary tags exist on our editorial picks, so they're
+            tucked behind a disclosure rather than dominating the first view. */}
+        <div style={{ padding: '4px 20px 2px' }}>
+          <button onClick={() => setMoreFiltersOpen(o => !o)} style={{
+            background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+            fontSize: 11.5, fontWeight: 700, color: 'var(--gray-500)', letterSpacing: '0.03em',
+            display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 0',
+          }}>
+            {moreFiltersOpen ? '− Fewer filters' : '+ More filters · vibe · meal · dietary'}
+          </button>
+        </div>
+        {moreFiltersOpen && (<>
         <FilterRow label="Vibe" count={vibes.size}>
           {ALL_VIBES.map(v => (
             <Pill key={v} active={vibes.has(v)} onClick={() => toggleIn(setVibes, v)}>{fmtVibe(v)}</Pill>
@@ -3880,11 +3967,12 @@ function EatScreen({ push, savedItems = {} }) {
             <Pill key={d} active={dietary.has(d)} onClick={() => toggleIn(setDietary, d)}>{fmtDietary(d)}</Pill>
           ))}
         </FilterRow>
-        {dietary.size > 0 && (
-          <div style={{ padding: '2px 20px 0', fontSize: 10.5, color: 'var(--gray-500)', lineHeight: 1.4 }}>
-            Dietary tags mean solid options exist, not a dedicated kitchen — always confirm with the restaurant for allergies.
-          </div>
-        )}
+        <div style={{ padding: '2px 20px 0', fontSize: 10.5, color: 'var(--gray-500)', lineHeight: 1.4 }}>
+          {dietary.size > 0
+            ? 'Dietary tags mean solid options exist, not a dedicated kitchen — confirm for allergies.'
+            : 'These tags apply to our editorial picks, so they narrow the list considerably.'}
+        </div>
+        </>)}
         {/* Clear-filters footer inside drawer. Result count lives in the
             drawer toggle header now to keep this section focused. */}
         {activeFilterCount > 0 && (
@@ -3926,14 +4014,21 @@ function EatScreen({ push, savedItems = {} }) {
           return (
             <>
               {visible.map(r => {
-                const booking = fmtBooking(r.bookingDifficulty || 'easy')
-                const isSaved = !!savedItems[`venue:${r.id}`]
-                const accent = venueColors[r.id]?.bg || '#dc2626'
+                const booking = r.bookingDifficulty ? fmtBooking(r.bookingDifficulty) : null
+                const isSaved = r.kind === 'editorial' && !!savedItems[`venue:${r.venueId}`]
+                const accent = venueColors[r.venueId || r.id]?.bg || '#dc2626'
                 const cuisineEmoji = (CUISINE_EMOJI[r.cuisine] || '🍽')
+                // Editorial restaurants have a rich detail page; imports/curated
+                // open Google Maps (disambiguated by neighborhood so they resolve).
+                const openCard = () => {
+                  if (r.kind === 'editorial') { push({ screen: 'venue', venueId: r.venueId }); return }
+                  const u = r.sourceUrl || r.mapsUrl || mapsUrl([r.name, r.neighborhood].filter(Boolean).join(' '))
+                  try { window.open(u, '_blank', 'noopener') } catch (e) {}
+                }
                 return (
                   <button
                     key={r.id}
-                    onClick={() => push({ screen: 'venue', venueId: r.id })}
+                    onClick={openCard}
                     style={{
                       // Matches the MoodScreen pick-card pattern: 14px radius,
                       // 3px colored left border, icon-left + body + chevron-right,
@@ -3964,9 +4059,21 @@ function EatScreen({ push, savedItems = {} }) {
                         fontSize: 11, color: 'var(--gray-500)', marginBottom: 4,
                         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                       }}>
-                        <span style={{ fontWeight: 700, color: 'var(--gray-700)' }}>{r.cuisine}</span>
-                        {' · '}<span style={{ fontWeight: 700, color: 'var(--gray-700)' }}>{priceRange(r.price)}</span>
-                        {' · '}{r.neighborhood}
+                        {[
+                          r.cuisine && `__C__${r.cuisine}`,
+                          r.price ? `__C__${priceRange(r.price)}` : null,
+                          r.rating ? `★ ${r.rating}` : null,
+                          r.neighborhood,
+                        ].filter(Boolean).map((seg, i, arr) => {
+                          const bold = typeof seg === 'string' && seg.startsWith('__C__')
+                          const text = bold ? seg.slice(5) : seg
+                          return (
+                            <React.Fragment key={i}>
+                              {i > 0 ? ' · ' : ''}
+                              <span style={bold ? { fontWeight: 700, color: 'var(--gray-700)' } : (String(seg).startsWith('★') ? { color: '#854F0B', fontWeight: 700 } : undefined)}>{text}</span>
+                            </React.Fragment>
+                          )
+                        })}
                       </div>
                       {(r.mustOrder || []).length > 0 && (
                         <div style={{
@@ -3977,12 +4084,14 @@ function EatScreen({ push, savedItems = {} }) {
                           🍴 {r.mustOrder.slice(0, 2).join(', ')}
                         </div>
                       )}
-                      <span style={{
-                        display: 'inline-block',
-                        fontSize: 9, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase',
-                        color: booking.color, background: booking.color + '18',
-                        padding: '2px 7px', borderRadius: 4,
-                      }}>{booking.label}</span>
+                      {booking && (
+                        <span style={{
+                          display: 'inline-block',
+                          fontSize: 9, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase',
+                          color: booking.color, background: booking.color + '18',
+                          padding: '2px 7px', borderRadius: 4,
+                        }}>{booking.label}</span>
+                      )}
                     </div>
                     <span style={{ fontSize: 18, color: 'var(--gray-300)', alignSelf: 'center', flexShrink: 0 }}>›</span>
                   </button>
@@ -4798,6 +4907,7 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
   const [activityId, setActivityId] = React.useState(null)
   const [geoStatus, setGeoStatus] = React.useState('idle')   // idle | locating | denied
   const [geoNote, setGeoNote]     = React.useState('')
+  const [userLoc, setUserLoc]     = React.useState(null)     // {lat,lng} from "Near me" → sorts picks nearest-first
   const [moodSheet, setMoodSheet] = React.useState(null)     // tapped pick → in-app bottom sheet
   if (!mood) return <div style={{ padding: 24, color: 'var(--ink-2)' }}>Mood not found.</div>
 
@@ -4960,6 +5070,17 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
     : []
 
   const TARGET = 6
+  // ── "Near me" proximity sort ──────────────────────────────────────────────
+  // When the user located themselves (userLoc set), every pool is ordered
+  // nearest-first so a Williamsburg local sees their block before a canonical
+  // Manhattan landmark. Without a location we keep the editorial order, so this
+  // only ever kicks in on explicit opt-in. Items with no coords sink to the end.
+  const distFromUser = (c) => (userLoc && c && c.lat != null && c.lng != null) ? distanceMiles(userLoc, c) : Infinity
+  const sortNear = (arr, getC) => userLoc ? arr.slice().sort((a, b) => distFromUser(getC(a)) - distFromUser(getC(b))) : arr
+  const itemCoords = (it) => it.venue ? venueCoords[it.id] : (it.sight ? { lat: it.sight.lat, lng: it.sight.lng } : null)
+  const uvCoords   = (v) => (typeof v.lat === 'number' && typeof v.lng === 'number') ? { lat: v.lat, lng: v.lng } : null
+  const restCoords = (r) => { const c = RESTAURANT_COORDS[r.id]; return c ? { lat: c[0], lng: c[1] } : null }
+  const edCoords   = (id) => venueCoords[id]
   // Dedup keys on the brand base name (location qualifiers stripped) so e.g.
   // "Hole In The Wall" and "Hole In The Wall - Murray Hill" show only once.
   const shownNames = new Set(myPicks.map(v => recoBaseName(v.name)))
@@ -4971,10 +5092,10 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
     if (k) shownNames.add(k)
     stoopRendered.push(node)
   }
-  stoopHead.forEach(it => addCard(it.venue ? it.venue.name : it.sight ? it.sight.name : it.name, cardForItem(it), false))
-  importPool.forEach(v => addCard(v.name, cardForUserVenue(v), true))
-  restPool.forEach(r => addCard(r.name, cardForRestaurant(r), true))
-  editorialPool.forEach(id => addCard(venues[id].name, compactCard('ep' + id, { name: venues[id].name, neighborhood: venues[id].neighborhood, desc: venues[id].character || '', image: venueImages[id] || null }, () => setMoodSheet({ kind: 'venue', id })), true))
+  sortNear(stoopHead, itemCoords).forEach(it => addCard(it.venue ? it.venue.name : it.sight ? it.sight.name : it.name, cardForItem(it), false))
+  sortNear(importPool, uvCoords).forEach(v => addCard(v.name, cardForUserVenue(v), true))
+  sortNear(restPool, restCoords).forEach(r => addCard(r.name, cardForRestaurant(r), true))
+  sortNear(editorialPool, edCoords).forEach(id => addCard(venues[id].name, compactCard('ep' + id, { name: venues[id].name, neighborhood: venues[id].neighborhood, desc: venues[id].character || '', image: venueImages[id] || null }, () => setMoodSheet({ kind: 'venue', id })), true))
 
   const Dots = ({ n }) => (
     <div style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
@@ -4996,6 +5117,7 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
     setGeoStatus('locating')
     try {
       const { lat, lng } = await getUserLocation()
+      setUserLoc({ lat, lng })   // keep precise point so picks sort nearest-first
       const w = classifyLatLngToArea(lat, lng)
       setGeoStatus('idle')
       if (w) {
@@ -5095,7 +5217,10 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
             <button onClick={() => setStep('activity')} style={{ background: 'none', border: 'none', color: 'var(--accent-text)', fontWeight: 800, fontSize: 11.5, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>Edit</button>
           </div>
           <h2 style={{ ...heading, margin: '0 0 2px' }}>{actEmoji} {actLabel}</h2>
-          <div style={{ fontSize: 13, color: 'var(--ink-2)', marginBottom: 12 }}>in {placeLabel} &middot; for {mood.label.toLowerCase()}</div>
+          <div style={{ fontSize: 13, color: 'var(--ink-2)', marginBottom: 12 }}>
+            in {placeLabel} &middot; for {mood.label.toLowerCase()}
+            {userLoc && <span style={{ color: 'var(--accent-text)', fontWeight: 700 }}> &middot; 📍 nearest first</span>}
+          </div>
 
           {/* Open-now filter — hides places known to be closed right now. */}
           <button onClick={() => setOpenNowOnly(v => !v)} aria-pressed={openNowOnly} style={{
@@ -6675,11 +6800,11 @@ function BottomNav({ activeTab, onTabPress, savedCount, onAddPlace }) {
       width: '100%', maxWidth: 430,
       height: 'calc(64px + env(safe-area-inset-bottom, 0px))',
       paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-      background: 'rgba(255,255,255,0.82)',
+      background: 'rgba(243,235,220,0.92)',
       backdropFilter: 'blur(12px)',
       WebkitBackdropFilter: 'blur(12px)',
-      borderTop: '1px solid rgba(29,39,51,0.06)',
-      boxShadow: '0 -8px 28px rgba(29,39,51,0.08)',
+      borderTop: '1px solid rgba(33,27,20,0.10)',
+      boxShadow: '0 -8px 28px rgba(33,27,20,0.06)',
       display: 'flex', zIndex: 200,
     }}>
       {tabs.map(({ id, icon, label, accent }) => {
@@ -7168,6 +7293,210 @@ function rankLiveEvents(events) {
   return out
 }
 
+// ── EventsBrowser — the heart of the Tonight tab. Browses the live catalog
+// (Ticketmaster: concerts, comedy, theatre, sports, family) + NYC Open Data
+// (free street events & markets), organized by TIME RANGE (tonight / this
+// weekend / this week) and CATEGORY. Tapping a card opens the shared event
+// sheet (tickets · directions · add to calendar). ──
+function EventsBrowser({ onNavigate = () => {} }) {
+  const [range, setRange] = React.useState('tonight')   // 'tonight' | 'weekend' | 'week'
+  const [category, setCategory] = React.useState('picks')   // 'picks' (curated 20) | music | comedy | ...
+  // Initialise from the session cache so re-opening the Tonight tab renders the
+  // events on the first frame (no loading flash); only the very first load is null.
+  const [pool, setPool] = React.useState(() => {
+    const c = getThisWeekCached()
+    return c ? [...(c.events || []), ...(c.markets || [])] : null
+  })
+  const [showAll, setShowAll] = React.useState(false)
+  React.useEffect(() => {
+    let alive = true
+    fetchThisWeek()
+      .then(({ events = [], markets = [] }) => { if (alive) setPool([...events, ...markets]) })
+      .catch(() => { if (alive) setPool(p => p || []) })
+    return () => { alive = false }
+  }, [])
+  React.useEffect(() => { setShowAll(false) }, [range, category])
+
+  const today0 = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d })()
+  const dPlus = (n) => { const d = new Date(today0); d.setDate(d.getDate() + n); return d }
+  const isDate = (d) => d instanceof Date && !isNaN(d)
+  const sameDay = (d, t) => isDate(d) && d.getFullYear() === t.getFullYear() && d.getMonth() === t.getMonth() && d.getDate() === t.getDate()
+
+  const inRange = (e) => {
+    if (range === 'tonight') return sameDay(e.date, today0)
+    if (!isDate(e.date)) return true                     // recurring markets → weekend & week
+    if (range === 'week') return e.date >= today0 && e.date < dPlus(7)
+    // weekend = upcoming Fri/Sat/Sun, EXCLUDING today (e.date >= tomorrow) so a
+    // weekend-day "tonight" never also shows up under This weekend.
+    const dow = e.date.getDay()
+    return e.date >= dPlus(1) && e.date < dPlus(8) && (dow === 5 || dow === 6 || dow === 0)
+  }
+  const catOf = (e) => {
+    if (e.source === 'permitted' || e.source === 'market') return 'free'
+    if (e.kind === 'Music') return 'music'
+    if (e.kind === 'Sports') return 'sports'
+    if (e.kind === 'Family') return 'family'
+    if (e.kind === 'Arts & Theatre') return /comed/i.test(`${e.genre || ''} ${e.title || ''}`) ? 'comedy' : 'theater'
+    return 'other'
+  }
+  const CATS = [
+    { key: 'picks', label: '★ Stoop picks' }, { key: 'music', label: 'Music' }, { key: 'comedy', label: 'Comedy' },
+    { key: 'theater', label: 'Theater' }, { key: 'sports', label: 'Sports' }, { key: 'family', label: 'Family' },
+    { key: 'free', label: 'Free' },
+  ]
+  const RANGES = [['tonight', 'Tonight'], ['weekend', 'This weekend'], ['week', 'This week']]
+
+  const loading = pool === null
+  const inRangeAll = (pool || []).filter(inRange)
+  const catCount = {}
+  inRangeAll.forEach(e => { const c = catOf(e); catCount[c] = (catCount[c] || 0) + 1 })
+  const visibleCats = CATS.filter(c => c.key === 'picks' || (catCount[c.key] || 0) > 0)
+
+  // "Stoop picks" — a curated ~20 instead of the overwhelming full list: dedupe
+  // multi-night runs by title, prefer notable + image-rich events, then a
+  // daily-seeded shuffle so the set feels fresh but stays stable within a day.
+  const _hash = (s) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) } return h >>> 0 }
+  const stoopPicks = (() => {
+    const seen = new Set(); const uniq = []
+    for (const e of inRangeAll) { const k = (e.title || '').toLowerCase().trim(); if (!k || seen.has(k)) continue; seen.add(k); uniq.push(e) }
+    const quality = (e) => liveEventScore(e) + (eventHeroImage(e) ? 25 : 0)
+    const seed = today0.getDate() + (range === 'tonight' ? 0 : range === 'weekend' ? 100 : 200)
+    return [...uniq].sort((a, b) => quality(b) - quality(a)).slice(0, 45)
+      .sort((a, b) => (_hash(a.id + seed) % 1000) - (_hash(b.id + seed) % 1000))
+      .slice(0, 20)
+  })()
+
+  // Collapse multi-night runs (e.g. a Broadway show that plays every night)
+  // to a single card — the soonest performance — so one show doesn't repeat
+  // down a tab. The detail sheet / ticket search still surfaces the full run.
+  const dedupeByTitle = (arr) => {
+    const byTitle = new Map()
+    for (const e of arr) {
+      const k = (e.title || '').toLowerCase().trim()
+      if (!k) { byTitle.set(Symbol(), e); continue }
+      const prev = byTitle.get(k)
+      const ed = isDate(e.date) ? e.date.getTime() : 8.64e15
+      const pd = prev && isDate(prev.date) ? prev.date.getTime() : 8.64e15
+      if (!prev || ed < pd) byTitle.set(k, e)
+    }
+    return [...byTitle.values()]
+  }
+  const filtered = category === 'picks' ? [...stoopPicks] : dedupeByTitle(inRangeAll.filter(e => catOf(e) === category))
+  filtered.sort((a, b) => {
+    const ad = isDate(a.date) ? a.date.getTime() : 8.64e15
+    const bd = isDate(b.date) ? b.date.getTime() : 8.64e15
+    return ad - bd || (liveEventScore(b) - liveEventScore(a))
+  })
+  const CAP = 30
+  const shown = showAll ? filtered : filtered.slice(0, CAP)
+
+  const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const whenShort = (e) => {
+    if (e.source === 'market') return e.days ? `Every ${e.days.split(/[,&]/)[0].trim()}` : 'Weekly'
+    if (!isDate(e.date)) return ''
+    const d = e.date
+    const dayLabel = sameDay(d, today0) ? 'Today' : sameDay(d, dPlus(1)) ? 'Tomorrow' : `${WD[d.getDay()]} ${MO[d.getMonth()]} ${d.getDate()}`
+    if (e.source === 'ticketmaster' && (d.getHours() || d.getMinutes())) {
+      const h = (d.getHours() % 12) || 12, mm = d.getMinutes() ? ':' + String(d.getMinutes()).padStart(2, '0') : '', ap = d.getHours() < 12 ? 'am' : 'pm'
+      return `${dayLabel} · ${h}${mm}${ap}`
+    }
+    return dayLabel
+  }
+  const rangeWord = range === 'tonight' ? 'tonight' : range === 'weekend' ? 'this weekend' : 'this week'
+
+  return (
+    <div style={{ padding: '4px 0 10px' }}>
+      {/* Time-range segmented control */}
+      <div style={{ padding: '0 20px' }}>
+        <div style={{ display: 'flex', gap: 6, background: '#EBE0CD', border: '1px solid rgba(33,27,20,0.10)', borderRadius: 999, padding: 4 }}>
+          {RANGES.map(([k, l]) => {
+            const active = range === k
+            return (
+              <button key={k} onClick={() => setRange(k)} style={{
+                flex: 1, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                padding: '9px 8px', borderRadius: 999, fontSize: 13, fontWeight: 700,
+                background: active ? '#211B14' : 'transparent', color: active ? '#F3EBDC' : '#7A7062',
+                transition: 'all 0.18s ease',
+              }}>{l}</button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Category chips — hidden on first load so we never flash "All 0" */}
+      {!loading && (
+      <div className="hide-scrollbar" style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '12px 20px 4px', scrollbarWidth: 'none' }}>
+        {visibleCats.map(c => {
+          const active = category === c.key
+          const n = c.key === 'picks' ? stoopPicks.length : (catCount[c.key] || 0)
+          return (
+            <button key={c.key} onClick={() => setCategory(c.key)} style={{
+              flexShrink: 0, cursor: 'pointer', fontFamily: 'inherit',
+              padding: '7px 14px', borderRadius: 999, fontSize: 13, fontWeight: active ? 700 : 600,
+              background: active ? 'var(--accent)' : 'var(--card)',
+              border: active ? '1px solid var(--accent)' : '1px solid rgba(33,27,20,0.12)',
+              color: active ? '#fff' : 'var(--ink-2)',
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+            }}>
+              <span>{c.label}</span>
+              <span style={{ fontSize: 11, opacity: 0.85 }}>{n}</span>
+            </button>
+          )
+        })}
+      </div>
+      )}
+
+      {/* Events list */}
+      <div style={{ padding: '8px 20px 0' }}>
+        {loading ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {[0, 1, 2, 3].map(i => <div key={i} style={{ height: 98, borderRadius: 16, background: 'var(--gray-100)' }} />)}
+          </div>
+        ) : shown.length === 0 ? (
+          <div style={{ textAlign: 'center', color: 'var(--ink-3)', fontSize: 14, padding: '40px 20px', lineHeight: 1.5 }}>
+            Nothing in this category {rangeWord} yet.<br />Try another filter or range.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {shown.map(e => {
+              const img = eventHeroImage(e)
+              const initial = (e.title || '?').trim().charAt(0).toUpperCase()
+              return (
+                <button key={e.id} onClick={() => onNavigate({ event: e })} style={{
+                  width: '100%', display: 'flex', gap: 12, alignItems: 'center', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
+                  background: 'var(--card)', border: '1px solid rgba(33,27,20,0.10)', borderRadius: 16, padding: 10,
+                  boxShadow: '0 4px 14px rgba(33,27,20,0.05)',
+                }}>
+                  <div style={{ width: 78, height: 78, flexShrink: 0, borderRadius: 12, overflow: 'hidden', background: e.color, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {img
+                      ? <img src={img} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                      : <span style={{ fontFamily: 'var(--serif)', fontStyle: 'italic', fontSize: 30, color: 'rgba(255,255,255,0.4)' }}>{initial}</span>}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: e.color }}>{e.kindLabel}</div>
+                    <div style={{ fontFamily: 'var(--serif)', fontSize: 17, fontWeight: 600, color: 'var(--ink)', margin: '2px 0', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.title}</div>
+                    <div style={{ fontSize: 12.5, color: 'var(--ink-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {[whenShort(e), e.location, e.priceText].filter(Boolean).join(' · ')}
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 18, color: 'var(--gray-300)', flexShrink: 0 }} aria-hidden="true">›</span>
+                </button>
+              )
+            })}
+            {!showAll && filtered.length > CAP && (
+              <button onClick={() => setShowAll(true)} style={{
+                width: '100%', background: 'var(--gray-100)', border: 'none', cursor: 'pointer',
+                borderRadius: 12, padding: '11px', fontSize: 13, fontWeight: 700, color: 'var(--ink-2)', fontFamily: 'inherit',
+              }}>Show all {filtered.length} events →</button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onViewSaved = () => {}, onViewMap = null }) {
   const [tonightFilter, setTonightFilter] = React.useState('all')
 
@@ -7301,6 +7630,32 @@ function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onV
                    'late evening'
   const timeAnchor = `It's ${dayName} ${partOfDay}, ${displayHour}:${minute} ${ampm}`
 
+  // ── Tonight = ONE focused events browser. A second "Editor's picks" section
+  // (its own day-strip + category filters) used to sit below the browser and
+  // overwhelmed users with duplicate controls — so Tonight is now just the
+  // header + the events browser. (Legacy layout below is intentionally
+  // unreachable; safe to delete later.) ──
+  return (
+    <div className="screen" style={{ paddingBottom: 80 }}>
+      <div className="home-header">
+        <div className="section-row">
+          <div className="home-wordmark">Tonight</div>
+          {onViewMap && (<button className="see-all" onClick={onViewMap}>Map view</button>)}
+        </div>
+        <div className="home-subtitle">{`${dayName} · ${displayHour}:${minute} ${ampm}`}</div>
+        <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 6, lineHeight: 1.4 }}>Live shows &amp; events across NYC</div>
+        {savedCount > 0 && (
+          <button onClick={onViewSaved} style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 999, background: 'rgba(190,77,43,0.12)', border: '1px solid rgba(190,77,43,0.35)', color: 'var(--accent-text)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            <span style={{ fontSize: 13, lineHeight: 1 }}>♥</span>
+            <span>{savedCount} saved · Plan your trip →</span>
+          </button>
+        )}
+      </div>
+      <EventsBrowser onNavigate={onNavigate} />
+    </div>
+  )
+
+  // eslint-disable-next-line no-unreachable
   return (
     <div className="screen" style={{ paddingBottom: 80 }}>
       {/* ── Header — light shell: big heading + day·time·count subline + Map view link ── */}
@@ -7338,6 +7693,15 @@ function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onV
         )}
       </div>
 
+      {/* ── Events browser — the live catalog, by range + category (primary) ── */}
+      <EventsBrowser onNavigate={onNavigate} />
+
+      {/* ── Editor's picks — hand-picked venues, by night (secondary) ── */}
+      <div style={{ padding: '22px 20px 0' }}>
+        <h2 style={{ fontFamily: 'var(--serif)', fontWeight: 500, fontSize: 25, margin: 0, letterSpacing: '0.01em', color: 'var(--ink)' }}>Editor&rsquo;s picks</h2>
+        <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--field-clay)', fontWeight: 600, marginTop: 4 }}>Hand-picked by NYC editors</div>
+      </div>
+
       {/* ── Day-of-week strip — pick a night to preview what's on. ──
           Defaults to today on first render. The current day is highlighted
           with the live "Today" label so it's obvious which day you're seeing. */}
@@ -7349,7 +7713,7 @@ function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onV
         <div style={{
           fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
           color: 'var(--gray-500)', marginBottom: 8,
-        }}>What's on which night</div>
+        }}>Pick a night</div>
         <div style={{
           overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none',
           display: 'flex', gap: 6,
@@ -7436,8 +7800,9 @@ function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onV
         </div>
       </div>
 
-      {/* ── Live & ticketed (Ticketmaster) for the selected night ── */}
-      {tonightFilter === 'all' && dayEvents.length > 0 && (() => {
+      {/* ── Live & ticketed section — superseded by <EventsBrowser> above, kept
+          disabled (the browser now covers ticketed events across all ranges). ── */}
+      {false && tonightFilter === 'all' && dayEvents.length > 0 && (() => {
         const DAY_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
         const when = dayIdx === todayIdx ? 'tonight' : `${DAY_FULL[dayIdx]} night`
         const ranked = rankLiveEvents(dayEvents)
@@ -8743,7 +9108,18 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     const p = tripStartDate.split('-').map(Number)
     return new Date(p[0], p[1]-1, p[2]).toDateString() === new Date().toDateString()
   })()
-  const [todayMode, setTodayMode] = React.useState(_isArrivalToday)
+  const [todayMode, setTodayMode] = React.useState(() => {
+    // Plan-my-night sets this one-shot flag so a freshly-built plan opens in the
+    // Full plan view, even though a "tonight" plan arrives today (which would
+    // otherwise default to the day-of Checklist).
+    try {
+      if (localStorage.getItem('nyc_plan_open_full') === '1') {
+        localStorage.removeItem('nyc_plan_open_full')
+        return false
+      }
+    } catch {}
+    return _isArrivalToday
+  })
   // Per-card expanded-options state. Tapping "⋯" on a stop reveals period/swap/move controls.
   const [expandedStopId, setExpandedStopId] = React.useState(null)
   // Wanderlog-style inline add: which day is the "Add a place" modal targeting?
@@ -12916,10 +13292,13 @@ function PlanNightSheet({ onClose, onBuild }) {
   })
   const label = { fontSize: 12, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(29,39,51,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: 'var(--white)', borderRadius: '20px 20px 0 0', padding: '18px 20px calc(20px + env(safe-area-inset-bottom, 0px))' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-          <div style={{ fontSize: 19, fontWeight: 800, color: 'var(--ink)' }}>Plan my night</div>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(33,27,20,0.45)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: 'var(--card)', borderTop: '1px solid rgba(33,27,20,0.08)', borderRadius: '20px 20px 0 0', padding: '18px 20px calc(20px + env(safe-area-inset-bottom, 0px))' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 9.5, letterSpacing: '0.24em', color: 'var(--field-clay)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 3 }}>Tonight, curated</div>
+            <div style={{ fontFamily: 'var(--serif)', fontSize: 26, fontWeight: 500, color: 'var(--ink)', lineHeight: 1.05 }}>Plan my night</div>
+          </div>
           <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--gray-400)', cursor: 'pointer' }}>✕</button>
         </div>
         <div style={label}>When</div>
@@ -12932,7 +13311,7 @@ function PlanNightSheet({ onClose, onBuild }) {
         </div>
         <button onClick={() => onBuild({ when, areaKey: area })} style={{
           width: '100%', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 14,
-          padding: '15px', fontSize: 16, fontWeight: 800, cursor: 'pointer', boxShadow: '0 6px 16px rgba(224,85,44,.35)',
+          padding: '15px', fontSize: 16, fontWeight: 800, cursor: 'pointer', boxShadow: '0 6px 16px rgba(190,77,43,.35)',
         }}>
           Build my plan →
         </button>
@@ -13111,20 +13490,13 @@ export default function App() {
     // Prefer venues with coordinates so routing + meal anchoring work well.
     ids.sort((x, y) => (venueCoords[y] ? 1 : 0) - (venueCoords[x] ? 1 : 0))
     if (wantEvening) {
-      // A realistic night is 1–2 venues, ideally of DIFFERENT kinds (dinner + a
-      // show, not three jazz sets back-to-back ending at 3am). Take the top pick
-      // from distinct evening domains; only double up a domain if nothing else is
-      // available in the area.
-      const seen = new Set()
-      const diverse = []
-      for (const id of ids) {
-        const d = venueCoords[id]?.domain
-        if (seen.has(d)) continue
-        seen.add(d); diverse.push(id)
-        if (diverse.length >= 2) break
-      }
-      if (diverse.length < 2) { const extra = ids.find(id => !diverse.includes(id)); if (extra) diverse.push(extra) }
-      ids = diverse.slice(0, 2)
+      // ONE evening anchor only. A night is dinner (auto-anchored by the
+      // itinerary) + ONE show. Two ticketed showtime venues can't realistically
+      // stack — you can't catch a 9:15pm jazz set AND an 11pm concert — and
+      // sequencing them produced impossible slots like an 11:25pm Carnegie Hall.
+      // The list is already sorted to prefer a venue with coordinates, so the
+      // top one is the best single pick for routing + dinner anchoring.
+      ids = ids.slice(0, 1)
     } else {
       ids = ids.slice(0, 3)
     }
@@ -13133,7 +13505,7 @@ export default function App() {
       const fb = wantEvening
         ? ['village_vanguard', 'carnegie_hall', 'blue_note', 'apollo_theater_hh', 'smalls']
         : ['moma', 'met', 'guggenheim', 'empire_state']
-      ids = fb.filter(id => venues[id]).slice(0, wantEvening ? 2 : 3)
+      ids = fb.filter(id => venues[id]).slice(0, wantEvening ? 1 : 3)
     }
 
     // Add the picks to saves (non-destructive) so the itinerary can include them.
@@ -13162,6 +13534,11 @@ export default function App() {
       localStorage.setItem('nyc_trip_days', JSON.stringify(days))
       localStorage.setItem('nyc_trip_start_date', d.toISOString().slice(0, 10))
     } catch {}
+
+    // Open the freshly-built plan in the Full plan view (not the day-of
+    // Checklist) — the user asked for a plan to look at, and a "tonight" plan
+    // arrives today, which would otherwise default My Trip to the checklist.
+    try { localStorage.setItem('nyc_plan_open_full', '1') } catch {}
 
     setPlanNightOpen(false)
     setActiveTab('saved')

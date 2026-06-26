@@ -15,6 +15,7 @@ const SEGMENT_META = {
   Music:            { emoji: '🎵', label: 'Concert',  color: '#a3408c' },
   Sports:           { emoji: '🏆', label: 'Sports',   color: '#4A8C5C' },
   'Arts & Theatre': { emoji: '🎭', label: 'Show',     color: '#A65B7B' },
+  Family:           { emoji: '🎪', label: 'Family',   color: '#C6892F' },
   Film:             { emoji: '🎬', label: 'Film',     color: '#7e93c4' },
   Miscellaneous:    { emoji: '🎟️', label: 'Event',    color: '#7e93c4' },
 }
@@ -28,11 +29,13 @@ const boroughOf = (c) =>
   : /queens|long island city|astoria|flushing|forest hills|corona|jamaica|elmhurst|sunnyside|ridgewood|college point/i.test(c) ? 'Queens'
   : 'Manhattan'
 
-// Concerts + sports only (across all five boroughs). Theatre stays excluded:
-// Broadway is covered by our curated list with official box-office links, and
-// Ticketmaster's theatre tagging is too inconsistent to keep Broadway out
-// reliably (many musicals carry an undefined genre and slip past a genre filter).
-const TM_SEGMENTS_OK = new Set(['Music', 'Sports'])
+// The full live-entertainment catalog across all five boroughs: concerts,
+// comedy & theatre, sports, and family shows. (We previously kept Music+Sports
+// only; the events browser is the app's reason-to-exist, so we now pull the
+// whole night-out menu.) Sightseeing tours / admissions / cruises are still
+// dropped as noise — but NOT for Music or Arts & Theatre, where "Tour" usually
+// names a concert tour or a comedy tour, not a building walk-through.
+const TM_SEGMENTS_OK = new Set(['Music', 'Sports', 'Arts & Theatre', 'Family'])
 const TM_NOISE = /\b(tour|admission|sightseeing|hop[- ]?on|self[- ]?guided|cruise|observation deck)\b/i
 
 export function isTicketmasterAvailable() {
@@ -72,10 +75,10 @@ export function normalizeTicketmaster(json) {
     if (!date || isNaN(date.getTime())) continue
     const cls = ev?.classifications?.[0] || {}
     const seg = cls.segment?.name || 'Miscellaneous'
-    if (!TM_SEGMENTS_OK.has(seg)) continue                      // concerts + sports only (see note above)
-    // Drop venue/stadium tours + admissions — but NOT for Music, where a "Tour"
-    // is the name of a concert tour, not a building walk-through.
-    if (seg !== 'Music' && TM_NOISE.test(ev.name || '')) continue
+    if (!TM_SEGMENTS_OK.has(seg)) continue                      // see TM_SEGMENTS_OK note above
+    // Drop venue/stadium tours + admissions — but NOT for Music or Arts &
+    // Theatre, where a "Tour" is a concert/comedy tour, not a building walk-through.
+    if (seg !== 'Music' && seg !== 'Arts & Theatre' && TM_NOISE.test(ev.name || '')) continue
     // De-dupe: same title + venue + day = one event (keeps genuine multi-night runs,
     // which differ by date). Ticketmaster often lists the same show several times.
     const dupKey = `${(ev.name || '').trim().toLowerCase()}|${(venue?.name || '').toLowerCase()}|${date.toDateString()}`
@@ -85,7 +88,7 @@ export function normalizeTicketmaster(json) {
     out.push({
       id: 'tm_' + ev.id,
       source: 'ticketmaster',
-      kind: seg, emoji: meta.emoji, kindLabel: meta.label, color: meta.color,
+      kind: seg, genre: cls.genre?.name || '', emoji: meta.emoji, kindLabel: meta.label, color: meta.color,
       title: ev.name,
       date,
       borough: boroughOf(city),
@@ -99,25 +102,49 @@ export function normalizeTicketmaster(json) {
   return out.sort((a, b) => a.date - b.date)
 }
 
-// This week's NYC-metro ticketed events (today → +7 days). [] if no key/error.
-export async function fetchTicketmaster() {
-  const key = import.meta.env.VITE_TICKETMASTER_API_KEY
-  if (!key) return []
-  const today = new Date(); today.setHours(0, 0, 0, 0)
-  const end = new Date(today); end.setDate(end.getDate() + 7)
+// One date-bounded page (max 199) → normalized events.
+async function fetchTMRange(key, start, end) {
   const params = new URLSearchParams({
     apikey: key,
     dmaId: '345',                 // New York DMA
-    startDateTime: zStamp(today),
+    startDateTime: zStamp(start),
     endDateTime: zStamp(end),
-    size: '60',
+    size: '199',                  // max page size
     sort: 'date,asc',
     countryCode: 'US',
   })
+  const res = await fetch(`${TM_BASE}?${params}`, { headers: { Accept: 'application/json' } })
+  if (!res.ok) throw new Error('Ticketmaster ' + res.status)
+  return normalizeTicketmaster(await res.json())
+}
+
+// NYC-metro ticketed events (today → +daysAhead). Default window is ~2.5 weeks
+// so the events browser can offer "this weekend" and "next week"; the home strip
+// re-scopes to 7 days itself. [] if no key/error.
+//
+// NYC has 100+ ticketed shows TONIGHT, so a single date-asc page never reaches
+// later dates — we fetch in DATE BUCKETS and merge, which is what actually makes
+// the wider window reach the weekend and beyond.
+export async function fetchTicketmaster(daysAhead = 18) {
+  const key = import.meta.env.VITE_TICKETMASTER_API_KEY
+  if (!key) return []
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const dayAt = (n) => { const d = new Date(today); d.setDate(d.getDate() + n); return d }
+  const edges = [0, 2, 5, 9, daysAhead].filter((v, i, a) => i === 0 || v > a[i - 1])
+  const ranges = []
+  for (let i = 0; i < edges.length - 1; i++) ranges.push([dayAt(edges[i]), dayAt(edges[i + 1])])
+  const end = dayAt(daysAhead)
   try {
-    const res = await fetch(`${TM_BASE}?${params}`, { headers: { Accept: 'application/json' } })
-    if (!res.ok) throw new Error('Ticketmaster ' + res.status)
-    return normalizeTicketmaster(await res.json())
+    const chunks = await Promise.all(ranges.map(([s, e]) => fetchTMRange(key, s, e).catch(() => [])))
+    // Merge, de-dupe by id, and drop anything outside the window (the API
+    // occasionally returns rescheduled shows with a stale past localDate).
+    const seen = new Set()
+    const out = []
+    for (const arr of chunks) for (const e of arr) {
+      if (!e || !(e.date instanceof Date) || e.date < today || e.date >= end || seen.has(e.id)) continue
+      seen.add(e.id); out.push(e)
+    }
+    return out.sort((a, b) => a.date - b.date)
   } catch (e) {
     console.warn('[ticketmaster] fetch failed:', e)
     return []
