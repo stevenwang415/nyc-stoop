@@ -13,7 +13,7 @@
 // LEGAL: we surface only FACTS (event name, date, place) and link out to a map.
 // We never copy a source's description text or photos. Attribution shown in UI.
 
-import { fetchTicketmaster } from './ticketmaster'
+import { fetchTicketmaster, isTicketmasterAvailable } from './ticketmaster'
 
 const SOCRATA = 'https://data.cityofnewyork.us/resource'
 
@@ -281,7 +281,11 @@ export async function fetchThisWeek() {
     // Editorially-ranked strip for the home section (high-signal first, markets capped).
     const ranked = rankThisWeek(events, markets)
     const data = { events, markets, ranked }
-    _twCache = { at: Date.now(), data }
+    // Only cache a HEALTHY result. NYC always has ticketed shows, so tickets===0
+    // means Ticketmaster was rate-limited/down — caching that would strand the
+    // events browser on "free only" (the category tabs vanish) for the full TTL.
+    // Leaving it uncached makes the next mount retry and recover immediately.
+    if (tickets.length > 0 || !isTicketmasterAvailable()) _twCache = { at: Date.now(), data }
     return data
   })()
   try {

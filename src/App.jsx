@@ -95,8 +95,8 @@ const NEIGHBORHOOD_GROUPS = [
     tease: 'Long Island City, Astoria, Flushing, and the Rockaways. Coming soon.' },
   { key: 'bronx',           label: 'The Bronx',         emoji: '⚾', match: n => /bronx/i.test(n),     comingSoon: true,
     tease: 'Yankee Stadium, Arthur Avenue, the Bronx Zoo, and the New York Botanical Garden. Coming soon.' },
-  { key: 'staten_island',   label: 'Staten Island',     emoji: '⛴️', match: n => /staten island/i.test(n), comingSoon: true,
-    tease: 'The free ferry, Snug Harbor, and the North Shore. Coming soon.' },
+  // { key: 'staten_island',   label: 'Staten Island',     emoji: '⛴️', match: n => /staten island/i.test(n), comingSoon: true,
+  //   tease: 'The free ferry, Snug Harbor, and the North Shore. Coming soon.' },
 ]
 
 function getNeighborhoodVenues(key, venuesObj) {
@@ -988,9 +988,9 @@ const EDITORIAL_LAST_UPDATE_BLURB = '6 blockbuster Broadway shows, 15 new restau
 // Slides up from the bottom to a "peek" height; the user drags the grabber (or
 // taps it) to expand to full-screen and scroll, or drags down to dismiss.
 // Pointer-events based (works for touch + mouse). Self-unmounts after closing.
-function BottomSheet({ open, onClose, children }) {
+function BottomSheet({ open, onClose, children, defaultMode = 'peek', fit = false }) {
   const [mounted, setMounted] = React.useState(open)
-  const [mode, setMode] = React.useState('peek')   // 'peek' | 'full'
+  const [mode, setMode] = React.useState(defaultMode)   // 'peek' | 'full'
   const [drag, setDrag] = React.useState(0)         // live px offset while dragging
   const [dragging, setDragging] = React.useState(false)
   const startY = React.useRef(0)
@@ -1002,11 +1002,35 @@ function BottomSheet({ open, onClose, children }) {
   const peekOffset = Math.max(0, SHEET_H - PEEK_VISIBLE)  // translateY when peeking
 
   React.useEffect(() => {
-    if (open) { setMounted(true); setMode('peek'); setDrag(0) }
+    if (open) { setMounted(true); setMode(defaultMode); setDrag(0) }
     else { const t = setTimeout(() => setMounted(false), 280); return () => clearTimeout(t) }
   }, [open])
 
   if (!mounted && !open) return null
+
+  // ── Fit mode — a content-height card that pops up from the bottom (used for
+  //    event detail). Hugs its content; scrolls only if it would exceed 92% vh. ──
+  if (fit) {
+    return (
+      <div aria-hidden={!open} style={{ position: 'fixed', inset: 0, zIndex: 1000, pointerEvents: open ? 'auto' : 'none' }}>
+        <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(13,18,25,0.45)', opacity: open ? 1 : 0, transition: 'opacity 260ms ease' }} />
+        <div style={{
+          position: 'absolute', left: 0, right: 0, bottom: 0,
+          maxWidth: 480, margin: '0 auto', background: 'var(--white)',
+          borderTopLeftRadius: 22, borderTopRightRadius: 22,
+          boxShadow: '0 -12px 44px rgba(13,18,25,0.30)',
+          maxHeight: '92dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+          transform: open ? 'translateY(0)' : 'translateY(100%)',
+          transition: 'transform 300ms cubic-bezier(0.32,0.72,0,1)',
+        }}>
+          <div style={{ padding: '10px 0 2px', flexShrink: 0 }}>
+            <div style={{ width: 40, height: 5, borderRadius: 999, background: 'var(--gray-300)', margin: '0 auto' }} />
+          </div>
+          <div style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>{children}</div>
+        </div>
+      </div>
+    )
+  }
 
   const base = mode === 'full' ? 0 : peekOffset
   let translate = open ? Math.max(0, Math.min(base + drag, SHEET_H + 60)) : SHEET_H + 60
@@ -1079,9 +1103,43 @@ function eventHeroImage(e) {
   return null
 }
 
+// ── Saved events store ──────────────────────────────────────────────────────
+// Events (concerts, shows, street fairs) are dated, fixed-location objects, not
+// routable venues — so "Add to My Trip" stores them in their own localStorage
+// list, which My Trip renders as a chronological "Saved events" section.
+const SAVED_EVENTS_KEY = 'nyc_saved_events'
+function loadSavedEvents() { try { return JSON.parse(localStorage.getItem(SAVED_EVENTS_KEY) || '[]') } catch { return [] } }
+function persistSavedEvents(arr) {
+  try { localStorage.setItem(SAVED_EVENTS_KEY, JSON.stringify(arr)) } catch {}
+  try { window.dispatchEvent(new Event('nyc-saved-events')) } catch {}
+}
+function isEventSaved(id) { return loadSavedEvents().some(e => e && e.id === id) }
+function toggleEventSaved(ev) {
+  if (!ev || !ev.id) return false
+  const arr = loadSavedEvents()
+  const i = arr.findIndex(e => e && e.id === ev.id)
+  if (i >= 0) { arr.splice(i, 1); persistSavedEvents(arr); return false }
+  arr.push({
+    id: ev.id, source: ev.source, kind: ev.kind, kindLabel: ev.kindLabel, color: ev.color,
+    title: ev.title, date: ev.date instanceof Date ? ev.date.toISOString() : null,
+    borough: ev.borough, location: ev.location, locationFull: ev.locationFull,
+    image: ev.image || null, ticketUrl: ev.ticketUrl || '', priceText: ev.priceText || '',
+    genre: ev.genre || '', lat: ev.lat ?? null, lng: ev.lng ?? null, days: ev.days || '',
+    savedAt: Date.now(),
+  })
+  persistSavedEvents(arr)
+  return true
+}
+// Stored ISO date → Date, so a saved event can re-render through EventDetail.
+function hydrateSavedEvent(e) { return { ...e, date: e && e.date ? new Date(e.date) : null } }
+
 function EventDetail({ event }) {
-  if (!event) return null
   const e = event
+  // Hooks must run unconditionally (before any early return) and re-sync when the
+  // sheet swaps to a different event.
+  const [evSaved, setEvSaved] = React.useState(() => (e ? isEventSaved(e.id) : false))
+  React.useEffect(() => { setEvSaved(e ? isEventSaved(e.id) : false) }, [e && e.id])
+  if (!event) return null
   const heroImg = eventHeroImage(e)
   const WD = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
   const MO = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
@@ -1141,24 +1199,22 @@ function EventDetail({ event }) {
     } catch (err) {}
   }
   const isTicketed = e.source === 'ticketmaster'
-  // Ticketmaster's own URL is reliable for concerts/sports but frequently 404s
-  // for Arts & Theatre (Broadway is sold elsewhere) — so only deep-link the URL
-  // for non-theatre ticketed events; theatre falls back to a "find tickets"
-  // search that lands on the real box office. Free (permitted/market) events
-  // have no ticket page and the map answers "where" but not "what", so they lead
-  // with an info lookup instead.
-  const reliableTickets = isTicketed && e.kind !== 'Arts & Theatre' && !!e.ticketUrl
-  const primaryUrl = reliableTickets ? e.ticketUrl
+  // If we have the official ticket page, deep-link it as "Get tickets" (every
+  // category). Ticketed events without a URL fall back to a "find tickets"
+  // search; free (permitted/market) events have no ticket page, so they lead
+  // with a "what's happening" info lookup instead.
+  const hasTicketUrl = isTicketed && !!e.ticketUrl
+  const primaryUrl = hasTicketUrl ? e.ticketUrl
     : isTicketed ? eventTicketSearchUrl(e)
     : eventSearchUrl(e)
-  const primaryLabel = reliableTickets ? 'Get tickets →'
+  const primaryLabel = hasTicketUrl ? 'Get tickets →'
     : isTicketed ? '🔎 Find tickets & info →'
     : '🔎 What’s happening? →'
   const sourceLine = e.source === 'ticketmaster'
     ? 'Source: Ticketmaster. Theatre tickets may be sold via the venue box office.'
     : 'From NYC’s public event permits — we list the date and place; tap above to find out more.'
   return (
-    <div style={{ padding: '0 20px 36px' }}>
+    <div style={{ padding: '0 20px calc(40px + env(safe-area-inset-bottom, 0px))' }}>
       {heroImg ? (
         <div style={{ height: 150, borderRadius: 18, overflow: 'hidden', marginBottom: 16, background: `linear-gradient(135deg, ${e.color}, ${e.color}B0)` }}>
           <img src={heroImg} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
@@ -1174,8 +1230,12 @@ function EventDetail({ event }) {
       <div style={{ fontSize: 13.5, color: 'var(--ink-2)', lineHeight: 1.55, margin: '14px 0 18px' }}>
         {BLURB[e.kindLabel] || 'A public event in NYC. Check the time and location and head over.'}
       </div>
+      <button onClick={() => setEvSaved(toggleEventSaved(e))}
+        style={{ width: '100%', border: 'none', borderRadius: 999, padding: '14px', background: evSaved ? 'var(--ink)' : 'var(--accent)', color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', boxShadow: evSaved ? 'none' : 'var(--shadow-accent)' }}>
+        {evSaved ? '✓ In My Trip' : '+ Add to My Trip'}
+      </button>
       <button onClick={() => open(primaryUrl)}
-        style={{ width: '100%', border: 'none', borderRadius: 999, padding: '14px', background: 'var(--accent)', color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', boxShadow: 'var(--shadow-accent)' }}>
+        style={{ width: '100%', border: '1.5px solid var(--gray-200)', borderRadius: 999, padding: '13px', marginTop: 10, background: 'var(--white)', color: 'var(--ink)', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>
         {primaryLabel}
       </button>
       <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
@@ -1265,7 +1325,7 @@ function ThisWeekSection() {
             </button>
           )})}
       </div>
-      <BottomSheet open={!!selected} onClose={() => setSelected(null)}>
+      <BottomSheet open={!!selected} onClose={() => setSelected(null)} fit>
         <EventDetail event={selected} />
       </BottomSheet>
     </div>
@@ -1637,17 +1697,13 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                         <button key={domain.id}
                           onClick={() => push({ screen: 'domain', domainId: domain.id })}
                           style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                            padding: '14px 15px', borderRadius: 12,
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
+                            padding: '16px 12px', borderRadius: 14, minHeight: 74,
                             background: 'var(--card)', border: '1px solid rgba(33,27,20,0.10)',
-                            cursor: 'pointer', minWidth: 0, width: '100%', textAlign: 'left', fontFamily: 'inherit',
+                            cursor: 'pointer', width: '100%', fontFamily: 'inherit',
                           }}>
-                          <span style={{
-                            fontSize: 15, fontWeight: 500, color: 'var(--ink)',
-                            flex: 1, minWidth: 0,
-                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                          }}>{domain.name}</span>
-                          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ flexShrink: 0 }}><path d="M3.5 9.5L9.5 3.5M5 3.5h4.5V8" stroke="#BE4D2B" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                          <span style={{ width: 7, height: 7, borderRadius: 999, background: tint, flexShrink: 0 }} />
+                          <span style={{ fontFamily: 'var(--serif)', fontSize: 16, fontWeight: 500, color: 'var(--ink)', textAlign: 'center', lineHeight: 1.2 }}>{domain.name}</span>
                         </button>
                       )
                     })}
@@ -1660,27 +1716,21 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                         <button key={grp.key}
                           onClick={() => push({ screen: 'neighborhood', neighborhoodKey: grp.key })}
                           style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                            padding: '14px 15px', borderRadius: 12,
+                            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
+                            padding: '16px 12px', borderRadius: 14, minHeight: 74,
                             background: 'var(--card)', border: '1px solid rgba(33,27,20,0.10)',
-                            cursor: 'pointer', minWidth: 0, width: '100%', textAlign: 'left', fontFamily: 'inherit',
+                            cursor: 'pointer', width: '100%', fontFamily: 'inherit',
+                            opacity: showSoonBadge ? 0.78 : 1,
                           }}>
-                          <span style={{
-                            fontSize: 15, fontWeight: 500,
-                            color: showSoonBadge ? 'var(--gray-500)' : 'var(--ink)',
-                            flex: 1, minWidth: 0,
-                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                          }}>{grp.label}</span>
                           {showSoonBadge ? (
                             <span style={{
                               fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
-                              color: '#92400e', background: '#fef3c7',
-                              padding: '2px 7px', borderRadius: 999,
-                              flexShrink: 0,
+                              color: '#92400e', background: '#fef3c7', padding: '2px 7px', borderRadius: 999,
                             }}>Soon</span>
                           ) : (
-                            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" style={{ flexShrink: 0 }}><path d="M3.5 9.5L9.5 3.5M5 3.5h4.5V8" stroke="#BE4D2B" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                            <span style={{ width: 7, height: 7, borderRadius: 999, background: 'var(--field-clay)', flexShrink: 0 }} />
                           )}
+                          <span style={{ fontFamily: 'var(--serif)', fontSize: 16, fontWeight: 500, color: showSoonBadge ? 'var(--gray-500)' : 'var(--ink)', textAlign: 'center', lineHeight: 1.2 }}>{grp.label}</span>
                         </button>
                       )
                     })}
@@ -1725,8 +1775,8 @@ function DomainScreen({ domainId, push, savedItems = {} }) {
                 onClick={() => push({ screen: 'venueGroup', domainId, groupIndex: idx })}
                 style={{
                   width: '100%',
-                  background: 'var(--white)',
-                  border: '1px solid var(--gray-200)',
+                  background: 'var(--card)',
+                  border: '1px solid rgba(33,27,20,0.10)',
                   borderRadius: 14,
                   padding: '18px 20px',
                   cursor: 'pointer',
@@ -1995,7 +2045,7 @@ function TopicScreen({ topicId, push, savedItems = {} }) {
                       style={{
                         position: 'relative',
                         width: '100%', textAlign: 'left',
-                        background: 'var(--white)',
+                        background: 'var(--card)',
                         border: '1px solid var(--gray-200)',
                         borderRadius: 12, overflow: 'hidden',
                         cursor: 'pointer', fontFamily: 'inherit',
@@ -5875,7 +5925,7 @@ function NeighborhoodScreen({ neighborhoodKey, subAreaName, push, savedItems = {
               {NEIGHBORHOOD_GROUPS.filter(g => !g.comingSoon && getNeighborhoodVenues(g.key, venues).length > 0).slice(0, 5).map(g => (
                 <button key={g.key} onClick={() => push({ screen: 'neighborhood', neighborhoodKey: g.key })} style={{
                   display: 'flex', alignItems: 'center', gap: 10,
-                  background: 'var(--white)', border: '1px solid var(--gray-200)',
+                  background: 'var(--card)', border: '1px solid var(--gray-200)',
                   borderRadius: 12, padding: '10px 14px', cursor: 'pointer', textAlign: 'left',
                 }}>
                   <span style={{ fontSize: 17 }}>{g.emoji}</span>
@@ -5965,7 +6015,7 @@ function NeighborhoodScreen({ neighborhoodKey, subAreaName, push, savedItems = {
           : VENUE_DOMAIN[v.id] === 'sports' ? 'sports' : 'other'
         const groups = CATS.map(c => ({ ...c, items: nbVenues.filter(v => catOf(v) === c.key) })).filter(g => g.items.length)
         const visible = catFilter === 'all' ? groups : groups.filter(g => g.key === catFilter)
-        const CAP = 5
+        const CAP = 2
         return (
           <div style={{ padding: '4px 20px 24px' }}>
             {groups.length > 1 && (
@@ -6006,7 +6056,7 @@ function NeighborhoodScreen({ neighborhoodKey, subAreaName, push, savedItems = {
                       marginTop: 12, width: '100%', background: 'var(--gray-100)', border: 'none', cursor: 'pointer',
                       borderRadius: 10, padding: '10px', fontSize: 13, fontWeight: 700, color: 'var(--gray-700)',
                     }}>
-                      Show all {g.items.length} →
+                      Show all places →
                     </button>
                   )}
                 </div>
@@ -6370,7 +6420,7 @@ function SightScreen({ sightId, push, savedItems = {}, toggleSave = () => {} }) 
 
         {/* Address row + Maps button */}
         <div style={{
-          background: 'var(--white)', border: '1px solid var(--gray-200)',
+          background: 'var(--card)', border: '1px solid var(--gray-200)',
           borderRadius: 12, padding: '12px 14px',
           display: 'flex', alignItems: 'center', gap: 8,
         }}>
@@ -6456,22 +6506,16 @@ function VenueTapCard({ venue, onPress, isSaved = false, image = null, attributi
   // be visible BEFORE you tap in. `isDark` means the theater is between
   // productions — we still show the tagline (often "Galileo opens Dec 6").
   const np = venue.nowPlaying
-  // First sentence of the insider tip surfaced on the card. This is the
-  // single best content in the app — the bench-level Central Park guidance,
-  // the High Line chaise loungers — and previously you only saw it after
-  // tapping in. Now it lands one tap earlier as the differentiating moment
-  // that separates NYC Stoop from Google Maps.
-  const tipPreview = firstSentence(venue.insiderTip, 120)
 
   return (
     <button
       style={{
         display: 'block', position: 'relative',
         width: '100%',
-        border: 'none',
+        border: '1px solid rgba(33,27,20,0.08)',
         borderRadius: 22,
         overflow: 'hidden',
-        background: 'var(--white)',
+        background: 'var(--card)',
         cursor: 'pointer',
         textAlign: 'left',
         padding: 0,
@@ -6484,7 +6528,7 @@ function VenueTapCard({ venue, onPress, isSaved = false, image = null, attributi
              never a black box. Mirrors the home hero + venue detail screen. ── */}
       <div style={{
         position: 'relative',
-        width: '100%', height: 120,
+        width: '100%', height: 100,
         background: `linear-gradient(135deg, ${colors.bg} 0%, ${colors.bg}99 100%)`,
         overflow: 'hidden',
       }}>
@@ -6587,28 +6631,12 @@ function VenueTapCard({ venue, onPress, isSaved = false, image = null, attributi
           )
         })()}
         {preview && (
-          <div style={{ fontSize: 12.5, color: 'var(--ink-2)', lineHeight: 1.5, marginBottom: 8 }}>
+          <div style={{ fontSize: 12.5, color: 'var(--ink-2)', lineHeight: 1.5, marginBottom: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {preview}
           </div>
         )}
-        {tipPreview && (
-          <div style={{
-            background: '#fef3c7',
-            borderLeft: `3px solid ${colors.bg}`,
-            borderRadius: '0 10px 10px 0',
-            padding: '8px 11px',
-            marginBottom: 12,
-            display: 'flex', alignItems: 'flex-start', gap: 7,
-          }}>
-            <span style={{ fontSize: 12, lineHeight: 1.35, flexShrink: 0 }}>💡</span>
-            <span style={{
-              fontSize: 12, color: '#78350f', lineHeight: 1.45,
-              fontStyle: 'italic',
-            }}>
-              {tipPreview}
-            </span>
-          </div>
-        )}
+        {/* Insider tip intentionally lives on the venue detail page, not here —
+            keeps the browse list scannable; the tip is the reward for tapping in. */}
         <div style={{ fontSize: 12.5, fontWeight: 700, color: external ? 'var(--gray-500)' : 'var(--accent-text)' }}>{external ? 'View on Google Maps ↗' : 'Explore →'}</div>
       </div>
     </button>
@@ -6665,7 +6693,7 @@ function UserVenueCard({ venue, cardVenue, onPress, isSaved = false }) {
   return (
     <button onClick={onPress} style={{
       width: '100%', display: 'flex', gap: 12, alignItems: 'center', textAlign: 'left', cursor: 'pointer',
-      background: 'var(--white)', border: '1px solid var(--gray-200)', borderRadius: 14, padding: 10,
+      background: 'var(--card)', border: '1px solid var(--gray-200)', borderRadius: 14, padding: 10,
       boxShadow: '0 1px 2px rgba(29,39,51,0.05)',
     }}>
       <div style={{
@@ -7301,6 +7329,12 @@ function rankLiveEvents(events) {
 function EventsBrowser({ onNavigate = () => {} }) {
   const [range, setRange] = React.useState('tonight')   // 'tonight' | 'weekend' | 'week'
   const [category, setCategory] = React.useState('picks')   // 'picks' (curated 20) | music | comedy | ...
+  // "Where are you?" borough scope — 'all' | 'Manhattan' | 'Brooklyn' | ...
+  // Always defaults to All NYC (the full feed); the user opts into a borough
+  // per visit. Events carry a borough (from the venue city).
+  const [areaScope, setAreaScope] = React.useState('all')
+  const [areaSheetOpen, setAreaSheetOpen] = React.useState(false)
+  const setArea = (b) => setAreaScope(b)
   // Initialise from the session cache so re-opening the Tonight tab renders the
   // events on the first frame (no loading flash); only the very first load is null.
   const [pool, setPool] = React.useState(() => {
@@ -7315,7 +7349,7 @@ function EventsBrowser({ onNavigate = () => {} }) {
       .catch(() => { if (alive) setPool(p => p || []) })
     return () => { alive = false }
   }, [])
-  React.useEffect(() => { setShowAll(false) }, [range, category])
+  React.useEffect(() => { setShowAll(false) }, [range, category, areaScope])
 
   const today0 = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d })()
   const dPlus = (n) => { const d = new Date(today0); d.setDate(d.getDate() + n); return d }
@@ -7348,8 +7382,15 @@ function EventsBrowser({ onNavigate = () => {} }) {
 
   const loading = pool === null
   const inRangeAll = (pool || []).filter(inRange)
+  // Borough scope. The catalog is Manhattan-heavy, so we surface live per-borough
+  // counts (hiding empties) and let the user pick "where they are"; downstream
+  // counts/picks/list all run off the scoped set.
+  const BOROUGHS = ['Manhattan', 'Brooklyn']   // the boroughs we cover
+  const boroughCount = {}
+  inRangeAll.forEach(e => { if (e.borough) boroughCount[e.borough] = (boroughCount[e.borough] || 0) + 1 })
+  const inScope = areaScope === 'all' ? inRangeAll : inRangeAll.filter(e => e.borough === areaScope)
   const catCount = {}
-  inRangeAll.forEach(e => { const c = catOf(e); catCount[c] = (catCount[c] || 0) + 1 })
+  inScope.forEach(e => { const c = catOf(e); catCount[c] = (catCount[c] || 0) + 1 })
   const visibleCats = CATS.filter(c => c.key === 'picks' || (catCount[c.key] || 0) > 0)
 
   // "Stoop picks" — a curated ~20 instead of the overwhelming full list: dedupe
@@ -7358,7 +7399,7 @@ function EventsBrowser({ onNavigate = () => {} }) {
   const _hash = (s) => { let h = 2166136261 >>> 0; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) } return h >>> 0 }
   const stoopPicks = (() => {
     const seen = new Set(); const uniq = []
-    for (const e of inRangeAll) { const k = (e.title || '').toLowerCase().trim(); if (!k || seen.has(k)) continue; seen.add(k); uniq.push(e) }
+    for (const e of inScope) { const k = (e.title || '').toLowerCase().trim(); if (!k || seen.has(k)) continue; seen.add(k); uniq.push(e) }
     const quality = (e) => liveEventScore(e) + (eventHeroImage(e) ? 25 : 0)
     const seed = today0.getDate() + (range === 'tonight' ? 0 : range === 'weekend' ? 100 : 200)
     return [...uniq].sort((a, b) => quality(b) - quality(a)).slice(0, 45)
@@ -7381,14 +7422,15 @@ function EventsBrowser({ onNavigate = () => {} }) {
     }
     return [...byTitle.values()]
   }
-  const filtered = category === 'picks' ? [...stoopPicks] : dedupeByTitle(inRangeAll.filter(e => catOf(e) === category))
+  const filtered = category === 'picks' ? [...stoopPicks] : dedupeByTitle(inScope.filter(e => catOf(e) === category))
   filtered.sort((a, b) => {
     const ad = isDate(a.date) ? a.date.getTime() : 8.64e15
     const bd = isDate(b.date) ? b.date.getTime() : 8.64e15
     return ad - bd || (liveEventScore(b) - liveEventScore(a))
   })
-  const CAP = 30
-  const shown = showAll ? filtered : filtered.slice(0, CAP)
+  // Every tab leads with a tight top 5 and folds the rest behind "Show all".
+  const cap = 5
+  const shown = showAll ? filtered : filtered.slice(0, cap)
 
   const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -7424,24 +7466,41 @@ function EventsBrowser({ onNavigate = () => {} }) {
         </div>
       </div>
 
+      {/* Location picker — "where are you?" → borough scope (pops the sheet) */}
+      {!loading && (
+        <div style={{ padding: '12px 20px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={() => setAreaSheetOpen(true)} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontFamily: 'inherit',
+            padding: '7px 13px', borderRadius: 999, fontSize: 13, fontWeight: 700,
+            background: areaScope === 'all' ? 'var(--card)' : 'var(--accent)',
+            border: areaScope === 'all' ? '1px solid rgba(33,27,20,0.12)' : '1px solid var(--accent)',
+            color: areaScope === 'all' ? 'var(--ink-2)' : '#fff',
+          }}>
+            <span aria-hidden="true">📍</span>
+            <span>{areaScope === 'all' ? 'All NYC' : areaScope}</span>
+            <span style={{ opacity: 0.7 }}>▾</span>
+          </button>
+          {areaScope !== 'all' && (
+            <button onClick={() => setArea('all')} aria-label="Clear location" style={{
+              border: 'none', background: 'none', cursor: 'pointer', color: 'var(--ink-3)', fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+            }}>Clear</button>
+          )}
+        </div>
+      )}
+
       {/* Category chips — hidden on first load so we never flash "All 0" */}
       {!loading && (
       <div className="hide-scrollbar" style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '12px 20px 4px', scrollbarWidth: 'none' }}>
         {visibleCats.map(c => {
           const active = category === c.key
-          const n = c.key === 'picks' ? stoopPicks.length : (catCount[c.key] || 0)
           return (
             <button key={c.key} onClick={() => setCategory(c.key)} style={{
-              flexShrink: 0, cursor: 'pointer', fontFamily: 'inherit',
+              flexShrink: 0, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
               padding: '7px 14px', borderRadius: 999, fontSize: 13, fontWeight: active ? 700 : 600,
               background: active ? 'var(--accent)' : 'var(--card)',
               border: active ? '1px solid var(--accent)' : '1px solid rgba(33,27,20,0.12)',
               color: active ? '#fff' : 'var(--ink-2)',
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-            }}>
-              <span>{c.label}</span>
-              <span style={{ fontSize: 11, opacity: 0.85 }}>{n}</span>
-            </button>
+            }}>{c.label}</button>
           )
         })}
       </div>
@@ -7455,7 +7514,14 @@ function EventsBrowser({ onNavigate = () => {} }) {
           </div>
         ) : shown.length === 0 ? (
           <div style={{ textAlign: 'center', color: 'var(--ink-3)', fontSize: 14, padding: '40px 20px', lineHeight: 1.5 }}>
-            Nothing in this category {rangeWord} yet.<br />Try another filter or range.
+            {areaScope !== 'all'
+              ? <>Nothing in <strong>{areaScope}</strong> {rangeWord} for this filter.</>
+              : <>Nothing in this category {rangeWord} yet.<br />Try another filter or range.</>}
+            {areaScope !== 'all' && (
+              <div style={{ marginTop: 14 }}>
+                <button onClick={() => setArea('all')} style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 999, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>📍 Show all NYC</button>
+              </div>
+            )}
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -7484,15 +7550,40 @@ function EventsBrowser({ onNavigate = () => {} }) {
                 </button>
               )
             })}
-            {!showAll && filtered.length > CAP && (
+            {!showAll && filtered.length > cap && (
               <button onClick={() => setShowAll(true)} style={{
                 width: '100%', background: 'var(--gray-100)', border: 'none', cursor: 'pointer',
                 borderRadius: 12, padding: '11px', fontSize: 13, fontWeight: 700, color: 'var(--ink-2)', fontFamily: 'inherit',
-              }}>Show all {filtered.length} events →</button>
+              }}>Show all {category === 'picks' ? 'picks' : 'events'} →</button>
             )}
           </div>
         )}
       </div>
+
+      {/* Location pop-out — pick your borough (live counts, empties hidden) */}
+      <BottomSheet open={areaSheetOpen} onClose={() => setAreaSheetOpen(false)}>
+        <div style={{ padding: '4px 20px 30px' }}>
+          <div style={{ fontFamily: 'var(--serif)', fontSize: 24, fontWeight: 500, color: 'var(--ink)', marginBottom: 4 }}>Where are you?</div>
+          <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginBottom: 16, lineHeight: 1.45 }}>Filter {rangeWord}&rsquo;s events by borough.</div>
+          {[{ key: 'all', label: 'All NYC' }, ...BOROUGHS.map(b => ({ key: b, label: b })), { key: 'Queens', label: 'Queens', soon: true }].map(opt => {
+            const active = areaScope === opt.key
+            return (
+              <button key={opt.key} disabled={opt.soon} onClick={opt.soon ? undefined : () => { setArea(opt.key); setAreaSheetOpen(false) }} style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: 10, cursor: opt.soon ? 'default' : 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                background: active ? 'rgba(190,77,43,0.10)' : 'var(--card)',
+                border: active ? '1px solid var(--accent)' : '1px solid rgba(33,27,20,0.10)',
+                borderRadius: 14, padding: '14px 16px', marginBottom: 8, opacity: opt.soon ? 0.6 : 1,
+              }}>
+                <span style={{ fontSize: 16 }} aria-hidden="true">{opt.key === 'all' ? '🗽' : '📍'}</span>
+                <span style={{ flex: 1, fontSize: 15, fontWeight: 600, color: 'var(--ink)' }}>{opt.label}</span>
+                {opt.soon
+                  ? <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#92400e', background: '#fef3c7', padding: '3px 8px', borderRadius: 999 }}>Coming soon</span>
+                  : (active && <span style={{ color: 'var(--accent)', fontWeight: 800 }}>✓</span>)}
+              </button>
+            )
+          })}
+        </div>
+      </BottomSheet>
     </div>
   )
 }
@@ -7819,7 +7910,7 @@ function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onV
               {shown.map(ev => (
                 <button key={ev.id} onClick={() => onNavigate({ event: ev })} style={{
                   width: '100%', display: 'flex', gap: 12, alignItems: 'center', textAlign: 'left', cursor: 'pointer',
-                  background: 'var(--white)', border: '1px solid var(--gray-200)', borderRadius: 14, padding: 10,
+                  background: 'var(--card)', border: '1px solid var(--gray-200)', borderRadius: 14, padding: 10,
                   boxShadow: '0 1px 2px rgba(29,39,51,0.05)',
                 }}>
                   <div style={{ width: 74, height: 74, flexShrink: 0, borderRadius: 10, overflow: 'hidden', background: `linear-gradient(135deg, ${ev.color}, ${ev.color}B0)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -8661,7 +8752,7 @@ ${body}
                   const stop = item.stop
                   const pc = PERIOD_COLORS[stop.period] || PERIOD_COLORS.Afternoon
                   return (
-                    <div key={stop.id} style={{ background: 'var(--white)', border: '1px solid var(--gray-200)', borderRadius: 12, overflow: 'hidden' }}>
+                    <div key={stop.id} style={{ background: 'var(--card)', border: '1px solid var(--gray-200)', borderRadius: 12, overflow: 'hidden' }}>
                       <div style={{ background: pc.bg, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ width: 6, height: 6, borderRadius: '50%', background: pc.dot, display: 'inline-block' }} />
                         <span style={{ fontSize: 11, fontWeight: 700, color: pc.text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
@@ -8758,6 +8849,72 @@ function getDayLabel(dayIndex, tripStartDate) {
   const parts = tripStartDate.split('-').map(Number)
   const d = new Date(parts[0], parts[1] - 1, parts[2] + dayIndex)
   return DAYS[d.getDay()] + ', ' + MONTHS[d.getMonth()] + ' ' + d.getDate()
+}
+
+// ── Saved events — events the user added to "My Trip" (own localStorage list,
+// since dated events aren't routable venues). Re-reads on the 'nyc-saved-events'
+// signal so adds/removes anywhere reflect here live. ──
+function SavedEventsSection() {
+  const [raw, setRaw] = React.useState(() => loadSavedEvents())
+  const [sel, setSel] = React.useState(null)
+  React.useEffect(() => {
+    const refresh = () => setRaw(loadSavedEvents())
+    window.addEventListener('nyc-saved-events', refresh)
+    return () => window.removeEventListener('nyc-saved-events', refresh)
+  }, [])
+  if (!raw.length) return null
+  const today0 = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d })()
+  const isDate = (d) => d instanceof Date && !isNaN(d)
+  const evs = raw.map(hydrateSavedEvent).sort((a, b) => {
+    const ad = isDate(a.date) ? a.date.getTime() : 8.64e15
+    const bd = isDate(b.date) ? b.date.getTime() : 8.64e15
+    return ad - bd
+  })
+  const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const whenLabel = (e) => {
+    if (e.source === 'market') return e.days ? `Every ${e.days.split(/[,&]/)[0].trim()}` : 'Weekly'
+    if (!isDate(e.date)) return ''
+    const d = e.date
+    const sd = (x, y) => x.getFullYear() === y.getFullYear() && x.getMonth() === y.getMonth() && x.getDate() === y.getDate()
+    const tmw = new Date(today0); tmw.setDate(tmw.getDate() + 1)
+    const day = sd(d, today0) ? 'Today' : sd(d, tmw) ? 'Tomorrow' : `${WD[d.getDay()]} ${MO[d.getMonth()]} ${d.getDate()}`
+    if (e.source === 'ticketmaster' && (d.getHours() || d.getMinutes())) {
+      const h = (d.getHours() % 12) || 12, mm = d.getMinutes() ? ':' + String(d.getMinutes()).padStart(2, '0') : '', ap = d.getHours() < 12 ? 'am' : 'pm'
+      return `${day} · ${h}${mm}${ap}`
+    }
+    return day
+  }
+  return (
+    <div style={{ padding: '6px 20px 10px' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
+        <h2 style={{ fontFamily: 'var(--serif)', fontWeight: 500, fontSize: 22, margin: 0, letterSpacing: '0.01em', color: 'var(--ink)' }}>Saved events</h2>
+        <span style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--field-clay)', fontWeight: 600 }}>{evs.length}</span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {evs.map(e => {
+          const img = eventHeroImage(e)
+          const initial = (e.title || '?').trim().charAt(0).toUpperCase()
+          return (
+            <div key={e.id} style={{ display: 'flex', gap: 12, alignItems: 'center', background: 'var(--card)', border: '1px solid rgba(33,27,20,0.10)', borderRadius: 16, padding: 10, boxShadow: '0 4px 14px rgba(33,27,20,0.05)' }}>
+              <button onClick={() => setSel(e)} style={{ flex: 1, minWidth: 0, display: 'flex', gap: 12, alignItems: 'center', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit', background: 'none', border: 'none', padding: 0 }}>
+                <div style={{ width: 70, height: 70, flexShrink: 0, borderRadius: 12, overflow: 'hidden', background: e.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {img ? <img src={img} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontFamily: 'var(--serif)', fontStyle: 'italic', fontSize: 28, color: 'rgba(255,255,255,0.4)' }}>{initial}</span>}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: e.color }}>{e.kindLabel}</div>
+                  <div style={{ fontFamily: 'var(--serif)', fontSize: 16, fontWeight: 600, color: 'var(--ink)', margin: '2px 0', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.title}</div>
+                  <div style={{ fontSize: 12, color: 'var(--ink-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{[whenLabel(e), e.location].filter(Boolean).join(' · ')}</div>
+                </div>
+              </button>
+              <button onClick={() => toggleEventSaved(e)} aria-label="Remove from trip" style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 999, border: 'none', background: 'var(--gray-100)', color: 'var(--ink-3)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 14 }}>✕</button>
+            </div>
+          )
+        })}
+      </div>
+      <BottomSheet open={!!sel} onClose={() => setSel(null)} fit><EventDetail event={sel} /></BottomSheet>
+    </div>
+  )
 }
 
 function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, setVenueNote = () => {}, userVenues = {}, removeUserVenue = () => {}, addUserVenue = () => null, addPlaceFromHeader = () => {} }) {
@@ -9534,6 +9691,9 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
         )}
       </div>
 
+      {/* ══ Saved events — concerts/shows/street events added from Tonight ══ */}
+      <SavedEventsSection />
+
       {/* ══ Your Places — user-added venues. They auto-flow into the itinerary below.
           Split into manual (inline) and imported (foldable) so a 62-entry Google
           Maps import doesn't dominate the My Trip screen.
@@ -9566,7 +9726,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
           const inPlan = planSelection.has(uv.id)
           return (
             <div key={uv.id} style={{
-              background: 'var(--white)', border: '1px solid var(--gray-200)',
+              background: 'var(--card)', border: '1px solid var(--gray-200)',
               borderRadius: 10, padding: '8px 10px',
               display: 'flex', alignItems: 'center', gap: 10,
             }}>
@@ -9645,7 +9805,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                   const inPlan = planSelection.has(uv.id)
                   return (
                     <div key={uv.id} style={{
-                      background: 'var(--white)', border: '1px solid var(--gray-200)',
+                      background: 'var(--card)', border: '1px solid var(--gray-200)',
                       borderRadius: 12, padding: '11px 12px',
                       display: 'flex', alignItems: 'flex-start', gap: 10,
                     }}>
@@ -9737,7 +9897,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                       placeholder={`Search ${importedList.length} imported place${importedList.length !== 1 ? 's' : ''}…`}
                       style={{
                         width: '100%', padding: '8px 12px', fontSize: 13,
-                        background: 'var(--white)', border: '1px solid var(--gray-200)',
+                        background: 'var(--card)', border: '1px solid var(--gray-200)',
                         borderRadius: 8, outline: 'none', fontFamily: 'inherit',
                         boxSizing: 'border-box', marginBottom: 8,
                       }}
@@ -11271,7 +11431,7 @@ function SavedScreen({ savedItems, onSelect, toggleSave, onPlan, venueNotes = {}
                 const fig = figures[w.figureId]
                 return (
                   <button key={item.id} onClick={() => onSelect({ type: 'work', id: item.id })} style={{
-                    width: '100%', background: 'var(--white)', border: '1px solid var(--gray-200)',
+                    width: '100%', background: 'var(--card)', border: '1px solid var(--gray-200)',
                     borderRadius: 14, padding: '12px 16px', cursor: 'pointer', textAlign: 'left',
                     display: 'flex', alignItems: 'center', gap: 12,
                   }}>
@@ -11298,7 +11458,7 @@ function SavedScreen({ savedItems, onSelect, toggleSave, onPlan, venueNotes = {}
                 const topic = topics[fig.topicId]
                 return (
                   <button key={item.id} onClick={() => onSelect({ type: 'figure', id: item.id })} style={{
-                    width: '100%', background: 'var(--white)', border: '1px solid var(--gray-200)',
+                    width: '100%', background: 'var(--card)', border: '1px solid var(--gray-200)',
                     borderRadius: 14, padding: '12px 16px', cursor: 'pointer', textAlign: 'left',
                     display: 'flex', alignItems: 'center', gap: 12,
                   }}>
@@ -12452,7 +12612,7 @@ function AddPlaceModal({ onClose, userVenues, onAdd, onRemove }) {
                   placeholder={`Search ${importedExisting.length} imported place${importedExisting.length !== 1 ? 's' : ''}…`}
                   style={{
                     width: '100%', padding: '8px 12px', fontSize: 13,
-                    background: 'var(--white)', border: '1px solid var(--gray-200)',
+                    background: 'var(--card)', border: '1px solid var(--gray-200)',
                     borderRadius: 8, outline: 'none', fontFamily: 'inherit',
                     boxSizing: 'border-box', marginBottom: 8,
                   }}
@@ -13224,7 +13384,7 @@ function SharedTripView({ trip, onAdopt, onDismiss }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 22 }}>
           {resolvedItems.map(item => (
             <div key={item.type + ':' + item.id} style={{
-              background: 'var(--white)', border: '1px solid var(--gray-200)',
+              background: 'var(--card)', border: '1px solid var(--gray-200)',
               borderRadius: 12, padding: '10px 14px',
               borderLeft: `3px solid ${item.accent}`,
               display: 'flex', alignItems: 'center', gap: 10,
@@ -13717,7 +13877,7 @@ export default function App() {
                 else if (workId) setTonightSel({ screen: 'work', id: workId, blurb })
               }}
             />
-            <BottomSheet open={!!tonightSel} onClose={() => setTonightSel(null)}>
+            <BottomSheet open={!!tonightSel} onClose={() => setTonightSel(null)} fit>
               {tonightSel?.screen === 'venue' && <VenueSheet venueId={tonightSel.id} blurb={tonightSel.blurb} savedItems={savedItems} toggleSave={toggleSave} onFullPage={() => { setTonightSel(null); setTonightFull({ screen: 'venue', id: tonightSel.id }) }} />}
               {tonightSel?.screen === 'work' && <WorkScreen workId={tonightSel.id} push={tonightPush} savedItems={savedItems} toggleSave={toggleSave} />}
               {tonightSel?.screen === 'event' && <EventDetail event={tonightSel.event} />}

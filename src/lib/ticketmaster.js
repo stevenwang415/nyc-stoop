@@ -85,6 +85,10 @@ export function normalizeTicketmaster(json) {
     if (seen.has(dupKey)) continue
     seen.add(dupKey)
     const meta = SEGMENT_META[seg] || SEGMENT_META.Miscellaneous
+    // Venue coordinates (present on ~100% of events) power "Near me" /
+    // neighborhood filtering — the app classifies them with classifyLatLngToArea.
+    const vlat = venue?.location?.latitude != null ? +venue.location.latitude : null
+    const vlng = venue?.location?.longitude != null ? +venue.location.longitude : null
     out.push({
       id: 'tm_' + ev.id,
       source: 'ticketmaster',
@@ -94,6 +98,9 @@ export function normalizeTicketmaster(json) {
       borough: boroughOf(city),
       location: venue?.name || '',
       locationFull: [venue?.name, venue?.address?.line1].filter(Boolean).join(', '),
+      lat: Number.isFinite(vlat) ? vlat : null,
+      lng: Number.isFinite(vlng) ? vlng : null,
+      zip: venue?.postalCode || '',
       image: bestImage(ev.images),
       ticketUrl: ev.url || '',
       priceText: priceText(ev.priceRanges),
@@ -125,17 +132,25 @@ async function fetchTMRange(key, start, end) {
 // NYC has 100+ ticketed shows TONIGHT, so a single date-asc page never reaches
 // later dates — we fetch in DATE BUCKETS and merge, which is what actually makes
 // the wider window reach the weekend and beyond.
-export async function fetchTicketmaster(daysAhead = 18) {
+export async function fetchTicketmaster(daysAhead = 10) {
   const key = import.meta.env.VITE_TICKETMASTER_API_KEY
   if (!key) return []
   const today = new Date(); today.setHours(0, 0, 0, 0)
   const dayAt = (n) => { const d = new Date(today); d.setDate(d.getDate() + n); return d }
-  const edges = [0, 2, 5, 9, daysAhead].filter((v, i, a) => i === 0 || v > a[i - 1])
+  // 3 buckets cover the browser's needs (tonight / weekend / this week ≤ ~8 days)
+  // — fewer parallel calls than before, so we stay well under the key's rate
+  // limit even when the user reloads a lot.
+  const edges = [0, 2, 6, daysAhead].filter((v, i, a) => i === 0 || v > a[i - 1])
   const ranges = []
   for (let i = 0; i < edges.length - 1; i++) ranges.push([dayAt(edges[i]), dayAt(edges[i + 1])])
   const end = dayAt(daysAhead)
+  // One automatic retry per bucket after a short pause — recovers from a transient
+  // 429 instead of silently dropping that slice of the catalog.
+  const fetchWithRetry = (s, e) => fetchTMRange(key, s, e).catch(
+    () => new Promise(r => setTimeout(r, 400)).then(() => fetchTMRange(key, s, e)).catch(() => [])
+  )
   try {
-    const chunks = await Promise.all(ranges.map(([s, e]) => fetchTMRange(key, s, e).catch(() => [])))
+    const chunks = await Promise.all(ranges.map(([s, e]) => fetchWithRetry(s, e)))
     // Merge, de-dupe by id, and drop anything outside the window (the API
     // occasionally returns rescheduled shows with a stale past localDate).
     const seen = new Set()
