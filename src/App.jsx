@@ -996,6 +996,8 @@ function BottomSheet({ open, onClose, children, defaultMode = 'peek', fit = fals
   const startY = React.useRef(0)
   const moved = React.useRef(0)
   const fitScrollRef = React.useRef(null)
+  const fitDraggingRef = React.useRef(false)
+  const fitDragRef = React.useRef(0)
 
   const vh = typeof window !== 'undefined' ? window.innerHeight : 800
   const SHEET_H = Math.round(vh * 0.92)
@@ -1015,14 +1017,26 @@ function BottomSheet({ open, onClose, children, defaultMode = 'peek', fit = fals
   //    the top, so scrolling long content still works). ──
   if (fit) {
     const d = Math.max(0, drag)
-    const fitDown = (e) => { setDragging(true); startY.current = e.clientY }
+    // Gesture state lives in refs so the pointer handlers read it synchronously
+    // (React state lags a frame, which made the drag mis-register / feel dead).
+    const fitDown = (e) => { fitDraggingRef.current = true; fitDragRef.current = 0; startY.current = e.clientY; setDragging(true) }
     const fitMove = (e) => {
-      if (!dragging) return
+      if (!fitDraggingRef.current) return
       const dy = e.clientY - startY.current
       const atTop = (fitScrollRef.current?.scrollTop || 0) <= 0
-      setDrag(dy > 0 && atTop ? dy : 0)   // only drag the sheet when pulling down from the top
+      const v = dy > 0 && atTop ? dy : 0   // only drag the sheet when pulling down from the top
+      fitDragRef.current = v
+      setDrag(v)
     }
-    const fitEnd = () => { if (!dragging) return; setDragging(false); if (drag > 110) { onClose?.() } setDrag(0) }
+    const fitEnd = () => {
+      if (!fitDraggingRef.current) return
+      fitDraggingRef.current = false
+      setDragging(false)
+      const v = fitDragRef.current
+      fitDragRef.current = 0
+      setDrag(0)
+      if (v > 110) onClose?.()
+    }
     return (
       <div aria-hidden={!open} style={{ position: 'fixed', inset: 0, zIndex: 1000, pointerEvents: open ? 'auto' : 'none' }}>
         <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(13,18,25,0.45)', opacity: open ? Math.max(0, 1 - d / 450) : 0, transition: dragging ? 'none' : 'opacity 260ms ease' }} />
