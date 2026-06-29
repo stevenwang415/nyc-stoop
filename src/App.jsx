@@ -1350,21 +1350,21 @@ function ThisWeekSection() {
       <div style={{ fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--field-clay)', fontWeight: 600, padding: '6px 20px 0' }}>Live from NYC Open Data · updates daily</div>
       <div className="hide-scrollbar" style={{ display: 'flex', gap: 14, overflowX: 'auto', padding: '16px 20px 4px', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
         {loading
-          ? [0, 1, 2].map(i => <div key={i} style={{ flexShrink: 0, width: 252, height: 232, borderRadius: 16, background: 'var(--gray-100)' }} />)
+          ? [0, 1, 2].map(i => <div key={i} style={{ flexShrink: 0, width: 252, height: 250, borderRadius: 16, background: 'var(--gray-100)' }} />)
           : items.map(e => {
             const initial = (e.title || '?').trim().charAt(0).toUpperCase()
             const heroImg = eventHeroImage(e)
             return (
             <button key={e.id} onClick={() => setSelected(e)}
-              style={{ flexShrink: 0, width: 252, border: '1px solid rgba(33,27,20,0.10)', borderRadius: 16, overflow: 'hidden', background: 'var(--card)', boxShadow: '0 6px 18px rgba(33,27,20,0.05)', cursor: 'pointer', textAlign: 'left', padding: 0, fontFamily: 'inherit', display: 'flex', flexDirection: 'column' }}>
+              style={{ flexShrink: 0, width: 252, height: 250, border: '1px solid rgba(33,27,20,0.10)', borderRadius: 16, overflow: 'hidden', background: 'var(--card)', boxShadow: '0 6px 18px rgba(33,27,20,0.05)', cursor: 'pointer', textAlign: 'left', padding: 0, fontFamily: 'inherit', display: 'flex', flexDirection: 'column' }}>
               <div style={{ position: 'relative', height: 134, background: e.color, overflow: 'hidden', flexShrink: 0 }}>
                 {heroImg && <img src={heroImg} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
                 <div style={{ position: 'absolute', inset: 0, background: heroImg ? 'linear-gradient(to top, rgba(13,18,25,0.55), rgba(13,18,25,0.05))' : 'linear-gradient(160deg, rgba(255,255,255,0.16), rgba(0,0,0,0.18))' }} />
                 {!heroImg && <div style={{ position: 'absolute', top: 12, left: 14, fontFamily: 'var(--serif)', fontStyle: 'italic', fontSize: 40, color: 'rgba(255,255,255,0.30)', lineHeight: 1 }}>{initial}</div>}
                 <div style={{ position: 'absolute', top: 13, right: 14, fontSize: 9.5, letterSpacing: '0.2em', fontWeight: 700, color: '#fff', textTransform: 'uppercase', background: 'rgba(0,0,0,0.22)', padding: '4px 8px', borderRadius: 999 }}>{e.kindLabel}</div>
               </div>
-              <div style={{ padding: '14px 16px 16px' }}>
-                <div style={{ fontFamily: 'var(--serif)', fontSize: 19, fontWeight: 600, lineHeight: 1.15, color: 'var(--ink)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{e.title}</div>
+              <div style={{ padding: '14px 16px 16px', flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ fontFamily: 'var(--serif)', fontSize: 19, fontWeight: 600, lineHeight: 1.15, color: 'var(--ink)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', height: '2.3em' }}>{e.title}</div>
                 <div style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700, color: 'var(--accent)', marginTop: 8 }}>{whenLabel(e)}</div>
                 <div style={{ fontSize: 13.5, color: 'var(--ink-3)', marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{[e.location, e.borough].filter(Boolean).join(' · ')}</div>
               </div>
