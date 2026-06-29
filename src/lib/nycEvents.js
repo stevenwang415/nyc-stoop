@@ -44,6 +44,23 @@ const PERMIT_PROMO = /\bactivation\b|brand experience|product launch|launch even
 // letters-then-digits token with no real words. Dropped — they mean nothing to a user.
 const PERMIT_CODE_NAME = /^[a-z]{2,6}\d{2,4}[a-z]?$/i
 
+// Private / personal / hobby permits — birthday & shower parties, BBQs, picnics,
+// day camps & day-care outings, CSA pickups, model-aircraft / hobby fields, brand
+// staffing, "content days," etc. These are private gatherings or non-events, not
+// public happenings a city guide should surface, and they flood the Free tab with
+// names that mean nothing to a user. (Distinct from PERMIT_PROMO, which targets
+// corporate/brand marketing.) Verified against a real Brooklyn-weekend pull: this
+// removes "Felix First Birthday", "Model Helicopter Flying", "Flatbush Adult
+// Daycare BBQ", "Coney Island Brand Ambassadors", camps, etc., while leaving real
+// public events (Nathan's Hot Dog Contest, July 4th fireworks, Congo Square
+// drummers, block parties, NYRR runs) untouched.
+const PERMIT_PRIVATE = /\bbirthday\b|\bb-?day\b|baby shower|bridal shower|\bwedding\b|anniversary|\bfuneral\b|memorial service|\brepast\b|graduation|\breunion\b|\bbbq\b|barbecue|cook ?out|\bpicnic\b|day ?care|\bday camp\b|summer camp|\bcamp\b|after[- ]?school|mommy and me|kids? excursion|csa (pick ?up|pickup)|model (helicopter|plane|aircraft|rocket)|radio[- ]?controlled|\brc planes\b|hobby field|brand ambassador|content day|photo day|\boutreach\b/i
+// Cryptic recurring camp/program codes that survive PERMIT_CODE_NAME because a
+// season/year is appended ("SSS PPP Summer 2026", "PSDC Summer 2026").
+const PERMIT_PROGRAM_CODE = /^[a-z]{2,6}( [a-z]{2,6}){0,2} (spring|summer|fall|winter)( \d{4})?$/i
+// Fully-generic permit names that carry no public meaning standing alone.
+const PERMIT_GENERIC = new Set(['celebration', 'party', 'event', 'gathering', 'outing', 'meetup', 'picnic', 'bbq', 'barbecue', 'cookout', 'show', 'tbd', 'various'])
+
 const KIND_META = {
   'Farmers Market':        { emoji: '🌽', label: 'Farmers market', color: '#6fae8e' },
   'Parade':                { emoji: '🎉', label: 'Parade',         color: '#c98aa0' },
@@ -74,6 +91,8 @@ export function normalizePermitted(rows) {
     const name = (r.event_name || '').trim()
     if (!PERMIT_KEEP.has(type)) continue
     if (!name || PERMIT_NOISE.test(name) || PERMIT_PROMO.test(name) || PERMIT_CODE_NAME.test(name)) continue
+    if (PERMIT_PRIVATE.test(name) || PERMIT_PROGRAM_CODE.test(name)) continue
+    if (PERMIT_GENERIC.has(name.toLowerCase().replace(/[^a-z0-9 ]+/g, '').replace(/\s+/g, ' ').trim())) continue
     const boro = (r.event_borough || '').trim()
     if (!COVERED_BOROUGH.test(boro)) continue          // Manhattan + Brooklyn only
     const start = r.start_date_time ? new Date(r.start_date_time) : null
@@ -118,6 +137,10 @@ export function normalizeMarkets(rows) {
     location: (r.streetaddress || '').trim(),
     lat: r.latitude ? +r.latitude : null,
     lng: r.longitude ? +r.longitude : null,
+    // GrowNYC "…Greenmarket" rows get their real per-market page; other operators
+    // (farmstands, youth markets, RiseBoro, etc.) have no reliable page, so
+    // website is '' and the Free filter drops them rather than link a 404.
+    website: greenmarketUrl(r.marketname),
   }))
 }
 
@@ -186,9 +209,21 @@ export function rankThisWeek(events = [], markets = [], { marketCap = 2, limit =
     const ds = signalScore(b) - signalScore(a)
     return ds !== 0 ? ds : dateRank(a) - dateRank(b)
   })
+  // Collapse the same event across multiple days to ONE card. A multi-night run
+  // (a show that plays all week, a recurring series) arrives as separate dated
+  // events; on the home strip they read as duplicates. We key on title + venue
+  // (ignoring the day) and, because the pool is already sorted soonest-first
+  // within an equal signal score, the first one we keep is the nearest date.
+  const runKey = (e) =>
+    (e.title || '').toLowerCase().replace(/\s*[*•|]\s*.*$/, '').replace(/[^a-z0-9]+/g, ' ').trim()
+    + '|' + (e.location || '').toLowerCase().trim()
   const out = []
+  const seenRun = new Set()
   let marketsUsed = 0
   for (const e of pool) {
+    const k = runKey(e)
+    if (seenRun.has(k)) continue       // same event, different day → keep only the soonest
+    seenRun.add(k)
     if (e.source === 'market') {
       if (marketsUsed >= marketCap) continue
       marketsUsed++
@@ -214,16 +249,77 @@ export function eventTicketSearchUrl(e) {
   return 'https://www.google.com/search?q=' + encodeURIComponent(q)
 }
 
-// Web search link → the organizer's own page (where the real description, hours,
-// and tickets live). This is how we send users to details we can't host.
+// "What's happening" link → jumps STRAIGHT to the event's likely official page
+// (the organizer's site, where the real description/hours live) rather than a
+// search-results list. Permitted street events have no URL in the city's data,
+// so we use DuckDuckGo's "go to first result" redirect (a leading "\"): for a
+// named event the top result is its own page. The event TYPE is included so the
+// query has enough context to resolve the right page.
 export function eventSearchUrl(e) {
-  // Include the event TYPE ("Street festival", "Parade", "Greenmarket") — it
-  // gives Google enough context to surface what a vaguely-named permit actually
-  // is, instead of returning unrelated brand/agency spam.
   const kind = e.source === 'market' ? 'greenmarket' : (e.kindLabel || 'event')
   const q = [e.title, kind, e.borough, 'New York', e.date instanceof Date && !isNaN(e.date) ? e.date.getFullYear() : '']
     .filter(Boolean).join(' ')
-  return 'https://www.google.com/search?q=' + encodeURIComponent(q)
+  return 'https://duckduckgo.com/?q=' + encodeURIComponent('\\' + q)
+}
+
+// ── Official-link resolver for free events (see "Free links rule.md") ─────────
+// NYC's permit feed gives free events a name + date + place but NO website, so
+// most "free" cards can only fall back to a web search — meaningless to users.
+// We instead recognize the handful of well-known recurring free SERIES/organizers
+// (most of NYC's free programming runs through them) and link straight to their
+// official page. Keys are lowercase substrings matched against the event title;
+// most-specific first. All URLs verified reachable. Hudson Classical Theater is
+// intentionally omitted — it has no working site.
+const FREE_SERIES_LINKS = [
+  ['classical theatre of harlem', 'https://www.cthnyc.org/'],
+  ['summerstage',                 'https://cityparksfoundation.org/summerstage/'],
+  ['shakespeare in the park',     'https://publictheater.org/'],
+  ['free shakespeare',            'https://publictheater.org/'],
+  ['celebrate brooklyn',          'https://www.bricartsmedia.org/'],
+  ['smorgasburg',                 'https://www.smorgasburg.com/'],
+  ['bryant park',                 'https://bryantpark.org/calendar'],
+  ['tsq live',                    'https://www.timessquarenyc.org/events'],
+  ['times square',                'https://www.timessquarenyc.org/events'],
+  ['governors island',            'https://www.govisland.com/things-to-do/events'],
+  ['brooklyn academy of music',   'https://www.bam.org/'],
+  ['camp half blood',            'https://www.bam.org/'],   // BAM / Brownstone Books series
+  ['west indian',                 'https://www.wiadcacarnival.org/'],
+  ['j’ouvert',                    'https://www.wiadcacarnival.org/'],
+  ['jouvert',                     'https://www.wiadcacarnival.org/'],
+  ['nyc pride',                   'https://www.nycpride.org/'],
+  ['pride march',                 'https://www.nycpride.org/'],
+  ['village halloween',           'https://halloween-nyc.com/'],
+  ['halloween parade',            'https://halloween-nyc.com/'],
+  ['harlem week',                 'https://www.harlemweek.com/'],
+  ['shape up nyc',                'https://www.nycgovparks.org/programs/recreation/shape-up-nyc'],
+]
+
+// The REAL official page for an event, or '' if we don't have one (i.e. the only
+// option would be a web search). Used to (a) label the detail button "Visit
+// website" and (b) keep the Free tab to events users can actually act on.
+//   1. an explicit website (markets carry their GrowNYC page)
+//   2. greenmarkets — all GrowNYC, page built from the name
+//   3. a known free series/organizer
+//   4. ticketed events keep their ticket URL
+// Only markets literally branded "…Greenmarket" are GrowNYC (verified: their
+// grownyc.org/locations/<slug>/ page resolves). The generic "farmers market",
+// "farmstand", and "youth market" rows are independent operators (RiseBoro,
+// hospital farmstands, etc.) with NO GrowNYC page — guessing one 404s, so we
+// return '' for them and let the Free filter drop the dead link.
+export function greenmarketUrl(title) {
+  if (!/greenmarket/i.test(title || '')) return ''
+  return 'https://grownyc.org/locations/' + (title || '').trim().toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') + '/'
+}
+export function eventOfficialUrl(e) {
+  if (!e) return ''
+  if (e.website) return e.website
+  const gm = greenmarketUrl(e.title)
+  if (gm) return gm
+  const hay = (e.title || '').toLowerCase()
+  for (const [kw, url] of FREE_SERIES_LINKS) if (hay.includes(kw)) return url
+  if (e.source === 'ticketmaster' && e.ticketUrl) return e.ticketUrl
+  return ''
 }
 
 // ── Fetchers (browser) ──────────────────────────────────────────────────────

@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { tonightPicks } from './data/tonight.js'
 import { moods, moodById, flattenMoodPicks, ACTIVITIES, ACTIVITY_ORDER } from './data/moods.js'
 import { userPicks, mapsUrl } from './data/userPicks.js'
@@ -18,7 +19,7 @@ import { AuthModal, ResetPasswordScreen } from './auth/components.jsx'
 // Google Places search — used by AddStopToDayModal to let users add places
 // that aren't in our curated catalog. Falls back gracefully if the key is unset.
 import { isGooglePlacesAvailable, searchGooglePlaces, getGooglePlaceDetails, getPlacePhotoByName } from './lib/googlePlaces'
-import { fetchThisWeek, getThisWeekCached, eventMapsUrl, eventSearchUrl, eventTicketSearchUrl } from './lib/nycEvents'
+import { fetchThisWeek, getThisWeekCached, eventMapsUrl, eventSearchUrl, eventTicketSearchUrl, eventOfficialUrl } from './lib/nycEvents'
 import { fetchTicketmaster } from './lib/ticketmaster'
 import { parseTakeoutFile } from './lib/googleTakeout'
 import { extractShareHash, decodeTrip, buildShareUrl } from './lib/tripShare'
@@ -1054,8 +1055,8 @@ function BottomSheet({ open, onClose, children, defaultMode = 'peek', fit = fals
       setDrag(0)
       if (v > 110) onClose?.()
     }
-    return (
-      <div aria-hidden={!open} style={{ position: 'fixed', inset: 0, zIndex: 1000, pointerEvents: open ? 'auto' : 'none' }}>
+    return createPortal((
+      <div aria-hidden={!open} style={{ position: 'fixed', inset: 0, zIndex: 3000, pointerEvents: open ? 'auto' : 'none' }}>
         <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(13,18,25,0.45)', opacity: open ? Math.max(0, 1 - d / 450) : 0, transition: dragging ? 'none' : 'opacity 260ms ease' }} />
         <div
           onPointerDown={fitDown} onPointerMove={fitMove} onPointerUp={fitEnd} onPointerCancel={fitEnd}
@@ -1075,7 +1076,7 @@ function BottomSheet({ open, onClose, children, defaultMode = 'peek', fit = fals
           <div ref={fitScrollRef} style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain' }}>{children}</div>
         </div>
       </div>
-    )
+    ), document.body)
   }
 
   const base = mode === 'full' ? 0 : peekOffset
@@ -1095,8 +1096,8 @@ function BottomSheet({ open, onClose, children, defaultMode = 'peek', fit = fals
     else setMode('peek')
   }
 
-  return (
-    <div aria-hidden={!open} style={{ position: 'fixed', inset: 0, zIndex: 1000, pointerEvents: open ? 'auto' : 'none' }}>
+  return createPortal((
+    <div aria-hidden={!open} style={{ position: 'fixed', inset: 0, zIndex: 3000, pointerEvents: open ? 'auto' : 'none' }}>
       <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(13,18,25,0.45)', opacity: open ? 1 : 0, transition: 'opacity 260ms ease' }} />
       <div style={{
         position: 'absolute', left: 0, right: 0, bottom: 0, height: SHEET_H,
@@ -1116,7 +1117,7 @@ function BottomSheet({ open, onClose, children, defaultMode = 'peek', fit = fals
         </div>
       </div>
     </div>
-  )
+  ), document.body)
 }
 
 // ── EventDetail — fact-only detail shown inside the BottomSheet ──────────────
@@ -1138,16 +1139,55 @@ const _EVENT_PLACE_PHOTOS = (() => {
   out.sort((a, b) => b[0].length - a[0].length)
   return out
 })()
-function eventHeroImage(e) {
-  if (!e) return null
-  if (e.image) return e.image
-  const hay = _normPlace((e.location || '') + ' ' + (e.locationFull || ''))
-  if (!hay) return null
-  for (const [nm, img] of _EVENT_PLACE_PHOTOS) {
-    if (hay.includes(nm)) return img
-  }
-  return null
+// ── Location-image fallback (see "Image fall back.md") ───────────────────────
+// An event with no photo of its own still shows a recognizable photo of WHERE
+// it happens — its landmark / park / square / neighborhood, else its borough,
+// else a generic NYC skyline — so no card is ever a bare placeholder. Keywords
+// are matched against the event's location, longest (most specific) first.
+// URLs are stable Wikimedia upload thumbnails; landmarks reuse venueImages.
+const _wmThumb = (p) => 'https://upload.wikimedia.org/wikipedia/commons/' + p
+const _LANDMARK_PHOTOS = [
+  ['madison square garden', venueImages.msg],   // disambiguate before "madison square"
+  ['union square',        _wmThumb('thumb/4/4a/1_new_york_city_union_square_2010.JPG/960px-1_new_york_city_union_square_2010.JPG')],
+  ['madison square park',  _wmThumb('thumb/a/ac/Madison_Square_Park_from_Above_at_Night_New_York_City.jpg/960px-Madison_Square_Park_from_Above_at_Night_New_York_City.jpg')],
+  ['madison square',       _wmThumb('thumb/a/ac/Madison_Square_Park_from_Above_at_Night_New_York_City.jpg/960px-Madison_Square_Park_from_Above_at_Night_New_York_City.jpg')],
+  ['herald square',        _wmThumb('thumb/2/2d/Herald_Sq_in_Christmas_Day_2008.jpg/960px-Herald_Sq_in_Christmas_Day_2008.jpg')],
+  ['tompkins square',      _wmThumb('thumb/2/2f/Tompkins_Square_Park.JPG/960px-Tompkins_Square_Park.JPG')],
+  ['bryant park',          venueImages.bryant_park],
+  ['central park',         venueImages.central_park],
+  ['washington square',    venueImages.washington_square_park],
+  ['battery park',         venueImages.battery_park],
+  ['times square',         venueImages.times_square],
+  ['high line',            venueImages.high_line],
+  ['chelsea market',       venueImages.chelsea_market],
+  ['rockefeller',          venueImages.rockefeller_center],
+  ['prospect park',        _wmThumb('thumb/3/3a/Prospect_Park_New_York_October_2015_003.jpg/960px-Prospect_Park_New_York_October_2015_003.jpg')],
+  ['brooklyn bridge park', _wmThumb('thumb/a/af/View_of_Brooklyn_Bridge_Park_from_Manhattan_Bridge.jpg/960px-View_of_Brooklyn_Bridge_Park_from_Manhattan_Bridge.jpg')],
+  ['coney island',         _wmThumb('thumb/f/f0/Coney_Island_beach_and_amusement_parks_%28June_2016%29.jpg/960px-Coney_Island_beach_and_amusement_parks_%28June_2016%29.jpg')],
+  ['flushing meadows',     _wmThumb('thumb/0/0e/Flushing_Meadows%E2%80%93Corona_Park.jpg/960px-Flushing_Meadows%E2%80%93Corona_Park.jpg')],
+].filter(([, img]) => !!img)
+const _BOROUGH_PHOTOS = {
+  'Manhattan':     _wmThumb('thumb/7/7a/View_of_Empire_State_Building_from_Rockefeller_Center_New_York_City_dllu_%28cropped%29.jpg/960px-View_of_Empire_State_Building_from_Rockefeller_Center_New_York_City_dllu_%28cropped%29.jpg'),
+  'Brooklyn':      _wmThumb('thumb/d/dd/Brooklyn_skyline.jpg/960px-Brooklyn_skyline.jpg'),
+  'Queens':        _wmThumb('thumb/4/4a/Flushing_Meadows_May_2024_64.jpg/960px-Flushing_Meadows_May_2024_64.jpg'),
+  'The Bronx':     _wmThumb('thumb/a/ad/New_York_Botanical_Garden_April_2015_010.jpg/960px-New_York_Botanical_Garden_April_2015_010.jpg'),
+  'Staten Island': _wmThumb('thumb/3/39/Look_out_point_%28cropped%29.jpg/960px-Look_out_point_%28cropped%29.jpg'),
 }
+const _NYC_SKYLINE = _BOROUGH_PHOTOS.Manhattan
+// Returns { url, tier }: tier 2 = the event's own photo, 1 = a matched
+// venue/landmark/neighborhood photo, 0 = borough / skyline fallback. Ranking
+// uses the tier so curation still prefers events with real, specific photos.
+function eventImagePick(e) {
+  if (!e) return { url: _NYC_SKYLINE, tier: 0 }
+  if (e.image) return { url: e.image, tier: 2 }
+  const hay = _normPlace((e.location || '') + ' ' + (e.locationFull || ''))
+  if (hay) {
+    for (const [nm, img] of _EVENT_PLACE_PHOTOS) if (hay.includes(nm)) return { url: img, tier: 1 }
+    for (const [kw, img] of _LANDMARK_PHOTOS) if (hay.includes(kw)) return { url: img, tier: 1 }
+  }
+  return { url: _BOROUGH_PHOTOS[e.borough] || _NYC_SKYLINE, tier: 0 }
+}
+function eventHeroImage(e) { return eventImagePick(e).url }
 
 // ── Saved events store ──────────────────────────────────────────────────────
 // Events (concerts, shows, street fairs) are dated, fixed-location objects, not
@@ -1171,6 +1211,7 @@ function toggleEventSaved(ev) {
     borough: ev.borough, location: ev.location, locationFull: ev.locationFull,
     image: ev.image || null, ticketUrl: ev.ticketUrl || '', priceText: ev.priceText || '',
     genre: ev.genre || '', lat: ev.lat ?? null, lng: ev.lng ?? null, days: ev.days || '',
+    website: ev.website || '',
     savedAt: Date.now(),
   })
   persistSavedEvents(arr)
@@ -1245,17 +1286,27 @@ function EventDetail({ event }) {
     } catch (err) {}
   }
   const isTicketed = e.source === 'ticketmaster'
-  // If we have the official ticket page, deep-link it as "Get tickets" (every
-  // category). Ticketed events without a URL fall back to a "find tickets"
-  // search; free (permitted/market) events have no ticket page, so they lead
-  // with a "what's happening" info lookup instead.
+  // Priority for the primary action's destination:
+  //   1. Official ticket page  → "Get tickets"
+  //   2. Official website (e.g. a market's organizer page) → "Visit website"
+  //   3. Ticketed without a URL → a "find tickets" search
+  //   4. Otherwise (street events) → a "what's happening" info lookup
+  // So whenever we actually have a real webpage, we link straight to it instead
+  // of a search-results page.
   const hasTicketUrl = isTicketed && !!e.ticketUrl
+  // A real official page for this event (a market's GrowNYC page, a greenmarket
+  // street permit, or a known free series/organizer) — never a web search.
+  // Centralized in eventOfficialUrl so the detail button and the Free-tab filter
+  // agree on what counts as "has a real link."
+  const website = !hasTicketUrl ? eventOfficialUrl(e) : ''
   const primaryUrl = hasTicketUrl ? e.ticketUrl
+    : website ? website
     : isTicketed ? eventTicketSearchUrl(e)
     : eventSearchUrl(e)
   const primaryLabel = hasTicketUrl ? 'Get tickets →'
+    : website ? '🌐 Visit website →'
     : isTicketed ? '🔎 Find tickets & info →'
-    : '🔎 What’s happening? →'
+    : '🔎 More info →'
   const sourceLine = e.source === 'ticketmaster'
     ? 'Source: Ticketmaster. Theatre tickets may be sold via the venue box office.'
     : 'From NYC’s public event permits — we list the date and place; tap above to find out more.'
@@ -1273,11 +1324,16 @@ function EventDetail({ event }) {
       <Row icon="📅">{fullWhen}</Row>
       <Row icon="📍">{[e.locationFull || e.location, e.borough].filter(Boolean).join(' · ')}</Row>
       {e.priceText && <Row icon="🎟️">{e.priceText}</Row>}
-      <div style={{ fontSize: 13.5, color: 'var(--ink-2)', lineHeight: 1.55, margin: '14px 0 18px' }}>
-        {BLURB[e.kindLabel] || 'A public event in NYC. Check the time and location and head over.'}
-      </div>
+      {/* Only show a description when it's a genuinely informative type-blurb
+          (a parade, block party, etc.) — skip the vague "A public event…" filler
+          to keep the card compact. */}
+      {BLURB[e.kindLabel] && e.kindLabel !== 'Event' && e.kindLabel !== 'Plaza event' && (
+        <div style={{ fontSize: 13.5, color: 'var(--ink-2)', lineHeight: 1.55, margin: '14px 0 0' }}>
+          {BLURB[e.kindLabel]}
+        </div>
+      )}
       <button onClick={() => setEvSaved(toggleEventSaved(e))}
-        style={{ width: '100%', border: 'none', borderRadius: 999, padding: '14px', background: evSaved ? 'var(--ink)' : 'var(--accent)', color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', boxShadow: evSaved ? 'none' : 'var(--shadow-accent)' }}>
+        style={{ width: '100%', marginTop: 18, border: 'none', borderRadius: 999, padding: '14px', background: evSaved ? 'var(--ink)' : 'var(--accent)', color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', boxShadow: evSaved ? 'none' : 'var(--shadow-accent)' }}>
         {evSaved ? '✓ In My Trip' : '+ Add to My Trip'}
       </button>
       <button onClick={() => open(primaryUrl)}
@@ -1290,9 +1346,13 @@ function EventDetail({ event }) {
           <button onClick={addToCalendar} style={{ flex: 1, border: '1.5px solid var(--gray-200)', borderRadius: 999, padding: '12px', background: 'var(--white)', color: 'var(--ink)', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>📅 Add to calendar</button>
         )}
       </div>
-      <div style={{ fontSize: 11, color: 'var(--ink-3)', lineHeight: 1.5, marginTop: 16 }}>
-        {sourceLine}
-      </div>
+      {/* Source note only for ticketed events; permitted/free events end on the
+          action buttons to stay compact. */}
+      {e.source === 'ticketmaster' && (
+        <div style={{ fontSize: 11, color: 'var(--ink-3)', lineHeight: 1.5, marginTop: 16 }}>
+          {sourceLine}
+        </div>
+      )}
     </div>
   )
 }
@@ -1664,7 +1724,7 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                 <div style={{ padding: '24px 0 0' }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '0 20px' }}>
                     <h2 style={{ fontFamily: 'var(--serif)', fontWeight: 500, fontSize: 25, margin: 0, letterSpacing: '0.01em', color: 'var(--ink)' }}>What kind of day?</h2>
-                    <span style={{ fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--field-clay)', fontWeight: 600 }}>{moods.length} moods</span>
+                    {/* <span style={{ fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--field-clay)', fontWeight: 600 }}>{moods.length} moods</span> */}
                   </div>
                   {(() => {
                     const FIELD = ['#B7472A', '#C6892F', '#6B4453', '#6F7A45', '#475A66']
@@ -7427,6 +7487,14 @@ function EventsBrowser({ onNavigate = () => {} }) {
   const RANGES = [['tonight', 'Tonight'], ['weekend', 'This weekend'], ['week', 'This week']]
 
   const loading = pool === null
+  // Free events are kept as long as they're real PUBLIC happenings — the junk and
+  // private permits (birthdays, picnics, camps, hobby fields…) are already removed
+  // upstream in normalizePermitted. We deliberately DON'T require an official link
+  // here: iconic free events like Nathan's Hot Dog Contest or the July 4th
+  // fireworks have no URL in the city data but are exactly what a user wants. Each
+  // links to its curated official page when known (eventOfficialUrl), else a
+  // jump-to-first-result search — which is useful precisely because the remaining
+  // names are specific and real.
   const inRangeAll = (pool || []).filter(inRange)
   // Borough scope. The catalog is Manhattan-heavy, so we surface live per-borough
   // counts (hiding empties) and let the user pick "where they are"; downstream
@@ -7446,7 +7514,9 @@ function EventsBrowser({ onNavigate = () => {} }) {
   const stoopPicks = (() => {
     const seen = new Set(); const uniq = []
     for (const e of inScope) { const k = (e.title || '').toLowerCase().trim(); if (!k || seen.has(k)) continue; seen.add(k); uniq.push(e) }
-    const quality = (e) => liveEventScore(e) + (eventHeroImage(e) ? 25 : 0)
+    // Image tier (2=own photo, 1=landmark, 0=borough) keeps curation preferring
+    // events with real, specific photos now that every card resolves to *some* image.
+    const quality = (e) => liveEventScore(e) + eventImagePick(e).tier * 12
     const seed = today0.getDate() + (range === 'tonight' ? 0 : range === 'weekend' ? 100 : 200)
     return [...uniq].sort((a, b) => quality(b) - quality(a)).slice(0, 45)
       .sort((a, b) => (_hash(a.id + seed) % 1000) - (_hash(b.id + seed) % 1000))
@@ -7468,12 +7538,15 @@ function EventsBrowser({ onNavigate = () => {} }) {
     }
     return [...byTitle.values()]
   }
-  const filtered = category === 'picks' ? [...stoopPicks] : dedupeByTitle(inScope.filter(e => catOf(e) === category))
+  let filtered = category === 'picks' ? [...stoopPicks] : dedupeByTitle(inScope.filter(e => catOf(e) === category))
   filtered.sort((a, b) => {
     const ad = isDate(a.date) ? a.date.getTime() : 8.64e15
     const bd = isDate(b.date) ? b.date.getTime() : 8.64e15
     return ad - bd || (liveEventScore(b) - liveEventScore(a))
   })
+  // Free can be long, so (like Stoop picks) cap it at a curated 20 — the soonest /
+  // strongest free things — rather than every market in the city.
+  if (category === 'free') filtered = filtered.slice(0, 20)
   // Every tab leads with a tight top 5 and folds the rest behind "Show all".
   const cap = 5
   const shown = showAll ? filtered : filtered.slice(0, cap)
@@ -7960,9 +8033,9 @@ function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onV
                   boxShadow: '0 1px 2px rgba(29,39,51,0.05)',
                 }}>
                   <div style={{ width: 74, height: 74, flexShrink: 0, borderRadius: 10, overflow: 'hidden', background: `linear-gradient(135deg, ${ev.color}, ${ev.color}B0)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    {ev.image
-                      ? <img src={ev.image} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                      : <span style={{ fontSize: 24 }} aria-hidden="true">{ev.emoji}</span>}
+                    {(() => { const img = eventHeroImage(ev); return img
+                      ? <img src={img} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                      : <span style={{ fontSize: 24 }} aria-hidden="true">{ev.emoji}</span> })()}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: ev.color }}>{ev.kindLabel}</div>

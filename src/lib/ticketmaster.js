@@ -60,11 +60,36 @@ function priceText(ranges) {
   return `$${Math.round(r.min)}–$${Math.round(r.max)}`
 }
 
+// ── Overlap rule (see "Overlap rule.md") ────────────────────────────────────
+// Ticketmaster lists the SAME game/show several times — once per ticket package
+// or section ("… * Grandstand", "… * Premium", "Pinstripe Pass * …"). Those are
+// not distinct events; collapse them to one canonical card. We do it by reducing
+// each title to a "core" matchup (package noise stripped) and de-duping on
+// core + venue + day. Multi-night runs survive (they differ by day).
+const PKG_LABEL = /\b(pinstripe pass|field mvp|all[- ]inclusive|hospitality|premium|grandstand|bleacher(?:s)?|terrace|loge|suite|club|vip|mvp|sro|standing room|parking|pre[- ]?sale|presale|package|on[- ]?site|onsite|meet (?:&|and) greet|early entry)\b/i
+
+function coreTitle(name) {
+  let t = String(name || '').trim()
+  // Split on the separators TM uses between matchup and package ("*", "•", "|", " - ").
+  const parts = t.split(/\s*[*•|]\s*|\s+-\s+/).map(s => s.trim()).filter(Boolean)
+  if (parts.length > 1) {
+    // Drop any segment that is purely a package label; keep the real matchup.
+    const kept = parts.filter(p => !PKG_LABEL.test(p))
+    if (kept.length) t = kept.join(' ')
+  }
+  return t
+    .toLowerCase()
+    .replace(/\bvs?\.?\b/g, 'vs')          // unify "v." / "vs." / "vs"
+    .replace(/[^a-z0-9]+/g, ' ')           // strip punctuation
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 // Raw Discovery rows → normalized events (same shape as nycEvents items).
 export function normalizeTicketmaster(json) {
   const rows = json?._embedded?.events || []
   const out = []
-  const seen = new Set()   // collapse Ticketmaster's duplicate listings (presale/general/etc.)
+  const byCore = new Map()  // core+venue+day → index in `out` (overlap rule)
   for (const ev of rows) {
     const venue = ev?._embedded?.venues?.[0]
     const city = venue?.city?.name || ''
@@ -79,17 +104,12 @@ export function normalizeTicketmaster(json) {
     // Drop venue/stadium tours + admissions — but NOT for Music or Arts &
     // Theatre, where a "Tour" is a concert/comedy tour, not a building walk-through.
     if (seg !== 'Music' && seg !== 'Arts & Theatre' && TM_NOISE.test(ev.name || '')) continue
-    // De-dupe: same title + venue + day = one event (keeps genuine multi-night runs,
-    // which differ by date). Ticketmaster often lists the same show several times.
-    const dupKey = `${(ev.name || '').trim().toLowerCase()}|${(venue?.name || '').toLowerCase()}|${date.toDateString()}`
-    if (seen.has(dupKey)) continue
-    seen.add(dupKey)
     const meta = SEGMENT_META[seg] || SEGMENT_META.Miscellaneous
     // Venue coordinates (present on ~100% of events) power "Near me" /
     // neighborhood filtering — the app classifies them with classifyLatLngToArea.
     const vlat = venue?.location?.latitude != null ? +venue.location.latitude : null
     const vlng = venue?.location?.longitude != null ? +venue.location.longitude : null
-    out.push({
+    const item = {
       id: 'tm_' + ev.id,
       source: 'ticketmaster',
       kind: seg, genre: cls.genre?.name || '', emoji: meta.emoji, kindLabel: meta.label, color: meta.color,
@@ -104,21 +124,36 @@ export function normalizeTicketmaster(json) {
       image: bestImage(ev.images),
       ticketUrl: ev.url || '',
       priceText: priceText(ev.priceRanges),
-    })
+    }
+    // Overlap rule: collapse package/section variants of the same event. Key on
+    // the core matchup + venue + day; if we already have one, keep the MORE
+    // canonical listing (no package suffix → shortest title wins).
+    const core = coreTitle(ev.name)
+    const dupKey = `${core}|${(venue?.name || '').toLowerCase()}|${date.toDateString()}`
+    if (byCore.has(dupKey)) {
+      const i = byCore.get(dupKey)
+      if ((item.title || '').length < (out[i].title || '').length) out[i] = item
+      continue
+    }
+    byCore.set(dupKey, out.length)
+    out.push(item)
   }
   return out.sort((a, b) => a.date - b.date)
 }
 
-// One date-bounded page (max 199) → normalized events.
-async function fetchTMRange(key, start, end) {
+// One date-bounded page (max 199) → normalized events. `scope` selects the
+// geographic filter: the New York DMA (default, broad) or a single city — used to
+// pull a smaller borough (Brooklyn) directly so it isn't crowded out of the
+// date-sorted DMA pages by Manhattan's far larger volume.
+async function fetchTMRange(key, start, end, scope = { dmaId: '345' }) {
   const params = new URLSearchParams({
     apikey: key,
-    dmaId: '345',                 // New York DMA
     startDateTime: zStamp(start),
     endDateTime: zStamp(end),
     size: '199',                  // max page size
     sort: 'date,asc',
     countryCode: 'US',
+    ...scope,
   })
   const res = await fetch(`${TM_BASE}?${params}`, { headers: { Accept: 'application/json' } })
   if (!res.ok) throw new Error('Ticketmaster ' + res.status)
@@ -146,11 +181,17 @@ export async function fetchTicketmaster(daysAhead = 10) {
   const end = dayAt(daysAhead)
   // One automatic retry per bucket after a short pause — recovers from a transient
   // 429 instead of silently dropping that slice of the catalog.
-  const fetchWithRetry = (s, e) => fetchTMRange(key, s, e).catch(
-    () => new Promise(r => setTimeout(r, 400)).then(() => fetchTMRange(key, s, e)).catch(() => [])
+  const fetchWithRetry = (s, e, scope) => fetchTMRange(key, s, e, scope).catch(
+    () => new Promise(r => setTimeout(r, 400)).then(() => fetchTMRange(key, s, e, scope)).catch(() => [])
   )
   try {
-    const chunks = await Promise.all(ranges.map(([s, e]) => fetchWithRetry(s, e)))
+    // Main DMA buckets (Manhattan-rich) + a dedicated Brooklyn-by-city pull so the
+    // smaller borough's concerts/comedy/sports actually make it into the results
+    // instead of being paged out by Manhattan. Brooklyn's whole-window volume fits
+    // one page, so a single call covers it. (Manhattan stays well-covered by DMA.)
+    const calls = ranges.map(([s, e]) => fetchWithRetry(s, e))
+    calls.push(fetchWithRetry(today, end, { city: 'Brooklyn' }))
+    const chunks = await Promise.all(calls)
     // Merge, de-dupe by id, and drop anything outside the window (the API
     // occasionally returns rescheduled shows with a stale past localDate).
     const seen = new Set()
