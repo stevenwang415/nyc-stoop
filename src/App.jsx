@@ -995,6 +995,7 @@ function BottomSheet({ open, onClose, children, defaultMode = 'peek', fit = fals
   const [dragging, setDragging] = React.useState(false)
   const startY = React.useRef(0)
   const moved = React.useRef(0)
+  const fitScrollRef = React.useRef(null)
 
   const vh = typeof window !== 'undefined' ? window.innerHeight : 800
   const SHEET_H = Math.round(vh * 0.92)
@@ -1009,24 +1010,37 @@ function BottomSheet({ open, onClose, children, defaultMode = 'peek', fit = fals
   if (!mounted && !open) return null
 
   // ── Fit mode — a content-height card that pops up from the bottom (used for
-  //    event detail). Hugs its content; scrolls only if it would exceed 92% vh. ──
+  //    event detail). Hugs its content; scrolls only if it would exceed 92% vh.
+  //    Drag the card DOWN to dismiss (only when the inner content is scrolled to
+  //    the top, so scrolling long content still works). ──
   if (fit) {
+    const d = Math.max(0, drag)
+    const fitDown = (e) => { setDragging(true); startY.current = e.clientY }
+    const fitMove = (e) => {
+      if (!dragging) return
+      const dy = e.clientY - startY.current
+      const atTop = (fitScrollRef.current?.scrollTop || 0) <= 0
+      setDrag(dy > 0 && atTop ? dy : 0)   // only drag the sheet when pulling down from the top
+    }
+    const fitEnd = () => { if (!dragging) return; setDragging(false); if (drag > 110) { onClose?.() } setDrag(0) }
     return (
       <div aria-hidden={!open} style={{ position: 'fixed', inset: 0, zIndex: 1000, pointerEvents: open ? 'auto' : 'none' }}>
-        <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(13,18,25,0.45)', opacity: open ? 1 : 0, transition: 'opacity 260ms ease' }} />
-        <div style={{
-          position: 'absolute', left: 0, right: 0, bottom: 0,
-          maxWidth: 480, margin: '0 auto', background: 'var(--white)',
-          borderTopLeftRadius: 22, borderTopRightRadius: 22,
-          boxShadow: '0 -12px 44px rgba(13,18,25,0.30)',
-          maxHeight: '92dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
-          transform: open ? 'translateY(0)' : 'translateY(100%)',
-          transition: 'transform 300ms cubic-bezier(0.32,0.72,0,1)',
-        }}>
-          <div style={{ padding: '10px 0 2px', flexShrink: 0 }}>
+        <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(13,18,25,0.45)', opacity: open ? Math.max(0, 1 - d / 450) : 0, transition: dragging ? 'none' : 'opacity 260ms ease' }} />
+        <div
+          onPointerDown={fitDown} onPointerMove={fitMove} onPointerUp={fitEnd} onPointerCancel={fitEnd}
+          style={{
+            position: 'absolute', left: 0, right: 0, bottom: 0,
+            maxWidth: 480, margin: '0 auto', background: 'var(--white)',
+            borderTopLeftRadius: 22, borderTopRightRadius: 22,
+            boxShadow: '0 -12px 44px rgba(13,18,25,0.30)',
+            maxHeight: '92dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+            transform: open ? `translateY(${d}px)` : 'translateY(100%)',
+            transition: dragging ? 'none' : 'transform 300ms cubic-bezier(0.32,0.72,0,1)',
+          }}>
+          <div style={{ padding: '10px 0 2px', flexShrink: 0, cursor: 'grab' }}>
             <div style={{ width: 40, height: 5, borderRadius: 999, background: 'var(--gray-300)', margin: '0 auto' }} />
           </div>
-          <div style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>{children}</div>
+          <div ref={fitScrollRef} style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}>{children}</div>
         </div>
       </div>
     )
