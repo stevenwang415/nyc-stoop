@@ -4912,7 +4912,7 @@ function MoodPlaceSheet({ place = {}, onFull = null, savedItems = {}, toggleSave
   ) : null
   const btn = (primary) => ({ width: '100%', border: primary ? 'none' : '1.5px solid var(--gray-200)', borderRadius: 999, padding: '13px', background: primary ? 'var(--accent)' : 'var(--white)', color: primary ? '#fff' : 'var(--ink)', fontWeight: 800, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', marginTop: 10 })
   return (
-    <div style={{ padding: '0 20px 36px' }}>
+    <div style={{ padding: '0 20px calc(40px + env(safe-area-inset-bottom, 0px))' }}>
       <div style={{ height: 150, borderRadius: 18, overflow: 'hidden', marginBottom: 16, background: image ? 'var(--gray-100)' : tileColor, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {image ? <img src={image} alt="" onError={() => setImgFailed(true)} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} /> : (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: '#fff' }}>
@@ -5334,7 +5334,7 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
       {/* Every pick opens this same in-app bottom sheet, so tapping is consistent:
           editorial venues get the rich sheet (Add to My Trip / Full details),
           everything else gets a compact sheet with an explicit Google Maps button. */}
-      <BottomSheet open={!!moodSheet} onClose={() => setMoodSheet(null)}>
+      <BottomSheet open={!!moodSheet} onClose={() => setMoodSheet(null)} fit>
         {moodSheet?.kind === 'venue' && (
           <VenueSheet venueId={moodSheet.id} savedItems={savedItems} toggleSave={toggleSave}
             onFullPage={() => { const id = moodSheet.id; setMoodSheet(null); push({ screen: 'venue', venueId: id }) }} />
@@ -6257,7 +6257,7 @@ function NeighborhoodScreen({ neighborhoodKey, subAreaName, push, savedItems = {
 
       {/* "From your list" cards open this in-app sheet (consistent with the mood
           flow) with an "Add to My Trip" action, rather than jumping to Maps. */}
-      <BottomSheet open={!!nbSheet} onClose={() => setNbSheet(null)}>
+      <BottomSheet open={!!nbSheet} onClose={() => setNbSheet(null)} fit>
         {nbSheet && (
           <MoodPlaceSheet place={nbSheet}
             savedItems={savedItems} toggleSave={toggleSave} userVenues={userVenues} onAddToTrip={onAddToTrip} />
@@ -7283,7 +7283,7 @@ function VenueSheet({ venueId, blurb, savedItems = {}, toggleSave = () => {}, on
     </div>
   ) : null
   return (
-    <div style={{ padding: '0 20px 36px' }}>
+    <div style={{ padding: '0 20px calc(40px + env(safe-area-inset-bottom, 0px))' }}>
       <div style={{ height: 150, borderRadius: 18, overflow: 'hidden', marginBottom: 16, background: `linear-gradient(135deg, ${colors.bg}, ${colors.bg}B0)` }}>
         {photo && photo !== failedSrc && <img src={photo} alt="" onError={() => setFailedSrc(photo)} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
       </div>
@@ -7575,7 +7575,7 @@ function EventsBrowser({ onNavigate = () => {} }) {
       </div>
 
       {/* Location pop-out — pick your borough (live counts, empties hidden) */}
-      <BottomSheet open={areaSheetOpen} onClose={() => setAreaSheetOpen(false)}>
+      <BottomSheet open={areaSheetOpen} onClose={() => setAreaSheetOpen(false)} fit>
         <div style={{ padding: '4px 20px 30px' }}>
           <div style={{ fontFamily: 'var(--serif)', fontSize: 24, fontWeight: 500, color: 'var(--ink)', marginBottom: 4 }}>Where are you?</div>
           <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginBottom: 16, lineHeight: 1.45 }}>Filter {rangeWord}&rsquo;s events by borough.</div>
