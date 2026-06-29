@@ -998,6 +998,7 @@ function BottomSheet({ open, onClose, children, defaultMode = 'peek', fit = fals
   const fitScrollRef = React.useRef(null)
   const fitDraggingRef = React.useRef(false)
   const fitDragRef = React.useRef(0)
+  const fitLastY = React.useRef(0)
 
   const vh = typeof window !== 'undefined' ? window.innerHeight : 800
   const SHEET_H = Math.round(vh * 0.92)
@@ -1017,16 +1018,32 @@ function BottomSheet({ open, onClose, children, defaultMode = 'peek', fit = fals
   //    the top, so scrolling long content still works). ──
   if (fit) {
     const d = Math.max(0, drag)
-    // Gesture state lives in refs so the pointer handlers read it synchronously
-    // (React state lags a frame, which made the drag mis-register / feel dead).
-    const fitDown = (e) => { fitDraggingRef.current = true; fitDragRef.current = 0; startY.current = e.clientY; setDragging(true) }
+    // We take FULL control of the gesture (touch-action:none on the card stops the
+    // browser claiming the drag as a scroll, which was killing the dismiss). Refs
+    // hold the live gesture so handlers read it synchronously; we manually scroll
+    // the inner content and only drag the sheet when pulling down from the top.
+    const fitDown = (e) => {
+      fitDraggingRef.current = true; fitDragRef.current = 0
+      startY.current = e.clientY; fitLastY.current = e.clientY
+      setDragging(true)
+    }
     const fitMove = (e) => {
       if (!fitDraggingRef.current) return
-      const dy = e.clientY - startY.current
-      const atTop = (fitScrollRef.current?.scrollTop || 0) <= 0
-      const v = dy > 0 && atTop ? dy : 0   // only drag the sheet when pulling down from the top
-      fitDragRef.current = v
-      setDrag(v)
+      const el = fitScrollRef.current
+      const y = e.clientY
+      const delta = y - fitLastY.current       // per-frame movement; >0 = downward
+      fitLastY.current = y
+      const sheet = fitDragRef.current
+      if (sheet > 0) {                          // already dragging the sheet — keep going (clamp at 0)
+        const next = Math.max(0, sheet + delta)
+        fitDragRef.current = next; setDrag(next); return
+      }
+      const canScroll = el && (el.scrollHeight - el.clientHeight > 1)
+      if (canScroll && !(el.scrollTop <= 0 && delta > 0)) {
+        el.scrollTop -= delta                   // scroll content (native scroll is off)
+        return
+      }
+      if (delta > 0) { fitDragRef.current = delta; setDrag(delta) }  // begin sheet drag (down, at top / fits)
     }
     const fitEnd = () => {
       if (!fitDraggingRef.current) return
@@ -1050,11 +1067,12 @@ function BottomSheet({ open, onClose, children, defaultMode = 'peek', fit = fals
             maxHeight: '92dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
             transform: open ? `translateY(${d}px)` : 'translateY(100%)',
             transition: dragging ? 'none' : 'transform 300ms cubic-bezier(0.32,0.72,0,1)',
+            touchAction: 'none',
           }}>
           <div style={{ padding: '10px 0 2px', flexShrink: 0, cursor: 'grab' }}>
             <div style={{ width: 40, height: 5, borderRadius: 999, background: 'var(--gray-300)', margin: '0 auto' }} />
           </div>
-          <div ref={fitScrollRef} style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}>{children}</div>
+          <div ref={fitScrollRef} style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain' }}>{children}</div>
         </div>
       </div>
     )
