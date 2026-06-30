@@ -3654,7 +3654,28 @@ function VenueGroupScreen({ domainId, groupIndex, push, savedItems = {} }) {
 // ── Eat Screen — restaurant browser with cuisine / price / neighborhood filters ──
 // Different from MoodScreen: filterable UI, not pre-grouped lists. Designed for
 // the most common dining decision flow: "I want X cuisine, in Y area, at Z price."
-function EatScreen({ push, savedItems = {} }) {
+// Thumbnail for an Eat result card. Editorial venues use their Wikimedia photo;
+// imports resolve a live Google Places photo (key present), everything else falls
+// back to a cuisine-colored tile with the emoji. Same lazy-photo pattern as
+// UserVenueCard, so the list stays light (only visible cards fetch).
+function EatCardThumb({ r, emoji }) {
+  const editorialImg = r.kind === 'editorial' ? (venueImages[r.venueId] || null) : null
+  const g = useGooglePhoto(editorialImg
+    ? { id: r.id, image: editorialImg }
+    : { id: r.id, name: r.name, googlePlaceId: r.googlePlaceId, address: r.address, neighborhood: r.neighborhood, source: r.googlePlaceId ? 'google' : '' })
+  const [failed, setFailed] = React.useState(false)
+  const img = !failed ? (editorialImg || g?.photoUrl) : null
+  const tint = venueColors[r.venueId || r.id]?.bg || '#c2603f'
+  return (
+    <div style={{ width: 56, height: 56, flexShrink: 0, borderRadius: 12, overflow: 'hidden', background: `linear-gradient(135deg, ${tint}, ${tint}cc)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {img
+        ? <img src={img} alt="" loading="lazy" onError={() => setFailed(true)} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        : <span style={{ fontSize: 24 }} aria-hidden="true">{emoji}</span>}
+    </div>
+  )
+}
+
+function EatScreen({ push, savedItems = {}, userVenues = {}, toggleSave = () => {}, onAddToTrip = () => null }) {
   // ── Unified restaurant dataset ──────────────────────────────────────────────
   // Three sources, normalized to one shape: editorial venues (rich detail pages),
   // the curated RESTAURANT_DATA, and the enriched food imports. Deduped by brand
@@ -3720,7 +3741,7 @@ function EatScreen({ push, savedItems = {} }) {
         cuisine: labels[0] || 'Restaurant', cuisineLabels: labels, price: parsePrice(p.price),
         rating: p.rating ?? null, lat: p.lat, lng: p.lng, address: p.address, hours: p.hours,
         website: p.website, description: p.description || p.googleSummary || '',
-        sourceUrl: p.sourceUrl || p.mapsUrl || '',
+        sourceUrl: p.sourceUrl || p.mapsUrl || '', googlePlaceId: p.googlePlaceId, area: p.area || '',
       })
     })
     // Editorial picks lead (hand-curated marquee), then everything by Google rating.
@@ -3744,6 +3765,10 @@ function EatScreen({ push, savedItems = {} }) {
   // "Near me" — geolocated area filter, independent of the chip filters.
   const [nearArea, setNearArea]       = React.useState(null)   // {borough, areaId, label} | null
   const [geoStatus, setGeoStatus]     = React.useState('idle') // idle | locating | denied
+  const [sortBy, setSortBy]           = React.useState('reco')  // reco | rating | near
+  const [userLoc, setUserLoc]         = React.useState(null)    // {lat,lng} — powers "Nearest" sort
+  const [openNow, setOpenNow]         = React.useState(false)   // hide places known to be closed right now
+  const [whereBorough, setWhereBorough] = React.useState('all') // 'all' | 'manhattan' | 'brooklyn' — drives the area chooser
   // Reset area when flipping boroughs — selecting "Harlem" while viewing
   // Brooklyn would be invisible.
   React.useEffect(() => { setMapArea(null) }, [mapBorough])
@@ -3756,11 +3781,22 @@ function EatScreen({ push, savedItems = {} }) {
     allRestaurants.forEach(r => (r.cuisineLabels || []).forEach(l => { c[l] = (c[l] || 0) + 1 }))
     return c
   }, [allRestaurants])
-  const ALL_CUISINES = React.useMemo(
-    () => Object.keys(cuisineCounts).sort((a, b) => cuisineCounts[b] - cuisineCounts[a] || a.localeCompare(b)),
-    [cuisineCounts]
-  )
-  const TOP_CUISINES_N = 12
+  // Curated, dinner-first cuisine order. The data is tagged by CUISINE (not dish),
+  // and a raw count-sort would lead with Bakery/Bar/Café — categories, not the
+  // cuisines people expect — burying Mexican/Vietnamese/Indian. So we hand-order
+  // the cuisines users actually filter dinner by; everything else (Café, Bakery,
+  // Bar, Dessert, Steakhouse, Burgers…) stays reachable under "+ More", sorted by
+  // count. (Cravings like ramen/tacos are best found via Search, not a pill.)
+  const CUISINE_ORDER = ['American', 'Italian', 'Japanese', 'Korean', 'Thai', 'Chinese', 'Mexican', 'Vietnamese', 'French', 'Indian', 'Pizza', 'Seafood']
+  const { ALL_CUISINES, TOP_CUISINES_N } = React.useMemo(() => {
+    const present = new Set(Object.keys(cuisineCounts))
+    const lead = CUISINE_ORDER.filter(c => present.has(c))
+    const leadSet = new Set(lead)
+    const rest = Object.keys(cuisineCounts)
+      .filter(c => !leadSet.has(c))
+      .sort((a, b) => cuisineCounts[b] - cuisineCounts[a] || a.localeCompare(b))
+    return { ALL_CUISINES: [...lead, ...rest], TOP_CUISINES_N: lead.length }
+  }, [cuisineCounts])
   const [cuisinesExpanded, setCuisinesExpanded] = React.useState(false)
   const ALL_PRICES = [1, 2, 3, 4]
   const ALL_VIBES = ['date_night', 'casual', 'iconic', 'splurge', 'quick', 'late_night', 'family_friendly', 'hidden_gem']
@@ -3815,18 +3851,49 @@ function EatScreen({ push, savedItems = {} }) {
       if (meals.size > 0 && !(r.meals || []).some(m => meals.has(m))) return false
       if (dietary.size > 0 && !(r.dietary || []).some(d => dietary.has(d))) return false
       if (walkInOnly && !['walk-in', 'easy'].includes(r.bookingDifficulty)) return false
+      // "Open now" hides only places we KNOW are closed (have hours that say so);
+      // places without hours stay, since absence isn't evidence of being closed.
+      if (openNow && openStatusNow(r.hours).state === 'closed') return false
       return true
     })
-  }, [allRestaurants, cuisines, prices, vibes, meals, dietary, walkInOnly])
+  }, [allRestaurants, cuisines, prices, vibes, meals, dietary, walkInOnly, openNow])
 
   // Final result set adds the "Near me" area filter on top of the chip filters.
   const filtered = React.useMemo(() => {
     if (!nearArea) return chipFiltered
     return chipFiltered.filter(r => {
       const a = restaurantArea.get(r.id)
-      return a && a.borough === nearArea.borough && a.areaId === nearArea.areaId
+      if (!a || a.borough !== nearArea.borough) return false
+      // areaId null = whole borough (e.g. "All Manhattan"); else a single area.
+      return nearArea.areaId ? a.areaId === nearArea.areaId : true
     })
   }, [chipFiltered, nearArea, restaurantArea])
+  // Sort the filtered set. "Recommended" keeps the curated base order (editorial
+  // first, then rating); "Top rated" floats the highest Google ratings; "Nearest"
+  // orders by real distance from the user (places without coords sink to the end).
+  const sortedFiltered = React.useMemo(() => {
+    const arr = [...filtered]
+    if (sortBy === 'rating') {
+      arr.sort((a, b) => (b.rating || 0) - (a.rating || 0)
+        || ((b.kind === 'editorial' ? 1 : 0) - (a.kind === 'editorial' ? 1 : 0)))
+    } else if (sortBy === 'near' && userLoc) {
+      const dist = (r) => typeof r.lat === 'number' ? distanceMiles(userLoc, r) : Infinity
+      arr.sort((a, b) => dist(a) - dist(b))
+    }
+    return arr
+  }, [filtered, sortBy, userLoc])
+
+  // Choosing "Nearest" lazily asks for location if we don't have it yet.
+  const handleSort = async (key) => {
+    if (key === 'near' && !userLoc) {
+      if (geoStatus === 'locating') return
+      setGeoStatus('locating')
+      try { const { lat, lng } = await getUserLocation(); setUserLoc({ lat, lng }); setGeoStatus('idle') }
+      catch (e) { setGeoStatus('denied'); return }
+    }
+    setSortBy(key)
+  }
+
   // "Near me" — browser geolocation → our area. Outside coverage clears the
   // filter with a note; denial disables the chip.
   const handleNearMeEat = async () => {
@@ -3834,10 +3901,11 @@ function EatScreen({ push, savedItems = {} }) {
     setGeoStatus('locating')
     try {
       const { lat, lng } = await getUserLocation()
+      setUserLoc({ lat, lng })
       const w = classifyLatLngToArea(lat, lng)
       setGeoStatus('idle')
-      if (w) { const lbl = (MOOD_MAP_AREAS[w.borough] || []).find(a => a.id === w.areaId)?.label || w.areaId; setNearArea({ borough: w.borough, areaId: w.areaId, label: lbl }) }
-      else { setNearArea(null); alert("You're outside Manhattan & Brooklyn — showing all areas.") }
+      if (w) { const lbl = (MOOD_MAP_AREAS[w.borough] || []).find(a => a.id === w.areaId)?.label || w.areaId; setNearArea({ borough: w.borough, areaId: w.areaId, label: lbl }); setWhereBorough(w.borough) }
+      else { setNearArea(null); setWhereBorough('all'); alert("You're outside Manhattan & Brooklyn — showing all areas.") }
     } catch (e) { setGeoStatus('denied') }
   }
 
@@ -3878,9 +3946,10 @@ function EatScreen({ push, savedItems = {} }) {
     setDietary(new Set())
     setMapArea(null)
     setWalkInOnly(false)
+    setOpenNow(false)
   }
 
-  const activeFilterCount = cuisines.size + prices.size + neighborhoods.size + vibes.size + meals.size + dietary.size + (nearArea ? 1 : 0) + (walkInOnly ? 1 : 0)
+  const activeFilterCount = cuisines.size + prices.size + neighborhoods.size + vibes.size + meals.size + dietary.size + (nearArea ? 1 : 0) + (walkInOnly ? 1 : 0) + (openNow ? 1 : 0)
 
   // Cuisine emoji map — purely cosmetic on the cuisine pills.
   // Keep these in sync with ALL_CUISINES above. Unknown cuisines fall back to 🍽.
@@ -3897,6 +3966,26 @@ function EatScreen({ push, savedItems = {} }) {
   function fmtPrice(p)      { return '$'.repeat(p) }
   // Quantified price bands (approx per person) so users see ranges, not just $ symbols.
   function priceRange(p)    { return { 1: '$10–20', 2: '$20–40', 3: '$40–80', 4: '$80+' }[p] || '' }
+  // Build a MoodPlaceSheet `place` from a unified restaurant row, so non-editorial
+  // restaurants open an in-app sheet (photo, hours / open-now, website, Add to My
+  // Trip) instead of being kicked out to Google Maps.
+  const placeFromRestaurant = (r) => {
+    const cuisines = (r.cuisineLabels && r.cuisineLabels.length) ? r.cuisineLabels : (r.cuisine ? [r.cuisine] : [])
+    const website = r.website || r.reservationUrl || ''
+    const sourceUrl = r.sourceUrl || r.mapsUrl || ''
+    return {
+      id: r.id, googlePlaceId: r.googlePlaceId, category: 'food', name: r.name,
+      neighborhood: r.neighborhood || '', area: r.area || '',
+      price: r.price ? priceRange(r.price) : '', cuisines, rating: r.rating,
+      address: r.address || '', hours: r.hours || '',
+      description: r.description || '', website, sourceUrl,
+      addData: {
+        name: r.name, category: 'food', neighborhood: r.neighborhood || r.area || '',
+        blurb: r.description || '', price: r.price, cuisines, rating: r.rating,
+        website, sourceUrl, lat: r.lat, lng: r.lng,
+      },
+    }
+  }
   function fmtVibe(v)       { return v.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) }
   function fmtMeal(m)       { return m.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) }
   function fmtDietary(d)    {
@@ -3931,6 +4020,9 @@ function EatScreen({ push, savedItems = {} }) {
   // New presets are truly distinct shortcuts users CAN'T get with a single
   // chip tap — multi-state toggles + the booking-difficulty axis.
   const QUICK_PICKS = [
+    { id: 'opennow', emoji: '🕐', label: 'Open now', isActive: openNow, apply: () => setOpenNow(v => !v) },
+    { id: 'toprated', emoji: '🔥', label: 'Top rated', isActive: sortBy === 'rating', apply: () => setSortBy(s => s === 'rating' ? 'reco' : 'rating') },
+    { id: 'nearme', emoji: '📍', label: 'Near me', isActive: sortBy === 'near', apply: () => (sortBy === 'near' ? setSortBy('reco') : handleSort('near')) },
     { id: 'walkin', emoji: '🚪', label: 'Walk-in tonight', isActive: walkInOnly, apply: () => setWalkInOnly(v => !v) },
     { id: 'cheap',  emoji: '💵', label: 'Cheap eats',
       isActive: prices.has(1) && prices.has(2) && !prices.has(3) && !prices.has(4),
@@ -3963,8 +4055,8 @@ function EatScreen({ push, savedItems = {} }) {
   // is overwhelming. Filters narrow naturally, so we show everything when
   // the user has expressed any intent. Reset when filter state changes.
   const [showAllResults, setShowAllResults] = React.useState(false)
-  const VISIBLE_LIMIT = 12
-  React.useEffect(() => { setShowAllResults(false) }, [cuisines, prices, neighborhoods, vibes, meals, dietary, nearArea, walkInOnly])
+  const [eatSheet, setEatSheet] = React.useState(null)   // non-editorial restaurant detail sheet
+  React.useEffect(() => { setShowAllResults(false) }, [cuisines, prices, neighborhoods, vibes, meals, dietary, nearArea, walkInOnly, openNow, sortBy])
 
   return (
     <div className="screen">
@@ -4029,6 +4121,28 @@ function EatScreen({ push, savedItems = {} }) {
             </button>
           )
         })}
+      </div>
+
+      {/* "Where are you?" — a location-first entry that mirrors the place step of
+          the sibling mood cards, but stays skippable: "All NYC" is the default, so
+          the full city is in view unless the user narrows. Sets nearArea, which
+          also drives the existing map + result filtering. */}
+      <div style={{ background: 'var(--white)', borderBottom: '1px solid var(--gray-100)', padding: '12px 0 10px' }}>
+        <div style={{ padding: '0 20px 8px', fontSize: 12, fontWeight: 700, letterSpacing: '0.03em', color: 'var(--gray-700)' }}>Where are you?</div>
+        <div className="hide-scrollbar" style={{ display: 'flex', gap: 6, overflowX: 'auto', padding: '0 20px 2px' }}>
+          <Pill active={!nearArea} onClick={() => { setNearArea(null); setWhereBorough('all') }}>🗽 All NYC</Pill>
+          <Pill active={whereBorough === 'manhattan'} onClick={() => { setWhereBorough('manhattan'); setNearArea({ borough: 'manhattan', areaId: null, label: 'Manhattan' }) }}>Manhattan</Pill>
+          <Pill active={whereBorough === 'brooklyn'} onClick={() => { setWhereBorough('brooklyn'); setNearArea({ borough: 'brooklyn', areaId: null, label: 'Brooklyn' }) }}>Brooklyn</Pill>
+          <Pill active={false} onClick={handleNearMeEat} style={geoStatus === 'denied' ? { opacity: 0.5 } : {}}>📍 {geoStatus === 'locating' ? 'Locating…' : geoStatus === 'denied' ? 'Location off' : 'Near me'}</Pill>
+        </div>
+        {whereBorough !== 'all' && (
+          <div className="hide-scrollbar" style={{ display: 'flex', gap: 6, overflowX: 'auto', padding: '8px 20px 2px' }}>
+            <Pill active={!!nearArea && !nearArea.areaId} onClick={() => setNearArea({ borough: whereBorough, areaId: null, label: whereBorough === 'manhattan' ? 'Manhattan' : 'Brooklyn' })}>All {whereBorough === 'manhattan' ? 'Manhattan' : 'Brooklyn'}</Pill>
+            {(MOOD_MAP_AREAS[whereBorough] || []).map(a => (
+              <Pill key={a.id} active={!!nearArea && nearArea.areaId === a.id} onClick={() => setNearArea({ borough: whereBorough, areaId: a.id, label: a.label })}>{a.label}</Pill>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Filter drawer toggle — single visible button by default.
@@ -4146,9 +4260,19 @@ function EatScreen({ push, savedItems = {} }) {
       </div>
       </>)}
 
+      {/* Sort control — only meaningful when there are results to order. */}
+      {filtered.length > 1 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px 0' }}>
+          <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-500)', flexShrink: 0 }}>Sort</span>
+          {[['reco', 'Recommended'], ['rating', 'Top rated'], ['near', geoStatus === 'locating' ? 'Locating…' : 'Nearest']].map(([key, label]) => (
+            <Pill key={key} active={sortBy === key} onClick={() => handleSort(key)}>{label}</Pill>
+          ))}
+        </div>
+      )}
+
       {/* Results list */}
       <div style={{ padding: '16px 20px 40px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {filtered.length === 0 ? (
+        {sortedFiltered.length === 0 ? (
           <div style={{
             textAlign: 'center', padding: '40px 20px', color: 'var(--gray-500)',
           }}>
@@ -4161,12 +4285,13 @@ function EatScreen({ push, savedItems = {} }) {
             </div>
           </div>
         ) : (() => {
-          // Show all when filtered, or when the user has tapped "See all".
-          // Default unfiltered view shows the top VISIBLE_LIMIT — keeps the
-          // page short until the user expresses intent.
-          const showFullList = activeFilterCount > 0 || showAllResults
-          const visible = showFullList ? filtered : filtered.slice(0, VISIBLE_LIMIT)
-          const hidden = filtered.length - visible.length
+          // Like the mood + Tonight tabs: lead with a tight top 10, fold the rest
+          // behind "Show all recommendations", and cap the visible set at 20 for
+          // now. This only limits DISPLAY — the full database is untouched and
+          // still drives the filters, counts, and map.
+          const capped = sortedFiltered.slice(0, 20)
+          const visible = showAllResults ? capped : capped.slice(0, 10)
+          const hidden = capped.length - visible.length
           return (
             <>
               {visible.map(r => {
@@ -4178,8 +4303,7 @@ function EatScreen({ push, savedItems = {} }) {
                 // open Google Maps (disambiguated by neighborhood so they resolve).
                 const openCard = () => {
                   if (r.kind === 'editorial') { push({ screen: 'venue', venueId: r.venueId }); return }
-                  const u = r.sourceUrl || r.mapsUrl || mapsUrl([r.name, r.neighborhood].filter(Boolean).join(' '))
-                  try { window.open(u, '_blank', 'noopener') } catch (e) {}
+                  setEatSheet(placeFromRestaurant(r))
                 }
                 return (
                   <button
@@ -4199,7 +4323,7 @@ function EatScreen({ push, savedItems = {} }) {
                       borderLeft: `3px solid ${accent}`,
                     }}
                   >
-                    <span style={{ fontSize: 22, lineHeight: 1, marginTop: 2, flexShrink: 0 }}>{cuisineEmoji}</span>
+                    <EatCardThumb r={r} emoji={cuisineEmoji} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{
                         display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4,
@@ -4265,7 +4389,7 @@ function EatScreen({ push, savedItems = {} }) {
                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                   }}
                 >
-                  <span>See {hidden} more {hidden === 1 ? 'restaurant' : 'restaurants'}</span>
+                  <span>Show all recommendations</span>
                   <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>↓</span>
                 </button>
               )}
@@ -4273,6 +4397,16 @@ function EatScreen({ push, savedItems = {} }) {
           )
         })()}
       </div>
+
+      {/* In-app detail sheet for non-editorial restaurants — replaces the old
+          "open Google Maps" dump. Reuses MoodPlaceSheet (photo, open-now, hours,
+          website, Add to My Trip), keeping a Google Maps button as a secondary. */}
+      <BottomSheet open={!!eatSheet} onClose={() => setEatSheet(null)} fit>
+        {eatSheet && (
+          <MoodPlaceSheet place={eatSheet}
+            savedItems={savedItems} toggleSave={toggleSave} userVenues={userVenues} onAddToTrip={onAddToTrip} />
+        )}
+      </BottomSheet>
     </div>
   )
 }
@@ -13948,7 +14082,7 @@ export default function App() {
       case 'neighborhood': return <NeighborhoodScreen neighborhoodKey={current.neighborhoodKey} subAreaName={current.subAreaName} push={push} savedItems={savedItems} userVenues={userVenues} toggleSave={toggleSave} onAddToTrip={addUserVenue} />
       case 'sight':     return <SightScreen sightId={current.sightId} push={push} savedItems={savedItems} toggleSave={toggleSave} />
       case 'mood':      return <MoodFlowScreen moodId={current.moodId} push={push} savedItems={savedItems} toggleSave={toggleSave} userVenues={userVenues} onAddPlace={() => setAddPlaceOpen(true)} onAddToTrip={addUserVenue} />
-      case 'eat':       return <EatScreen push={push} savedItems={savedItems} />
+      case 'eat':       return <EatScreen push={push} savedItems={savedItems} userVenues={userVenues} toggleSave={toggleSave} onAddToTrip={addUserVenue} />
       default:          return <HomeScreen push={push} savedItems={savedItems} toggleSave={toggleSave} onSeeAllTonight={() => setActiveTab('tonight')} onOpenSettings={() => setSettingsOpen(true)} onPlanNight={() => setPlanNightOpen(true)} userVenues={userVenues} />
     }
   }
@@ -13964,7 +14098,7 @@ export default function App() {
         return <MapScreen onSelectVenue={setMapSel} highlight={mapHighlight} onClearHighlight={() => setMapHighlight(null)} savedItems={savedItems} toggleSave={toggleSave} />
 
       case 'eat':
-        return <EatScreen push={pushToExplore} savedItems={savedItems} />
+        return <EatScreen push={pushToExplore} savedItems={savedItems} userVenues={userVenues} toggleSave={toggleSave} onAddToTrip={addUserVenue} />
 
       case 'tonight': {
         // Every Tonight card — curated venue/work AND live event — opens in the
