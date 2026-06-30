@@ -85,6 +85,9 @@ export const venueImages = {
   // ── Food / markets ──
   katzs:                  wm('KatzGentrificationLES.JPG'),
 
+  // ── Bars ──
+  the_campbell:           wm('GCT Campbell 1.jpg'),
+
   // ── Broadway theaters (verified Commons filenames) ──
   shubert_theatre:        wm('Shubert Theatre Mar 2025 03.jpg'),
   st_james_theatre:       wm('St. James Theatre, Illinoise, 6-29-2024.jpg'),

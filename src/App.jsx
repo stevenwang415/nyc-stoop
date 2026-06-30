@@ -1545,13 +1545,9 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
           padding: 'calc(env(safe-area-inset-top, 0px) + 12px) 20px 10px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--canvas)',
         }}>
-          <button onClick={onOpenSettings} aria-label="Menu and settings" style={{
-            width: 40, height: 40, borderRadius: 999, background: 'var(--card)',
-            border: '1px solid rgba(33,27,20,0.10)', cursor: 'pointer', padding: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-          }}>
-            <NavIcon name="dots" size={18} color="#5A5247" />
-          </button>
+          {/* Spacer keeps the wordmark centered now that the left menu icon is gone
+              (settings live on the right avatar). */}
+          <div style={{ width: 40, flexShrink: 0 }} />
           <div style={{ textAlign: 'center', lineHeight: 1 }}>
             <div style={{ fontSize: 9, letterSpacing: '0.28em', color: 'var(--field-clay)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 3 }}>The City Guide</div>
             <div style={{ fontFamily: 'var(--serif)', fontSize: 25, fontWeight: 500, letterSpacing: '0.01em', color: 'var(--ink)' }}>
@@ -1720,17 +1716,24 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                     bottom nav already surfaces the full set of picks, so showing
                     a teaser here was redundant. */}
 
-                {/* ── What kind of day? — numbered mood cards with colored headers ── */}
+                {/* ── What do you feel like? — activity-first cards (same card style) ── */}
                 <div style={{ padding: '24px 0 0' }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '0 20px' }}>
-                    <h2 style={{ fontFamily: 'var(--serif)', fontWeight: 500, fontSize: 25, margin: 0, letterSpacing: '0.01em', color: 'var(--ink)' }}>What kind of day?</h2>
-                    {/* <span style={{ fontSize: 12, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--field-clay)', fontWeight: 600 }}>{moods.length} moods</span> */}
+                    <h2 style={{ fontFamily: 'var(--serif)', fontWeight: 500, fontSize: 25, margin: 0, letterSpacing: '0.01em', color: 'var(--ink)' }}>What do you feel like?</h2>
                   </div>
                   {(() => {
                     const FIELD = ['#B7472A', '#C6892F', '#6B4453', '#6F7A45', '#475A66']
+                    // Activity-first: lead with the six activities. "Eat" opens the
+                    // dedicated restaurant browser; the rest open the guided flow
+                    // seeded with that activity (place → picks), via the synthetic
+                    // "anything" mood. Same card visual as before.
                     const items = [
-                      { key: 'eat', title: 'Where to eat', meta: 'Restaurants & bars', onClick: () => push({ screen: 'eat' }) },
-                      ...moods.map(m => ({ key: m.id, title: m.label, meta: `${flattenMoodPicks(m).length} picks · ${(m.groups || []).length} groups`, onClick: () => push({ screen: 'mood', moodId: m.id }) })),
+                      { key: 'eat',      title: 'Eat',      meta: 'Restaurants',            onClick: () => push({ screen: 'eat' }) },
+                      { key: 'drinks',   title: 'Drinks',   meta: 'Bars, cocktails, wine',  onClick: () => push({ screen: 'mood', moodId: 'anything', activityId: 'drinks' }) },
+                      { key: 'coffee',   title: 'Coffee',   meta: 'Cafés & bakeries',       onClick: () => push({ screen: 'mood', moodId: 'anything', activityId: 'coffee' }) },
+                      { key: 'outdoors', title: 'Outdoors', meta: 'Parks & waterfront',     onClick: () => push({ screen: 'mood', moodId: 'anything', activityId: 'outdoors' }) },
+                      { key: 'culture',  title: 'Culture',  meta: 'Museums & landmarks',    onClick: () => push({ screen: 'mood', moodId: 'anything', activityId: 'culture' }) },
+                      { key: 'live',     title: 'Live',     meta: 'Jazz, theater, music',   onClick: () => push({ screen: 'mood', moodId: 'anything', activityId: 'live' }) },
                     ]
                     return (
                       <div style={{ display: 'flex', gap: 13, overflowX: 'auto', padding: '16px 20px 4px', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }} className="hide-scrollbar">
@@ -2142,7 +2145,6 @@ function TopicScreen({ topicId, push, savedItems = {} }) {
                   const fig = figures[work.figureId]
                   const venue = venues[work.venueId]
                   const colors = venueColors[work.venueId] || { bg: '#9d174d', text: '#ffffff' }
-                  const isSaved = !!savedItems[`work:${work.id}`]
                   const preview = clipWords(work.description || '', 180)
                   return (
                     <button
@@ -2159,16 +2161,6 @@ function TopicScreen({ topicId, push, savedItems = {} }) {
                         boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
                       }}
                     >
-                      {isSaved && (
-                        <span aria-label="Saved" style={{
-                          position: 'absolute', top: 10, right: 12, zIndex: 2,
-                          width: 22, height: 22, borderRadius: '50%',
-                          background: 'rgba(255,77,125,0.15)', color: '#ff4d7d',
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 12, lineHeight: 1,
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
-                        }}>♥</span>
-                      )}
                       {/* Colored header — show title is the hero, with theater
                           and creator credited as a sub-line. */}
                       <div style={{
@@ -2444,29 +2436,7 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
         paddingTop: 6,
         zIndex: 3,
       }}>
-        {/* Pink 52px heart FAB straddling the hero/sheet seam */}
-        {(() => {
-          const isSaved = !!savedItems[`venue:${venueId}`]
-          return (
-            <button
-              onClick={() => toggleSave('venue', venueId)}
-              aria-label={isSaved ? 'Remove from saved' : 'Save venue'}
-              style={{
-                position: 'absolute', top: -26, right: 20, zIndex: 5,
-                background: isSaved ? 'var(--love)' : '#fff',
-                border: 'none',
-                borderRadius: 999, width: 52, height: 52,
-                cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                color: isSaved ? '#fff' : 'var(--love)',
-                lineHeight: 1, fontSize: 24,
-                boxShadow: isSaved ? '0 10px 22px rgba(255,77,125,.45)' : '0 8px 20px rgba(29,39,51,.18)',
-                transition: 'background 120ms ease, color 120ms ease',
-              }}
-            >
-              {isSaved ? '♥' : '♡'}
-            </button>
-          )
-        })()}
+        {/* Heart removed — saving happens via the "+ Add to My Trip" button below. */}
       </div>
 
       {/* ── Facts row — 3 equal light-gray tiles ── */}
@@ -3391,26 +3361,6 @@ function WorkScreen({ workId, push, savedItems = {}, toggleSave = () => {} }) {
               color: 'var(--gray-500)', lineHeight: 1, fontSize: 14, fontWeight: 700,
             }}
           >↗</button>
-          {(() => {
-            const isSaved = !!savedItems[`work:${workId}`]
-            return (
-              <button
-                onClick={() => toggleSave('work', workId)}
-                aria-label={isSaved ? 'Remove from saved' : 'Save work'}
-                style={{
-                  background: isSaved ? 'rgba(255,77,125,0.15)' : 'var(--gray-100)',
-                  border: 'none',
-                  borderRadius: 999, width: 36, height: 36,
-                  cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  color: '#ff4d7d',
-                  lineHeight: 1, fontSize: 18,
-                  transition: 'background 120ms ease, color 120ms ease',
-                }}
-              >
-                {isSaved ? '♥' : '♡'}
-              </button>
-            )
-          })()}
         </div>
         <div className="work-title-year">{work.year}{figure?.name ? ' · ' + figure.name : ''}</div>
         <h1 className="display">{work.title}</h1>
@@ -3675,7 +3625,7 @@ function EatCardThumb({ r, emoji }) {
   )
 }
 
-function EatScreen({ push, savedItems = {}, userVenues = {}, toggleSave = () => {}, onAddToTrip = () => null }) {
+function EatScreen({ push, savedItems = {}, userVenues = {}, toggleSave = () => {}, onAddToTrip = () => null, initialLoc = null }) {
   // ── Unified restaurant dataset ──────────────────────────────────────────────
   // Three sources, normalized to one shape: editorial venues (rich detail pages),
   // the curated RESTAURANT_DATA, and the enriched food imports. Deduped by brand
@@ -3765,8 +3715,20 @@ function EatScreen({ push, savedItems = {}, userVenues = {}, toggleSave = () => 
   // "Near me" — geolocated area filter, independent of the chip filters.
   const [nearArea, setNearArea]       = React.useState(null)   // {borough, areaId, label} | null
   const [geoStatus, setGeoStatus]     = React.useState('idle') // idle | locating | denied
-  const [sortBy, setSortBy]           = React.useState('reco')  // reco | rating | near
-  const [userLoc, setUserLoc]         = React.useState(null)    // {lat,lng} — powers "Nearest" sort
+  // If the app already has the user's location (asked on open), default the sort
+  // to "Nearest" so Where-to-eat opens on the 10 closest spots.
+  const [sortBy, setSortBy]           = React.useState(initialLoc ? 'near' : 'reco')  // reco | rating | near
+  const [userLoc, setUserLoc]         = React.useState(initialLoc || null)    // {lat,lng} — powers "Nearest" sort
+  // Location may arrive AFTER the screen mounts (the on-open prompt resolves late).
+  // When it does, adopt it and switch to nearest — unless the user already chose a sort.
+  const _eatLocApplied = React.useRef(!!initialLoc)
+  React.useEffect(() => {
+    if (initialLoc && !_eatLocApplied.current) {
+      _eatLocApplied.current = true
+      setUserLoc(initialLoc)
+      setSortBy(s => (s === 'reco' ? 'near' : s))
+    }
+  }, [initialLoc])
   const [openNow, setOpenNow]         = React.useState(false)   // hide places known to be closed right now
   const [whereBorough, setWhereBorough] = React.useState('all') // 'all' | 'manhattan' | 'brooklyn' — drives the area chooser
   // Reset area when flipping boroughs — selecting "Harlem" while viewing
@@ -4015,27 +3977,6 @@ function EatScreen({ push, savedItems = {}, userVenues = {}, toggleSave = () => 
     )
   }
 
-  // Quick picks redesigned after user feedback: previously every preset was
-  // a vibe-row duplicate (Date Night, Splurge, Casual…) which felt redundant.
-  // New presets are truly distinct shortcuts users CAN'T get with a single
-  // chip tap — multi-state toggles + the booking-difficulty axis.
-  const QUICK_PICKS = [
-    { id: 'opennow', emoji: '🕐', label: 'Open now', isActive: openNow, apply: () => setOpenNow(v => !v) },
-    { id: 'toprated', emoji: '🔥', label: 'Top rated', isActive: sortBy === 'rating', apply: () => setSortBy(s => s === 'rating' ? 'reco' : 'rating') },
-    { id: 'nearme', emoji: '📍', label: 'Near me', isActive: sortBy === 'near', apply: () => (sortBy === 'near' ? setSortBy('reco') : handleSort('near')) },
-    { id: 'walkin', emoji: '🚪', label: 'Walk-in tonight', isActive: walkInOnly, apply: () => setWalkInOnly(v => !v) },
-    { id: 'cheap',  emoji: '💵', label: 'Cheap eats',
-      isActive: prices.has(1) && prices.has(2) && !prices.has(3) && !prices.has(4),
-      apply: () => setPrices(prev => {
-        const willActivate = !(prev.has(1) && prev.has(2))
-        return willActivate ? new Set([1, 2]) : new Set()
-      })
-    },
-    { id: 'brunch', emoji: '🥞', label: 'Brunch',
-      isActive: meals.has('brunch'),
-      apply: () => setMeals(prev => { const n = new Set(prev); n.has('brunch') ? n.delete('brunch') : n.add('brunch'); return n })
-    },
-  ]
 
   // Filter drawer state — moved off-screen by default so users see results
   // first. They tap "Filters" when they're ready to narrow.
@@ -4080,39 +4021,6 @@ function EatScreen({ push, savedItems = {}, userVenues = {}, toggleSave = () => 
         }}>
           {allRestaurants.length} restaurants · {new Set(allRestaurants.map(r => r.cuisine)).size} cuisines
         </div>
-      </div>
-
-      {/* Quick picks — distinct multi-state shortcuts that aren't already
-          one-chip filters. Walk-in tonight has no chip equivalent; Cheap
-          eats combines $ + $$; Brunch is a meal preset; Splurge sets price
-          4 alone; Date night is the one vibe shortcut kept for parity. */}
-      <div style={{
-        padding: '8px 20px 8px', background: 'var(--white)',
-        borderBottom: '1px solid var(--gray-100)',
-        display: 'flex', gap: 6,
-        overflowX: 'auto', WebkitOverflowScrolling: 'touch',
-        scrollbarWidth: 'none',
-      }} className="hide-scrollbar">
-        {QUICK_PICKS.map(qp => {
-          const active = qp.isActive
-          return (
-            <button
-              key={qp.id}
-              onClick={qp.apply}
-              style={{
-                flexShrink: 0, padding: '5px 11px', borderRadius: 999,
-                border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-                fontSize: 12, fontWeight: active ? 700 : 600,
-                background: active ? 'var(--gray-900)' : 'var(--gray-100)',
-                color: active ? '#fff' : 'var(--gray-700)',
-                display: 'inline-flex', alignItems: 'center', gap: 4,
-              }}
-            >
-              <span style={{ fontSize: 12 }}>{qp.emoji}</span>
-              <span>{qp.label}</span>
-            </button>
-          )
-        })}
       </div>
 
       {/* "Where are you?" — a location-first entry that mirrors the place step of
@@ -4164,9 +4072,6 @@ function EatScreen({ push, savedItems = {}, userVenues = {}, toggleSave = () => 
             }}>{activeFilterCount}</span>
           )}
           <span style={{ flex: 1 }} />
-          <span style={{
-            fontSize: 11, color: 'var(--gray-500)',
-          }}>{filtered.length} {filtered.length === 1 ? 'spot' : 'spots'}</span>
           <span style={{
             fontSize: 13, color: 'var(--gray-400)', marginLeft: 4,
             transition: 'transform 180ms', transform: filtersExpanded ? 'rotate(180deg)' : 'rotate(0)',
@@ -4325,7 +4230,6 @@ function EatScreen({ push, savedItems = {}, userVenues = {}, toggleSave = () => 
                           fontSize: 15, fontWeight: 800, color: 'var(--gray-900)', lineHeight: 1.2,
                           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                         }}>{r.name}</span>
-                        {isSaved && <span style={{ fontSize: 13, color: '#ff4d7d', flexShrink: 0 }}>♥</span>}
                       </div>
                       <div style={{
                         fontSize: 11, color: 'var(--gray-500)', marginBottom: 4,
@@ -5219,13 +5123,18 @@ function MoodPlaceSheet({ place = {}, onFull = null, savedItems = {}, toggleSave
 //   place (neighborhood)  →  activity (the mood's own groups)  →  top 5.
 // Each mood's groups already ARE the activity set (Dinner spots, Live jazz,
 // Romantic walks…), curated per mood — so no activity classifier is needed.
-function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, userVenues = {}, onAddPlace = () => {}, onAddToTrip = () => null }) {
+function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, userVenues = {}, onAddPlace = () => {}, onAddToTrip = () => null, initialActivity = null }) {
   const mood = moodById[moodId]
+  // Activity-first entry (from the "What do you feel like?" cards): the activity
+  // is already chosen, so the flow is just place → results — we skip the
+  // activity-picker step. afterPlace/backFromResults route around it.
+  const afterPlace = initialActivity ? 'results' : 'activity'
+  const backFromResults = initialActivity ? 'place' : 'activity'
   const [step, setStep]           = React.useState('place')   // 'place' | 'activity' | 'results'
   const [openNowOnly, setOpenNowOnly] = React.useState(false)   // results filter: hide places known-closed now
   const [mapBorough, setMapBorough] = React.useState('manhattan')
   const [place, setPlace]         = React.useState(null)      // null | {scope:'anywhere'} | {scope:'area',borough,areaId,label}
-  const [activityId, setActivityId] = React.useState(null)
+  const [activityId, setActivityId] = React.useState(initialActivity || null)
   const [geoStatus, setGeoStatus] = React.useState('idle')   // idle | locating | denied
   const [geoNote, setGeoNote]     = React.useState('')
   const [userLoc, setUserLoc]     = React.useState(null)     // {lat,lng} from "Near me" → sorts picks nearest-first
@@ -5449,7 +5358,7 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
         setGeoNote("You're outside Manhattan & Brooklyn — showing everywhere.")
         setPlace({ scope: 'anywhere' })
       }
-      setStep('activity')
+      setStep(afterPlace)
     } catch (e) { setGeoStatus('denied') }
   }
 
@@ -5458,14 +5367,14 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
       {step === 'place' && (
         <>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-            <Dots n={1} />
-            <Chip text={`${mood.emoji} ${mood.label}`} tint={(mood.heroColor || '#888') + '22'} color={'var(--ink)'} />
+            <Dots n={initialActivity ? 2 : 1} />
+            <Chip text={initialActivity ? `${actEmoji} ${actLabel}` : `${mood.emoji} ${mood.label}`} tint={(mood.heroColor || '#888') + '22'} color={'var(--ink)'} />
           </div>
           <h2 style={{ ...heading, margin: '4px 0' }}>Where are you<br />headed?</h2>
           <div style={{ fontSize: 13, color: 'var(--ink-2)', marginBottom: 14 }}>Pick a neighborhood, or let us roam the whole city.</div>
           <div style={{ display: 'flex', gap: 10, marginBottom: 6 }}>
             <button onClick={handleNearMe} disabled={geoStatus === 'denied'} style={{ flex: 1, border: 'none', borderRadius: 999, padding: '13px', background: geoStatus === 'denied' ? 'var(--gray-100)' : 'var(--accent)', color: geoStatus === 'denied' ? 'var(--gray-400)' : '#fff', fontWeight: 700, fontSize: 13.5, cursor: geoStatus === 'denied' ? 'default' : 'pointer', fontFamily: 'inherit', boxShadow: geoStatus === 'denied' ? 'none' : 'var(--shadow-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>📍 {geoStatus === 'locating' ? 'Locating…' : geoStatus === 'denied' ? 'Location off' : 'Near me'}</button>
-            <button onClick={() => { setPlace({ scope: 'anywhere' }); setStep('activity') }} style={{ flex: 1, border: '1.5px solid var(--gray-200)', borderRadius: 999, padding: '13px', background: 'var(--white)', color: 'var(--ink)', fontWeight: 700, fontSize: 13.5, cursor: 'pointer', fontFamily: 'inherit' }}>Anywhere</button>
+            <button onClick={() => { setPlace({ scope: 'anywhere' }); setStep(afterPlace) }} style={{ flex: 1, border: '1.5px solid var(--gray-200)', borderRadius: 999, padding: '13px', background: 'var(--white)', color: 'var(--ink)', fontWeight: 700, fontSize: 13.5, cursor: 'pointer', fontFamily: 'inherit' }}>Anywhere</button>
           </div>
           <div style={{ fontSize: 11, color: 'var(--ink-3)', textAlign: 'center', marginBottom: 16, lineHeight: 1.4 }}>{geoStatus === 'denied' ? 'Location is off — turn it on in your browser to use Near me.' : 'We use your location only to find spots nearby — you can say no.'}</div>
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
@@ -5480,7 +5389,7 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
             borough={mapBorough}
             countsByArea={{}}
             selectedArea={null}
-            onSelectArea={(id) => { if (!id) return; const lbl = (MOOD_MAP_AREAS[mapBorough] || []).find(a => a.id === id)?.label || id; setPlace({ scope: 'area', borough: mapBorough, areaId: id, label: lbl }); setStep('activity') }}
+            onSelectArea={(id) => { if (!id) return; const lbl = (MOOD_MAP_AREAS[mapBorough] || []).find(a => a.id === id)?.label || id; setPlace({ scope: 'area', borough: mapBorough, areaId: id, label: lbl }); setStep(afterPlace) }}
             height={520}
           />
         </>
@@ -5530,12 +5439,12 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
       {step === 'results' && activityId && (
         <>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-            <Back onClick={() => setStep('activity')} />
-            <Dots n={3} />
+            <Back onClick={() => setStep(backFromResults)} />
+            <Dots n={initialActivity ? 2 : 3} />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--gray-100)', borderRadius: 12, padding: '8px 12px', marginBottom: 12 }}>
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ink-2)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mood.label} &middot; {placeLabel} &middot; {actLabel}</span>
-            <button onClick={() => setStep('activity')} style={{ background: 'none', border: 'none', color: 'var(--accent-text)', fontWeight: 800, fontSize: 11.5, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>Edit</button>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ink-2)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{initialActivity ? '' : `${mood.label} · `}{placeLabel} &middot; {actLabel}</span>
+            <button onClick={() => setStep(backFromResults)} style={{ background: 'none', border: 'none', color: 'var(--accent-text)', fontWeight: 800, fontSize: 11.5, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>Edit</button>
           </div>
           <h2 style={{ ...heading, margin: '0 0 2px' }}>{actEmoji} {actLabel}</h2>
           <div style={{ fontSize: 13, color: 'var(--ink-2)', marginBottom: 12 }}>
@@ -5993,7 +5902,7 @@ function MoodScreen({ moodId, push, savedItems = {}, toggleSave = () => {} }) {
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 }}
               >
-                <span style={{ fontSize: 14 }}>{allSaved ? '♥' : '+'}</span>
+                <span style={{ fontSize: 14 }}>{allSaved ? '✓' : '+'}</span>
                 <span>
                   {allSaved
                     ? `Unsave all ${areaPicks.length} from trip`
@@ -6417,12 +6326,6 @@ function NeighborhoodScreen({ neighborhoodKey, subAreaName, push, savedItems = {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-900)', display: 'flex', alignItems: 'center', gap: 6 }}>
                       {s.name}
-                      {isSaved && (
-                        <span style={{
-                          fontSize: 10, fontWeight: 700, color: '#ff4d7d', background: 'rgba(255,77,125,0.15)',
-                          padding: '1px 6px', borderRadius: 999,
-                        }}>♥</span>
-                      )}
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--gray-600)', marginTop: 3, lineHeight: 1.5 }}>{s.desc}</div>
                   </div>
@@ -6596,17 +6499,17 @@ function SightScreen({ sightId, push, savedItems = {}, toggleSave = () => {} }) 
           >↗</button>
           <button
             onClick={() => toggleSave('sight', sight.id)}
-            aria-label={isSaved ? 'Remove from saved' : 'Save sight'}
+            aria-label={isSaved ? 'Remove from My Trip' : 'Add to My Trip'}
             style={{
-              background: isSaved ? 'rgba(255,77,125,0.15)' : 'rgba(255,255,255,0.22)',
+              background: isSaved ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.22)',
               backdropFilter: isSaved ? 'none' : 'blur(6px)', border: 'none',
-              borderRadius: 999, width: 36, height: 36,
+              borderRadius: 999, height: 36, padding: '0 14px',
               cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              color: isSaved ? '#ff4d7d' : colors.text, lineHeight: 1, fontSize: 18,
+              color: isSaved ? 'var(--ink)' : colors.text, lineHeight: 1, fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap',
               transition: 'background 120ms ease, color 120ms ease',
             }}
           >
-            {isSaved ? '♥' : '♡'}
+            {isSaved ? '✓ Saved' : '+ Add to Trip'}
           </button>
         </div>
       </div>
@@ -6750,20 +6653,11 @@ function DetailRow({ icon, label, body, bodyStyle }) {
 // ── VenueTapCard — tappable card for InterestScreen / DomainScreen ────────
 // Reusable saved-state indicator for figure/work/venue cards across inner screens.
 // Render inside any card whose wrapper has position:relative (or add it). Returns null when not saved.
-function SavedDot({ saved, style }) {
-  if (!saved) return null
-  return (
-    <span aria-label="Saved" style={{
-      position: 'absolute', top: 8, right: 8, zIndex: 2,
-      width: 20, height: 20, borderRadius: '50%',
-      background: 'rgba(255,77,125,0.15)', color: '#ff4d7d',
-      fontSize: 11, lineHeight: 1,
-      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
-      pointerEvents: 'none',
-      ...style,
-    }}>♥</span>
-  )
+function SavedDot() {
+  // Heart/favorite indicators were removed app-wide — saving now happens only via
+  // the explicit "Add to My Trip" buttons. Kept as a no-op so existing call sites
+  // don't need touching.
+  return null
 }
 
 function VenueTapCard({ venue, onPress, isSaved = false, image = null, attribution = null, external = false }) {
@@ -6825,20 +6719,6 @@ function VenueTapCard({ venue, onPress, isSaved = false, image = null, attributi
             fontSize: 9.5, fontWeight: 600, letterSpacing: '0.02em', lineHeight: 1.2,
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>📷 {attribution.map(a => a.name).filter(Boolean).join(', ')}</span>
-        )}
-
-        {/* Saved indicator — read-only ♥ pill, pink frosted (matches reference
-            heart). Shown only when saved so it never looks like a dead control. */}
-        {isSaved && (
-          <span aria-label="Saved" style={{
-            position: 'absolute', top: 12, right: 12, zIndex: 3,
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            width: 34, height: 34, borderRadius: 999,
-            background: 'rgba(255,77,125,0.95)', color: '#fff',
-            backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
-            fontSize: 16, lineHeight: 1,
-            boxShadow: '0 4px 12px rgba(255,77,125,0.45)',
-          }}>♥</span>
         )}
 
         {/* Title moved below the photo (Layout A) for readability + room for rating/price. */}
@@ -7254,7 +7134,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
         fillOpacity: 0.95,
       })
       marker.on('click', () => setSelectedVenueId(venueId))
-      marker.bindTooltip(venue.name + (isSaved ? ' ♥' : ''), { permanent: false, direction: 'top', offset: [0, -8] })
+      marker.bindTooltip(venue.name, { permanent: false, direction: 'top', offset: [0, -8] })
       marker.addTo(map)
       markersRef.current.push(marker)
     })
@@ -7419,24 +7299,24 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
               fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
               color: MAP_DOMAIN_COLORS[selInfo?.domain] || '#666',
             }}>{domains[selInfo?.domain]?.name || ''}</div>
-            {/* Save heart — in-place save from the map popup */}
+            {/* In-place add-to-trip from the map popup */}
             {(() => {
               const isSaved = !!savedItems[`venue:${selectedVenueId}`]
               return (
                 <button
                   onClick={() => toggleSave('venue', selectedVenueId)}
-                  aria-label={isSaved ? 'Remove from saved' : 'Save'}
+                  aria-label={isSaved ? 'Remove from My Trip' : 'Add to My Trip'}
                   style={{
                     marginLeft: 'auto',
                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    width: 28, height: 28, borderRadius: 999,
-                    background: isSaved ? 'rgba(255,77,125,0.15)' : 'var(--gray-100)',
-                    color: '#ff4d7d',
+                    height: 26, padding: '0 11px', borderRadius: 999,
+                    background: isSaved ? 'var(--ink)' : 'var(--gray-100)',
+                    color: isSaved ? '#fff' : 'var(--gray-700)',
                     border: 'none', cursor: 'pointer',
-                    fontSize: 15, lineHeight: 1,
+                    fontSize: 11.5, fontWeight: 700, lineHeight: 1, whiteSpace: 'nowrap',
                     transition: 'background 120ms ease, color 120ms ease',
                   }}>
-                  {isSaved ? '♥' : '♡'}
+                  {isSaved ? '✓ Saved' : '+ Add to Trip'}
                 </button>
               )
             })()}
@@ -8021,7 +7901,6 @@ function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onV
         <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 6, lineHeight: 1.4 }}>Live shows &amp; events across NYC</div>
         {savedCount > 0 && (
           <button onClick={onViewSaved} style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 999, background: 'rgba(190,77,43,0.12)', border: '1px solid rgba(190,77,43,0.35)', color: 'var(--accent-text)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-            <span style={{ fontSize: 13, lineHeight: 1 }}>♥</span>
             <span>{savedCount} saved · Plan your trip →</span>
           </button>
         )}
@@ -8062,7 +7941,6 @@ function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onV
             color: '#d6336c', fontSize: 12, fontWeight: 700,
             cursor: 'pointer',
           }}>
-            <span style={{ fontSize: 13, lineHeight: 1 }}>♥</span>
             <span>{savedCount} saved · Plan your trip →</span>
           </button>
         )}
@@ -8348,22 +8226,6 @@ function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onV
                               fontSize: 13, lineHeight: 1, fontWeight: 700,
                             }}>
                             ↗
-                          </span>
-                          <span
-                            role="button"
-                            tabIndex={-1}
-                            aria-label={isSaved ? 'Remove from saved' : 'Save'}
-                            onClick={(e) => { e.stopPropagation(); toggleSave('venue', pick.venueId) }}
-                            style={{
-                              cursor: 'pointer', userSelect: 'none',
-                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                              width: 30, height: 30, borderRadius: 999,
-                              background: isSaved ? 'rgba(255,77,125,0.15)' : 'var(--gray-100)',
-                              color: '#ff4d7d',
-                              fontSize: 17, lineHeight: 1,
-                              transition: 'background 120ms ease, color 120ms ease',
-                            }}>
-                            {isSaved ? '♥' : '♡'}
                           </span>
                         </div>
 
@@ -9540,24 +9402,11 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
 
   const schedulingRef = React.useRef(null)
 
-  // ── Today-checklist + reorder state ─────────────────────────────────────
-  const _isArrivalToday = (() => {
-    if (!tripStartDate) return false
-    const p = tripStartDate.split('-').map(Number)
-    return new Date(p[0], p[1]-1, p[2]).toDateString() === new Date().toDateString()
-  })()
-  const [todayMode, setTodayMode] = React.useState(() => {
-    // Plan-my-night sets this one-shot flag so a freshly-built plan opens in the
-    // Full plan view, even though a "tonight" plan arrives today (which would
-    // otherwise default to the day-of Checklist).
-    try {
-      if (localStorage.getItem('nyc_plan_open_full') === '1') {
-        localStorage.removeItem('nyc_plan_open_full')
-        return false
-      }
-    } catch {}
-    return _isArrivalToday
-  })
+  // ── Reorder state ────────────────────────────────────────────────────────
+  // Checklist view removed to keep My Trip simple — the Full plan is the only
+  // view now, so todayMode is permanently false (the day-of checklist UI below
+  // never renders).
+  const todayMode = false
   // Per-card expanded-options state. Tapping "⋯" on a stop reveals period/swap/move controls.
   const [expandedStopId, setExpandedStopId] = React.useState(null)
   // Wanderlog-style inline add: which day is the "Add a place" modal targeting?
@@ -9961,15 +9810,6 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
         <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 6, lineHeight: 1.4 }}>
           Plan your visit · Built from your saves
         </div>
-        {totalStops > 0 && (
-          <button onClick={exportItineraryPdf} style={{
-            marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 7,
-            background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 999,
-            padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-          }}>
-            <span style={{ fontSize: 14, lineHeight: 1 }}>⬇</span> Download schedule (PDF)
-          </button>
-        )}
       </div>
 
       {/* ══ Saved events — concerts/shows/street events added from Tonight ══ */}
@@ -10138,78 +9978,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
               </div>
             )}
 
-            {/* Imported picks — collapsible. Kept closed by default so the trip
-                screen isn't dominated by a 60+ entry list. */}
-            {importedList.length > 0 && (
-              <div style={{ marginTop: manualList.length > 0 ? 10 : 0 }}>
-                <button
-                  onClick={() => setImportsOpen(o => !o)}
-                  style={{
-                    width: '100%',
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '10px 12px',
-                    background: importsOpen ? 'var(--white)' : 'var(--white)',
-                    border: '1px solid var(--gray-200)', borderRadius: 10,
-                    cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
-                  }}
-                >
-                  <span style={{ fontSize: 16, flexShrink: 0 }}>📥</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--gray-900)' }}>
-                      Imported from Google Maps
-                    </div>
-                    <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 1 }}>
-                      {importedList.length} place{importedList.length !== 1 ? 's' : ''}{importsOpen ? ' · tap to collapse' : ' · tap to view'}
-                    </div>
-                  </div>
-                  <span style={{
-                    fontSize: 14, color: 'var(--gray-500)', flexShrink: 0,
-                    transform: importsOpen ? 'rotate(90deg)' : 'rotate(0deg)',
-                    transition: 'transform 0.15s',
-                  }}>›</span>
-                </button>
-
-                {importsOpen && (
-                  <div style={{ marginTop: 8 }}>
-                    <input
-                      type="text"
-                      value={importQuery}
-                      onChange={e => setImportQuery(e.target.value)}
-                      placeholder={`Search ${importedList.length} imported place${importedList.length !== 1 ? 's' : ''}…`}
-                      style={{
-                        width: '100%', padding: '8px 12px', fontSize: 13,
-                        background: 'var(--card)', border: '1px solid var(--gray-200)',
-                        borderRadius: 8, outline: 'none', fontFamily: 'inherit',
-                        boxSizing: 'border-box', marginBottom: 8,
-                      }}
-                    />
-                    <div style={{
-                      maxHeight: 320, overflowY: 'auto',
-                      display: 'flex', flexDirection: 'column', gap: 6,
-                      padding: '2px',
-                    }}>
-                      {importedFiltered.length === 0 ? (
-                        <div style={{
-                          padding: '20px 12px', textAlign: 'center',
-                          fontSize: 12, color: 'var(--gray-400)',
-                        }}>
-                          No imported place matches "{importQuery}"
-                        </div>
-                      ) : (
-                        <>
-                          {importedShown.map(renderCompactRow)}
-                          {importedHidden > 0 && (
-                            <div style={{ padding: '10px 12px', textAlign: 'center', fontSize: 11, color: 'var(--gray-400)' }}>
-                              +{importedHidden} more · search to narrow
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+            {/* "Imported from Google Maps" list removed from My Trip. */}
           </div>
         )
       })()}
@@ -10243,7 +10012,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                 margin: '14px 0 18px',
               }}>
                 {[
-                  { n: 1, label: 'Save places', sub: 'Tap the heart on anything' },
+                  { n: 1, label: 'Add places', sub: 'Tap “+ Add to My Trip”' },
                   { n: 2, label: 'Pick your days', sub: 'Set trip length below' },
                   { n: 3, label: 'Get a plan', sub: 'We route your day' },
                 ].map(step => (
@@ -10507,7 +10276,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
               <div style={{ fontSize: 40, marginBottom: 12 }}>🗺️</div>
               <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--gray-800)', marginBottom: 8 }}>Nothing to plan yet</div>
               <div style={{ fontSize: 14, color: 'var(--gray-500)', lineHeight: 1.6, maxWidth: 280, margin: '0 auto 20px' }}>
-                Tap ♥ on any venue in Explore to add it here — or start with a sample weekend.
+                Tap “+ Add to My Trip” on any venue in Explore to add it here — or start with a sample weekend.
               </div>
               <button
                 onClick={() => {
@@ -10528,29 +10297,9 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
         </div>
       )}
 
-      {/* ── Mode toggle: Plan / Today ── */}
-      {days.length > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px 0' }}>
-          <button onClick={() => setTodayMode(false)} style={{
-            flex: 1, padding: '8px 0', borderRadius: 10, border: 'none', cursor: 'pointer',
-            fontSize: 13, fontWeight: todayMode ? 500 : 700,
-            background: todayMode ? 'var(--gray-100)' : 'var(--gray-900)',
-            color: todayMode ? 'var(--gray-500)' : '#fff',
-          }}>
-            🗓 Full plan
-          </button>
-          <button onClick={() => setTodayMode(true)} style={{
-            flex: 1, padding: '8px 0', borderRadius: 10, border: 'none', cursor: 'pointer',
-            fontSize: 13, fontWeight: todayMode ? 700 : 500,
-            background: todayMode ? 'var(--gray-900)' : 'var(--gray-100)',
-            color: todayMode ? '#fff' : 'var(--gray-500)',
-          }}>
-            ✅ Checklist
-          </button>
-        </div>
-      )}
+      {/* Full plan / Checklist toggle removed — Full plan is the only view now. */}
 
-      {/* ── Today checklist view ── */}
+      {/* ── Today checklist view (dead: todayMode is always false) ── */}
       {todayMode && days.length > 0 && (() => {
         // Same order + clock as the Full plan, so times match exactly.
         const { reorderedItems, stopClock } = computeDayPlan(days[0], 0)
@@ -13088,11 +12837,11 @@ function OnboardingModal({ onDismiss }) {
       body: 'A curated guide to jazz clubs, museums, theater, architecture — hand-picked by NYC editors, refreshed weekly.',
     },
     {
-      tint: '#ff4d7d',
-      emoji: '♥',
-      eyebrow: 'BUILD A WISH LIST',
-      title: 'Save what catches\nyour eye.',
-      body: 'Tap the pink heart on any venue, pick, or museum. Your saves collect quietly across every screen.',
+      tint: '#BE4D2B',
+      emoji: '➕',
+      eyebrow: 'BUILD YOUR TRIP',
+      title: 'Add what catches\nyour eye.',
+      body: 'Tap “+ Add to My Trip” on any venue, pick, or museum. Everything you add collects in My Trip.',
     },
     {
       tint: '#4A8C5C',
@@ -13796,6 +13545,29 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('explore')
   const { current, canGoBack, push, back, reset: resetExplore } = useNav()
 
+  // ── Location on open ────────────────────────────────────────────────────────
+  // Ask for the user's location as soon as the app opens. The browser shows its
+  // own permission prompt (the system dialog on iOS Safari); once granted it
+  // returns silently on later opens, and a denial fails quietly. We cache the
+  // last fix so "Where to eat" can default to nearest immediately, and refresh it
+  // on each open. (A native wrapper later upgrades this to the real iOS sheet.)
+  const [userLoc, setUserLoc] = useState(() => {
+    try { const v = JSON.parse(localStorage.getItem('nyc_user_loc') || 'null'); return (v && typeof v.lat === 'number') ? v : null }
+    catch { return null }
+  })
+  useEffect(() => {
+    let alive = true
+    getUserLocation()
+      .then(({ lat, lng }) => {
+        if (!alive) return
+        const loc = { lat, lng }
+        setUserLoc(loc)
+        try { localStorage.setItem('nyc_user_loc', JSON.stringify(loc)) } catch {}
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
+
   const [savedItems, setSavedItems] = useState(() => {
     try { return JSON.parse(localStorage.getItem('nyc_saved') || '{}') }
     catch { return {} }
@@ -14087,8 +13859,8 @@ export default function App() {
       case 'venueGroup':return <VenueGroupScreen domainId={current.domainId} groupIndex={current.groupIndex} push={push} savedItems={savedItems} />
       case 'neighborhood': return <NeighborhoodScreen neighborhoodKey={current.neighborhoodKey} subAreaName={current.subAreaName} push={push} savedItems={savedItems} userVenues={userVenues} toggleSave={toggleSave} onAddToTrip={addUserVenue} />
       case 'sight':     return <SightScreen sightId={current.sightId} push={push} savedItems={savedItems} toggleSave={toggleSave} />
-      case 'mood':      return <MoodFlowScreen moodId={current.moodId} push={push} savedItems={savedItems} toggleSave={toggleSave} userVenues={userVenues} onAddPlace={() => setAddPlaceOpen(true)} onAddToTrip={addUserVenue} />
-      case 'eat':       return <EatScreen push={push} savedItems={savedItems} userVenues={userVenues} toggleSave={toggleSave} onAddToTrip={addUserVenue} />
+      case 'mood':      return <MoodFlowScreen moodId={current.moodId} initialActivity={current.activityId || null} push={push} savedItems={savedItems} toggleSave={toggleSave} userVenues={userVenues} onAddPlace={() => setAddPlaceOpen(true)} onAddToTrip={addUserVenue} />
+      case 'eat':       return <EatScreen push={push} savedItems={savedItems} userVenues={userVenues} toggleSave={toggleSave} onAddToTrip={addUserVenue} initialLoc={userLoc} />
       default:          return <HomeScreen push={push} savedItems={savedItems} toggleSave={toggleSave} onSeeAllTonight={() => setActiveTab('tonight')} onOpenSettings={() => setSettingsOpen(true)} onPlanNight={() => setPlanNightOpen(true)} userVenues={userVenues} />
     }
   }
@@ -14104,7 +13876,7 @@ export default function App() {
         return <MapScreen onSelectVenue={setMapSel} highlight={mapHighlight} onClearHighlight={() => setMapHighlight(null)} savedItems={savedItems} toggleSave={toggleSave} />
 
       case 'eat':
-        return <EatScreen push={pushToExplore} savedItems={savedItems} userVenues={userVenues} toggleSave={toggleSave} onAddToTrip={addUserVenue} />
+        return <EatScreen push={pushToExplore} savedItems={savedItems} userVenues={userVenues} toggleSave={toggleSave} onAddToTrip={addUserVenue} initialLoc={userLoc} />
 
       case 'tonight': {
         // Every Tonight card — curated venue/work AND live event — opens in the

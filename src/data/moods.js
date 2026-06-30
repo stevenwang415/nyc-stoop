@@ -295,6 +295,24 @@ export const moods = [
 
 export const moodById = Object.fromEntries(moods.map(m => [m.id, m]))
 
+// ── Activity-first entry ────────────────────────────────────────────────────
+// "What do you feel like?" leads with the six ACTIVITIES instead of moods. Each
+// activity card opens the same guided flow, but seeded with that activity and a
+// synthetic "Anything" mood whose groups are the UNION of every mood's picks for
+// each activity (deduped). The flow engine then supplements these with city-wide
+// sources (restaurant DB, editorial venues, the user's places) by activityId, so
+// e.g. "Drinks" shows far more than the few curated drinks picks.
+const _anythingGroups = ACTIVITY_ORDER.map(act => {
+  const seen = new Set(); const picks = []
+  for (const m of moods) for (const g of (m.groups || [])) {
+    if (g.activity !== act) continue
+    for (const p of (g.picks || [])) { const k = p.type + ':' + p.id; if (!seen.has(k)) { seen.add(k); picks.push(p) } }
+  }
+  return { activity: act, label: ACTIVITIES[act].label, emoji: ACTIVITIES[act].emoji, picks }
+})
+export const anythingMood = { id: 'anything', label: 'Anything', emoji: '✨', groups: _anythingGroups }
+moodById.anything = anythingMood
+
 // Flatten helper for places that want a simple pick list (e.g., the mood-card
 // pick-count badge on Home). Concatenates every group's picks in order.
 export function flattenMoodPicks(mood) {
