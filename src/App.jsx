@@ -1438,7 +1438,7 @@ function ThisWeekSection() {
   )
 }
 
-function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, onOpenSettings = () => {}, onPlanNight = () => {}, userVenues = {} }) {
+function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, onOpenSettings = () => {}, onPlanNight = () => {}, userVenues = {}, weather = null }) {
   const [query, setQuery] = useState('')
   // Last-visit ribbon — show what changed since the user's previous open.
   // null = first visit; we don't pester first-timers with a "what's new" banner.
@@ -1545,9 +1545,16 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
           padding: 'calc(env(safe-area-inset-top, 0px) + 12px) 20px 10px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--canvas)',
         }}>
-          {/* Spacer keeps the wordmark centered now that the left menu icon is gone
-              (settings live on the right avatar). */}
-          <div style={{ width: 40, flexShrink: 0 }} />
+          {/* Top-left weather — Apple-Weather-style symbol + temperature. Falls back
+              to an empty 40px box (keeps the wordmark centered) until it loads. */}
+          <div style={{ minWidth: 40, height: 40, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4 }} aria-label={weather ? `${weather.temp} degrees` : undefined}>
+            {weather && (
+              <>
+                <span style={{ fontSize: 20, lineHeight: 1 }} aria-hidden="true">{weatherEmoji(weather.code, weather.isDay)}</span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)', lineHeight: 1 }}>{weather.temp}°</span>
+              </>
+            )}
+          </div>
           <div style={{ textAlign: 'center', lineHeight: 1 }}>
             <div style={{ fontSize: 9, letterSpacing: '0.28em', color: 'var(--field-clay)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 3 }}>The City Guide</div>
             <div style={{ fontFamily: 'var(--serif)', fontSize: 25, fontWeight: 500, letterSpacing: '0.01em', color: 'var(--ink)' }}>
@@ -3749,7 +3756,7 @@ function EatScreen({ push, savedItems = {}, userVenues = {}, toggleSave = () => 
   // the cuisines users actually filter dinner by; everything else (Café, Bakery,
   // Bar, Dessert, Steakhouse, Burgers…) stays reachable under "+ More", sorted by
   // count. (Cravings like ramen/tacos are best found via Search, not a pill.)
-  const CUISINE_ORDER = ['American', 'Italian', 'Japanese', 'Korean', 'Thai', 'Chinese', 'Mexican', 'Vietnamese', 'French', 'Indian', 'Pizza', 'Seafood']
+  const CUISINE_ORDER = ['American', 'Bagel', 'Italian', 'Japanese', 'Korean', 'Thai', 'Chinese', 'Mexican', 'Vietnamese', 'French', 'Indian', 'Pizza', 'Seafood']
   const { ALL_CUISINES, TOP_CUISINES_N } = React.useMemo(() => {
     const present = new Set(Object.keys(cuisineCounts))
     const lead = CUISINE_ORDER.filter(c => present.has(c))
@@ -3921,7 +3928,7 @@ function EatScreen({ push, savedItems = {}, userVenues = {}, toggleSave = () => 
     Bakery: '🍪', Bar: '🍷', Brunch: '🍳', Deli: '🥪',
     Japanese: '🍱', American: '🍔', 'Café': '☕', Chinese: '🥡',
     Thai: '🍲', Vietnamese: '🍜', Seafood: '🦞', Indian: '🍛',
-    Burgers: '🍔', Dessert: '🍰', Caribbean: '🏝', 'Soul Food': '🍗',
+    Burgers: '🍔', Dessert: '🍰', Caribbean: '🏝', 'Soul Food': '🍗', Bagel: '🥯',
     Cajun: '🦐', Greek: '🥙', Mediterranean: '🫒', Spanish: '🥘',
   }
   function fmtCuisine(c)    { return `${CUISINE_EMOJI[c] || '🍽'} ${c}` }
@@ -4463,6 +4470,22 @@ function classifyPickToArea(pick) {
     return s ? classifyLatLngToArea(s.lat, s.lng) : null
   }
   return null
+}
+
+// WMO weather code → an Apple-Weather-ish symbol (day/night aware for clear sky).
+function weatherEmoji(code, isDay) {
+  if (code === 0) return isDay ? '☀️' : '🌙'
+  if (code === 1) return isDay ? '🌤️' : '🌙'
+  if (code === 2) return isDay ? '⛅' : '☁️'
+  if (code === 3) return '☁️'
+  if (code === 45 || code === 48) return '🌫️'
+  if (code >= 51 && code <= 57) return '🌦️'
+  if (code >= 61 && code <= 67) return '🌧️'
+  if (code >= 71 && code <= 77) return '🌨️'
+  if (code >= 80 && code <= 82) return '🌧️'
+  if (code >= 85 && code <= 86) return '🌨️'
+  if (code >= 95) return '⛈️'
+  return '🌡️'
 }
 
 // Browser geolocation → Promise<{ lat, lng }>. The "allow location" prompt is
@@ -13568,6 +13591,19 @@ export default function App() {
     return () => { alive = false }
   }, [])
 
+  // ── Weather for the home header — Open-Meteo (free, keyless, CORS-ok). Uses the
+  // user's location when we have it, else NYC. Refetches when location resolves.
+  const [weather, setWeather] = useState(null)   // { temp, code, isDay } | null
+  useEffect(() => {
+    const lat = userLoc?.lat ?? 40.7128, lng = userLoc?.lng ?? -74.006
+    let alive = true
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,weather_code,is_day&temperature_unit=fahrenheit&timezone=auto`)
+      .then(r => r.json())
+      .then(d => { if (alive && d && d.current) setWeather({ temp: Math.round(d.current.temperature_2m), code: d.current.weather_code, isDay: d.current.is_day }) })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [userLoc])
+
   const [savedItems, setSavedItems] = useState(() => {
     try { return JSON.parse(localStorage.getItem('nyc_saved') || '{}') }
     catch { return {} }
@@ -13850,7 +13886,7 @@ export default function App() {
 
   function renderExploreScreen() {
     switch (current.screen) {
-      case 'home':      return <HomeScreen push={push} savedItems={savedItems} toggleSave={toggleSave} onSeeAllTonight={() => setActiveTab('tonight')} onOpenSettings={() => setSettingsOpen(true)} onPlanNight={() => setPlanNightOpen(true)} userVenues={userVenues} />
+      case 'home':      return <HomeScreen push={push} savedItems={savedItems} toggleSave={toggleSave} onSeeAllTonight={() => setActiveTab('tonight')} onOpenSettings={() => setSettingsOpen(true)} onPlanNight={() => setPlanNightOpen(true)} userVenues={userVenues} weather={weather} />
       case 'domain':    return <DomainScreen domainId={current.domainId} push={push} savedItems={savedItems} />
       case 'topic':     return <TopicScreen topicId={current.topicId} push={push} savedItems={savedItems} />
       case 'venue':     return <VenueScreen venueId={current.venueId} fromTopicId={current.fromTopicId} fromDomainId={current.fromDomainId} push={push} savedItems={savedItems} toggleSave={toggleSave} onViewMap={venueCoords[current.venueId] ? () => { resetExplore(); setMapHighlight(current.venueId); setActiveTab('map') } : null} />
@@ -13861,7 +13897,7 @@ export default function App() {
       case 'sight':     return <SightScreen sightId={current.sightId} push={push} savedItems={savedItems} toggleSave={toggleSave} />
       case 'mood':      return <MoodFlowScreen moodId={current.moodId} initialActivity={current.activityId || null} push={push} savedItems={savedItems} toggleSave={toggleSave} userVenues={userVenues} onAddPlace={() => setAddPlaceOpen(true)} onAddToTrip={addUserVenue} />
       case 'eat':       return <EatScreen push={push} savedItems={savedItems} userVenues={userVenues} toggleSave={toggleSave} onAddToTrip={addUserVenue} initialLoc={userLoc} />
-      default:          return <HomeScreen push={push} savedItems={savedItems} toggleSave={toggleSave} onSeeAllTonight={() => setActiveTab('tonight')} onOpenSettings={() => setSettingsOpen(true)} onPlanNight={() => setPlanNightOpen(true)} userVenues={userVenues} />
+      default:          return <HomeScreen push={push} savedItems={savedItems} toggleSave={toggleSave} onSeeAllTonight={() => setActiveTab('tonight')} onOpenSettings={() => setSettingsOpen(true)} onPlanNight={() => setPlanNightOpen(true)} userVenues={userVenues} weather={weather} />
     }
   }
 
