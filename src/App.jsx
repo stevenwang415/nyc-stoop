@@ -4035,14 +4035,6 @@ function EatScreen({ push, savedItems = {}, userVenues = {}, toggleSave = () => 
       isActive: meals.has('brunch'),
       apply: () => setMeals(prev => { const n = new Set(prev); n.has('brunch') ? n.delete('brunch') : n.add('brunch'); return n })
     },
-    { id: 'splurge', emoji: '💎', label: 'Splurge',
-      isActive: prices.has(4) && prices.size === 1,
-      apply: () => setPrices(prev => prev.has(4) && prev.size === 1 ? new Set() : new Set([4]))
-    },
-    { id: 'datenight', emoji: '🌙', label: 'Date night',
-      isActive: vibes.has('date_night'),
-      apply: () => setVibes(prev => { const n = new Set(prev); n.has('date_night') ? n.delete('date_night') : n.add('date_night'); return n })
-    },
   ]
 
   // Filter drawer state — moved off-screen by default so users see results
@@ -5068,18 +5060,57 @@ function openStatusNow(hoursStr) {
   if (/closed/i.test(body)) return { state: 'closed', label: 'Closed today' }
   const now = new Date(); const nowM = now.getHours() * 60 + now.getMinutes()
   if (/24\s*hours|open 24/i.test(body)) return { state: 'open', label: 'Open 24 hours', late: true }
-  const m = body.match(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\s*[–\-—]\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)/i)
-  if (!m) return { state: 'unknown' }
+  // A day can hold several ranges (lunch + dinner): "12:00 – 3:00 PM, 5:00 – 10:00 PM".
+  // The OPEN time often omits AM/PM ("12:00 – 10:00 PM") — Google drops it when it
+  // matches the close meridiem, so we default a missing open meridiem to the close's.
   const to24 = (h, mm, ap) => { let hh = parseInt(h, 10) % 12; if (/pm/i.test(ap)) hh += 12; return hh * 60 + parseInt(mm || '0', 10) }
-  const openM = to24(m[1], m[2], m[3])
-  let closeM = to24(m[4], m[5], m[6])
-  const crosses = closeM <= openM           // closes after midnight
-  if (crosses) closeM += 1440
-  const nowAdj = nowM < openM ? nowM + 1440 : nowM
-  const open = nowAdj >= openM && nowAdj < closeM
-  if (!open) return { state: 'closed', label: 'Closed now' }
-  const late = (closeM % 1440) === 0 || closeM % 1440 >= 22 * 60 || crosses
-  return { state: 'open', label: late ? `Open until ${_fmtClock(closeM)}` : `Open · closes ${_fmtClock(closeM)}`, late }
+  let crosses = false, closeAt = null, parsedAny = false
+  for (const seg of body.split(',')) {
+    const m = seg.match(/(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?\s*[–\-—]\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)/i)
+    if (!m) continue
+    parsedAny = true
+    const openAp = m[3] || m[6]                 // missing open meridiem = close meridiem
+    const openM = to24(m[1], m[2], openAp)
+    let closeM = to24(m[4], m[5], m[6])
+    const segCrosses = closeM <= openM          // closes after midnight
+    if (segCrosses) closeM += 1440
+    const nowAdj = nowM < openM ? nowM + 1440 : nowM
+    if (nowAdj >= openM && nowAdj < closeM) { crosses = segCrosses; closeAt = closeM; break }
+  }
+  if (!parsedAny) return { state: 'unknown' }
+  if (closeAt == null) return { state: 'closed', label: 'Closed now' }
+  const late = (closeAt % 1440) === 0 || closeAt % 1440 >= 22 * 60 || crosses
+  return { state: 'open', label: late ? `Open until ${_fmtClock(closeAt)}` : `Open · closes ${_fmtClock(closeAt)}`, late }
+}
+
+// "View on Maps" that lets the user pick their maps app. A web app can't invoke
+// iOS's native maps-app picker, so tapping the button slides up our own bottom
+// sheet with Apple Maps / Google Maps (like a native action sheet). `googleUrl`
+// is the precise Google link when we have one; otherwise both are built from the
+// place name + area as a search query.
+function MapsButton({ name, area, googleUrl, btnStyle = {} }) {
+  const [open, setOpen] = React.useState(false)
+  const q = encodeURIComponent([name, area].filter(Boolean).join(' '))
+  const appleUrl = 'https://maps.apple.com/?q=' + q
+  const gUrl = googleUrl || ('https://www.google.com/maps/search/?api=1&query=' + q)
+  const go = (u) => { setOpen(false); try { window.open(u, '_blank', 'noopener') } catch (e) {} }
+  const trigger = { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: 600, padding: '7px 8px', borderRadius: 8, background: 'var(--gray-100)', color: 'var(--gray-700)', cursor: 'pointer', border: 'none', fontFamily: 'inherit', ...btnStyle }
+  const choice = { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '15px', borderRadius: 14, background: 'var(--gray-100)', color: 'var(--ink)', fontWeight: 700, fontSize: 16, cursor: 'pointer', border: 'none', fontFamily: 'inherit', marginBottom: 10 }
+  return (
+    <>
+      <button onClick={(e) => { e.stopPropagation(); setOpen(true) }} style={trigger}>View on Maps</button>
+      <BottomSheet open={open} onClose={() => setOpen(false)} fit>
+        <div style={{ padding: '2px 20px calc(28px + env(safe-area-inset-bottom, 0px))' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--gray-500)', textAlign: 'center', marginBottom: 16 }}>
+            Open {name || 'this place'} in
+          </div>
+          <button onClick={() => go(appleUrl)} style={choice}>🗺️ Apple Maps</button>
+          <button onClick={() => go(gUrl)} style={choice}>📍 Google Maps</button>
+          <button onClick={() => setOpen(false)} style={{ ...choice, background: 'transparent', color: 'var(--gray-500)', fontWeight: 600, marginBottom: 0 }}>Cancel</button>
+        </div>
+      </BottomSheet>
+    </>
+  )
 }
 
 // Lightweight in-app sheet for places without a full editorial page (imports,
@@ -9296,10 +9327,7 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     }
   }
 
-  // ── Swap + period + day override state (must be before venueIds computation) ──
-  const [periodOverrides, setPeriodOverrides] = React.useState(() => {
-    try { return JSON.parse(localStorage.getItem('nyc_period_overrides') || '{}') } catch { return {} }
-  })
+  // ── Swap + day override state (must be before venueIds computation) ──
   const [venueSwaps, setVenueSwaps] = React.useState(() => {
     try { return JSON.parse(localStorage.getItem('nyc_venue_swaps') || '{}') } catch { return {} }
   })
@@ -9365,7 +9393,7 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     ...day,
     stops: day.stops.map(stop => ({
       ...stop,
-      period: periodOverrides[stop.id] || stop.period,
+      period: stop.period,
     }))
   }))
 
@@ -10842,26 +10870,22 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                           <div style={{ display: 'flex', gap: 8 }}>
                             {restaurant.walkIn ? (
                               <span style={{ flex: 1, background: 'var(--gray-100)', color: 'var(--gray-600)',
-                                textAlign: 'center', fontSize: 13, fontWeight: 600, padding: '9px 8px', borderRadius: 9 }}>
-                                🚶 Walk-in · no reservation
+                                textAlign: 'center', fontSize: 12, fontWeight: 600, padding: '7px 8px', borderRadius: 8 }}>
+                                Walk-in · no reservation
                               </span>
                             ) : restaurant.reservationUrl ? (
                               <a href={restaurant.reservationUrl} target="_blank" rel="noopener noreferrer"
                                 style={{ flex: 1, background: '#15803d', color: '#fff', textAlign: 'center',
-                                  fontSize: 13, fontWeight: 700, padding: '9px 8px', borderRadius: 9, textDecoration: 'none' }}>
-                                Reserve a table →
+                                  fontSize: 12, fontWeight: 700, padding: '7px 8px', borderRadius: 8, textDecoration: 'none' }}>
+                                Reserve a table
                               </a>
                             ) : (
                               <span style={{ flex: 1, background: 'var(--gray-100)', color: 'var(--gray-500)',
-                                textAlign: 'center', fontSize: 13, fontWeight: 600, padding: '9px 8px', borderRadius: 9 }}>
+                                textAlign: 'center', fontSize: 12, fontWeight: 600, padding: '7px 8px', borderRadius: 8 }}>
                                 Walk-ins · call ahead
                               </span>
                             )}
-                            <a href={restaurant.mapsUrl} target="_blank" rel="noopener noreferrer"
-                              style={{ flex: 1, background: 'var(--gray-100)', color: 'var(--gray-700)',
-                                textAlign: 'center', fontSize: 13, fontWeight: 600, padding: '9px 8px', borderRadius: 9, textDecoration: 'none' }}>
-                              📍 View on Maps
-                            </a>
+                            <MapsButton name={restaurant.name} area={restaurant.neighborhood} googleUrl={restaurant.mapsUrl} />
                           </div>
                         </div>
                       )}
@@ -11090,31 +11114,13 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                         display: 'flex', flexDirection: 'column', gap: 6,
                         background: 'var(--gray-50)',
                       }}>
-                        {/* Row 1: period + swap */}
+                        {/* Row 1: swap */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-                          {['Morning', 'Afternoon', 'Evening'].map(p => {
-                            const active = (periodOverrides[stop.id] || stop.period) === p
-                            return (
-                              <button key={p} onClick={() => {
-                                const next = { ...periodOverrides, [stop.id]: p }
-                                setPeriodOverrides(next)
-                                try { localStorage.setItem('nyc_period_overrides', JSON.stringify(next)) } catch {}
-                              }} style={{
-                                fontSize: 11, padding: '4px 7px', borderRadius: 8, cursor: 'pointer',
-                                fontWeight: active ? 700 : 500,
-                                background: active ? 'var(--gray-900)' : 'var(--white)',
-                                color: active ? '#fff' : 'var(--gray-500)',
-                                border: active ? 'none' : '1px solid var(--gray-200)',
-                              }}>
-                                {p === 'Morning' ? '🌅' : p === 'Afternoon' ? '☀️' : '🌙'} {p}
-                              </button>
-                            )
-                          })}
                           <button onClick={() => setSwapModal({ venueId: stop.id, domain: stop.domain })} style={{
-                            marginLeft: 'auto', fontSize: 11, fontWeight: 600, padding: '4px 10px',
+                            fontSize: 11, fontWeight: 600, padding: '4px 10px',
                             borderRadius: 8, border: '1px solid var(--gray-200)', cursor: 'pointer',
                             background: 'var(--white)', color: 'var(--gray-600)',
-                          }}>⇄ Swap</button>
+                          }}>⇄ Swap this spot</button>
                         </div>
                         {/* Row 2: move-to-day buttons (only when 2+ days exist) */}
                         {days.length > 1 && (
