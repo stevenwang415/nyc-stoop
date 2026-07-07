@@ -62,3 +62,4 @@ android/local.properties
 # Session scratch files (underscore-prefixed) — safe to delete locally
 _*
 scripts/_*
+.env*
