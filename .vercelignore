@@ -1,0 +1,10 @@
+# Not needed in the web/API deployment
+ios/
+dist/
+node_modules/
+*.md
+Eva_NYC.csv
+scripts/
+docs/
+_*.mjs
+vite.config.js.timestamp-*

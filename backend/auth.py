@@ -48,6 +48,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
+# Native iOS sign-in can present a token whose audience is the iOS OAuth client.
+# GOOGLE_CLIENT_IDS (comma-separated) lists every accepted audience; falls back
+# to the single web client id.
+GOOGLE_CLIENT_IDS = [
+    s.strip() for s in os.environ.get("GOOGLE_CLIENT_IDS", GOOGLE_CLIENT_ID or "").split(",") if s.strip()
+]
 
 # Sign in with Apple: the native flow's identity token has the app's bundle id
 # as its audience. Comma-separated to allow a future web Services ID too.
@@ -154,13 +160,18 @@ def google_auth(req: GoogleAuthRequest, db: Session = Depends(get_db)) -> AuthRe
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Google sign-in is not configured")
 
     try:
+        # audience=None skips the built-in single-audience check; we validate
+        # against the full allowed list (web + iOS clients) below.
         info = google_id_token.verify_oauth2_token(
             req.credential,
             google_requests.Request(),
-            GOOGLE_CLIENT_ID,
         )
     except ValueError as exc:
         logger.warning("Google ID token verification failed: %s", exc)
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid Google credential")
+
+    if info.get("aud") not in GOOGLE_CLIENT_IDS:
+        logger.warning("Google token audience not allowed: %s", info.get("aud"))
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid Google credential")
 
     sub = info.get("sub")

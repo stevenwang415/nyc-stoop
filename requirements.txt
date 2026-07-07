@@ -1,0 +1,3 @@
+# Vercel installs Python deps from the project root — delegate to the backend's
+# own requirements so there is one source of truth.
+-r backend/requirements.txt

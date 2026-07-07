@@ -1449,8 +1449,8 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
   // Live clock for the header chip (Tue · 7:42 PM). Ticks every 30s.
   const [now, setNow] = React.useState(() => new Date())
   React.useEffect(() => { const t = setInterval(() => setNow(new Date()), 30000); return () => clearInterval(t) }, [])
-  const headerDay = now.toLocaleDateString('en-US', { weekday: 'short' })
-  const headerTime = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  // (Day/time chip removed — the iOS status bar already shows the time, and the
+  // chip crowded the centered wordmark. `now` still drives the contextual line.)
   // Last-visit ribbon — show what changed since the user's previous open.
   // null = first visit; we don't pester first-timers with a "what's new" banner.
   const [whatsNewVisible, setWhatsNewVisible] = React.useState(() => {
@@ -1557,17 +1557,19 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
           padding: 'calc(env(safe-area-inset-top, 0px) + 12px) 20px 10px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--canvas)',
         }}>
-          <div style={{ minWidth: 40, height: 40, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5, zIndex: 1 }} aria-label={weather ? `${weather.temp} degrees, ${headerDay} ${headerTime}` : undefined}>
+          <div style={{ minWidth: 40, height: 40, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5, zIndex: 1 }} aria-label={weather ? `${weather.temp} degrees` : undefined}>
             {weather && (
               <>
                 <span style={{ fontSize: 20, lineHeight: 1 }} aria-hidden="true">{weatherEmoji(weather.code, weather.isDay)}</span>
                 <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)', lineHeight: 1 }}>{weather.temp}°</span>
               </>
             )}
-            <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--ink-2)', lineHeight: 1, whiteSpace: 'nowrap' }}>{headerDay} · {headerTime}</span>
           </div>
-          {/* Absolutely centered so the wider weather chip on the left can't push it off-center. */}
-          <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center', lineHeight: 1, pointerEvents: 'none' }}>
+          {/* Absolutely centered so the wider weather chip on the left can't push it
+              off-center. Vertical anchor = the CONTENT row's center (padding-top +
+              half the 40px row), NOT 50% of the box — the box includes the iPhone
+              safe-area inset, which made the wordmark ride high on device. */}
+          <div style={{ position: 'absolute', left: '50%', top: 'calc(env(safe-area-inset-top, 0px) + 12px + 20px)', transform: 'translate(-50%, -50%)', textAlign: 'center', lineHeight: 1, pointerEvents: 'none' }}>
             <div style={{ fontSize: 9, letterSpacing: '0.28em', color: 'var(--field-clay)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 3 }}>The City Guide</div>
             <div style={{ fontFamily: 'var(--serif)', fontSize: 25, fontWeight: 500, letterSpacing: '0.01em', color: 'var(--ink)' }}>
               NYC <span style={{ fontStyle: 'italic', color: 'var(--accent)' }}>Stoop</span>
@@ -2457,27 +2459,8 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
           position: 'absolute', inset: 0,
           background: 'linear-gradient(to top, rgba(20,28,38,0.55) 0%, rgba(20,28,38,0) 55%)',
         }} />
-        {/* Share — white circular button top-right */}
-        <button
-          onClick={() => {
-            const shareText = `${venue.name}${venue.neighborhood ? ' · ' + venue.neighborhood : ''}`
-            const shareData = { title: venue.name, text: shareText, url: typeof window !== 'undefined' ? window.location.href : '' }
-            if (typeof navigator !== 'undefined' && navigator.share) {
-              navigator.share(shareData).catch(() => {})
-            } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
-              navigator.clipboard.writeText(`${shareText}\n${shareData.url}`).catch(() => {})
-            }
-          }}
-          aria-label="Share venue"
-          style={{
-            position: 'absolute', top: 14, right: 16, zIndex: 3,
-            background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(6px)', border: 'none',
-            borderRadius: 999, width: 40, height: 40,
-            cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            color: 'var(--ink)', lineHeight: 1, fontSize: 15, fontWeight: 700,
-            boxShadow: '0 4px 14px rgba(29,39,51,.15)',
-          }}
-        >↗</button>
+        {/* (Hero share button removed — navigator.share isn't available inside the
+            iOS webview, so it silently did nothing. Trip sharing lives in My Trip.) */}
         {/* Title on the scrim */}
         <div style={{ position: 'absolute', left: 20, right: 20, bottom: 42, zIndex: 2, color: '#fff' }}>
           <div style={{ fontSize: 30, fontWeight: 800, letterSpacing: '-0.02em', lineHeight: 1.12, textShadow: '0 2px 12px rgba(20,28,38,0.4)' }}>
@@ -3404,27 +3387,7 @@ function WorkScreen({ workId, push, savedItems = {}, toggleSave = () => {} }) {
       />
 
       <div className="work-header" style={{ position: 'relative' }}>
-        {/* Action buttons — normalized share + save pair, top-right of header (not on hero image, so gray styling) */}
-        <div style={{ position: 'absolute', top: 0, right: 0, display: 'flex', gap: 6 }}>
-          <button
-            onClick={() => {
-              const shareText = `${work.title}${figure?.name ? ' — ' + figure.name : ''}${work.year ? ' (' + work.year + ')' : ''}`
-              const shareData = { title: work.title, text: shareText, url: typeof window !== 'undefined' ? window.location.href : '' }
-              if (typeof navigator !== 'undefined' && navigator.share) {
-                navigator.share(shareData).catch(() => {})
-              } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
-                navigator.clipboard.writeText(`${shareText}\n${shareData.url}`).catch(() => {})
-              }
-            }}
-            aria-label="Share work"
-            style={{
-              background: 'var(--gray-100)', border: 'none',
-              borderRadius: 999, width: 36, height: 36,
-              cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              color: 'var(--gray-500)', lineHeight: 1, fontSize: 14, fontWeight: 700,
-            }}
-          >↗</button>
-        </div>
+        {/* (Share button removed app-wide — non-functional inside the iOS webview.) */}
         <div className="work-title-year">{work.year}{figure?.name ? ' · ' + figure.name : ''}</div>
         <h1 className="display">{work.title}</h1>
         {domainId === 'theater' && (
@@ -6702,26 +6665,9 @@ function SightScreen({ sightId, push, savedItems = {}, toggleSave = () => {} }) 
         <div style={{ fontSize: 13, opacity: 0.85, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
           📍 {sight.neighborhood}
         </div>
-        {/* Action buttons — normalized share + save pair, matches VenueScreen treatment. */}
+        {/* Save action, top-right. (Share button removed app-wide — non-functional
+            inside the iOS webview; trip sharing lives in My Trip.) */}
         <div style={{ position: 'absolute', top: 18, right: 16, display: 'flex', gap: 6 }}>
-          <button
-            onClick={() => {
-              const shareText = `${sight.name}${sight.neighborhood ? ' · ' + sight.neighborhood : ''} — ${sight.desc}`
-              const shareData = { title: sight.name, text: shareText, url: typeof window !== 'undefined' ? window.location.href : '' }
-              if (typeof navigator !== 'undefined' && navigator.share) {
-                navigator.share(shareData).catch(() => {})
-              } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
-                navigator.clipboard.writeText(`${shareText}\n${shareData.url}`).catch(() => {})
-              }
-            }}
-            aria-label="Share sight"
-            style={{
-              background: 'rgba(255,255,255,0.22)', backdropFilter: 'blur(6px)', border: 'none',
-              borderRadius: 999, width: 36, height: 36,
-              cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              color: colors.text, lineHeight: 1, fontSize: 15, fontWeight: 700,
-            }}
-          >↗</button>
           <button
             onClick={() => toggleSave('sight', sight.id)}
             aria-label={isSaved ? 'Remove from My Trip' : 'Add to My Trip'}
@@ -7202,8 +7148,10 @@ function BottomNav({ activeTab, onTabPress, savedCount, onAddPlace }) {
       position: 'fixed', bottom: 0,
       left: '50%', transform: 'translateX(-50%)',
       width: '100%', maxWidth: 430,
-      height: 'calc(64px + env(safe-area-inset-bottom, 0px))',
-      paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+      // Tuck the bar closer to the home indicator: shave 12px off the safe-area
+      // reserve (max() keeps older no-inset phones at zero, not negative).
+      height: 'calc(64px + max(env(safe-area-inset-bottom, 0px) - 12px, 0px))',
+      paddingBottom: 'max(calc(env(safe-area-inset-bottom, 0px) - 12px), 0px)',
       background: 'rgba(243,235,220,0.92)',
       backdropFilter: 'blur(12px)',
       WebkitBackdropFilter: 'blur(12px)',
@@ -8607,34 +8555,7 @@ function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onV
                             fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
                             color: tint, background: tint + '18', padding: '2px 8px', borderRadius: 999,
                           }}>{label}</span>
-                          {/* Share button — uses Web Share API on mobile, falls back to clipboard. */}
-                          <span
-                            role="button"
-                            tabIndex={-1}
-                            aria-label="Share"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              const shareData = {
-                                title: pick.title,
-                                text: `${pick.title} — ${pick.dateNote}`,
-                                url: typeof window !== 'undefined' ? window.location.href : '',
-                              }
-                              if (typeof navigator !== 'undefined' && navigator.share) {
-                                navigator.share(shareData).catch(() => {})
-                              } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
-                                navigator.clipboard.writeText(`${shareData.text}\n${shareData.url}`).catch(() => {})
-                              }
-                            }}
-                            style={{
-                              marginLeft: 'auto',
-                              cursor: 'pointer', userSelect: 'none',
-                              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                              width: 30, height: 30, borderRadius: 999,
-                              background: 'var(--gray-100)', color: 'var(--gray-500)',
-                              fontSize: 13, lineHeight: 1, fontWeight: 700,
-                            }}>
-                            ↗
-                          </span>
+                          {/* (Share button removed app-wide — non-functional inside the iOS webview.) */}
                         </div>
 
                         {/* Time line — blue, bold, leads the card per spec (text-safe accent) */}
@@ -10372,7 +10293,11 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
           Now always rendered (even when empty) so the "+ Add a place" entry
           point is always available — it lost its bottom-nav slot to Eat. ══ */}
       {(() => {
-        const userList = Object.values(userVenues || {}).sort((a, b) => b.savedAt - a.savedAt)
+        // The seed catalog (seed_*) lives in userVenues for lookups, but it is
+        // the APP's dataset, not the user's — never present it as "Your Places".
+        const userList = Object.values(userVenues || {})
+          .filter(v => !(typeof v?.id === 'string' && v.id.startsWith('seed_')))
+          .sort((a, b) => b.savedAt - a.savedAt)
         const USER_CAT = { food:'🍴', coffee:'☕', drink:'🍷', drinks:'🍷', art:'🎨', music:'🎵', history:'📜', sports:'🏆', shopping:'🛍️', other:'📍' }
 
         function isImported(v) {
@@ -10547,9 +10472,14 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
         {!_snap && days.length === 0 && (() => {
           // Hearts + imported/custom places, without double-counting user_venue
           // entries that live in both savedItems and userVenues.
+          // Count only what the USER chose: editorial saves, their own added
+          // places, and catalog (seed) places they explicitly saved — never the
+          // whole built-in dataset that also lives in userVenues.
+          const _ownVenueCount = Object.keys(userVenues || {}).filter(id => !String(id).startsWith('seed_')).length
+          const _savedSeedCount = Object.values(savedItems || {}).filter(s => s.type === 'user_venue' && String(s.id).startsWith('seed_')).length
           const totalSaved =
             Object.values(savedItems || {}).filter(s => s.type !== 'user_venue').length +
-            Object.keys(userVenues || {}).length
+            _ownVenueCount + _savedSeedCount
           return (
             <div style={{ textAlign: 'center', padding: '14px 0 8px' }}>
               <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: '-0.01em', color: 'var(--ink)', marginBottom: 6 }}>
@@ -14336,6 +14266,15 @@ export default function App() {
   const [tonightSel,   setTonightSel]   = useState(null)
   const [tonightFull,  setTonightFull]  = useState(null)  // full-page detail opened FROM Tonight (so back returns here)
   const [savedSel,     setSavedSel]     = useState(null)
+
+  // Detail screens in the non-Explore tabs swap views inside the same scrolling
+  // document — without a reset, a venue page opened from a scrolled My Trip list
+  // inherits that scroll depth and appears "opened at the bottom". Mirror the
+  // Explore stack's behavior (its push()/back() already scroll to top).
+  useEffect(() => {
+    window.scrollTo(0, 0)
+    try { document.documentElement.scrollTop = 0; document.body.scrollTop = 0 } catch {}
+  }, [savedSel, mapSel, tonightFull])
 
   function toggleSave(type, id) {
     setSavedItems(prev => {
