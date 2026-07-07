@@ -32,6 +32,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False, index=True)
     password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     google_sub: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, unique=True, index=True)
+    apple_sub: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, unique=True, index=True)
     display_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     picture_url: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

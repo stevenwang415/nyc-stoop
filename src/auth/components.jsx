@@ -7,10 +7,16 @@
 //   On success the caller's onSuccess({ token, user }) handler stores creds.
 
 import React from 'react'
+import { Capacitor } from '@capacitor/core'
+import { SignInWithApple } from '@capacitor-community/apple-sign-in'
 import {
-  signup, login, googleAuth, forgotPassword, resetPassword,
+  signup, login, googleAuth, appleAuth, forgotPassword, resetPassword,
   decodeJwtPayload, ApiError,
 } from './api'
+
+// Sign in with Apple is a NATIVE flow (ASAuthorizationController) — only offer
+// it inside the iOS app. On the web build the button simply doesn't render.
+const IS_IOS_NATIVE = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios'
 
 // IMPORTANT: don't use optional chaining here. Vite's static env replacement
 // only matches the literal `import.meta.env.VITE_FOO` pattern; `import.meta?.env?.`
@@ -160,6 +166,30 @@ export function AuthModal({ onClose, onSuccess, initialTab = 'signin' }) {
     } finally { setBusy(false) }
   }
 
+  async function handleAppleSignIn() {
+    setError(''); setInfo(''); setBusy(true)
+    try {
+      const result = await SignInWithApple.authorize({
+        clientId: 'com.nycstoop.app',
+        redirectURI: 'https://nyc-stoop.vercel.app', // unused by the native flow, required by the plugin API
+        scopes: 'email name',
+      })
+      const idToken = result?.response?.identityToken
+      if (!idToken) throw new Error('No credential from Apple')
+      // Apple sends the name ONLY on first authorization — forward it so the
+      // backend can set display_name at account creation.
+      const gn = result.response.givenName || ''
+      const fn = result.response.familyName || ''
+      const fullName = `${gn} ${fn}`.trim() || null
+      const res = await appleAuth(idToken, fullName)
+      onSuccess?.({ token: res.access_token, user: res.user })
+    } catch (e) {
+      // User-cancelled sheets shouldn't show an error banner.
+      const msg = String(e?.message || '')
+      if (!/cancel/i.test(msg) && e?.code !== '1001') setError('Apple sign-in failed. Try email + password.')
+    } finally { setBusy(false) }
+  }
+
   async function handleGoogleCredential(credential) {
     setError(''); setInfo(''); setBusy(true)
     // Optimistic preview from the unverified JWT — backend will verify.
@@ -224,9 +254,30 @@ export function AuthModal({ onClose, onSuccess, initialTab = 'signin' }) {
           </div>
         )}
 
-        {/* Google block — hidden in forgot tab */}
+        {/* Social sign-in block — hidden in forgot tab. Apple first on iOS
+            (App Review expects it at least as prominent as other providers). */}
         {tab !== 'forgot' && (
           <div style={{ padding: '0 20px 14px' }}>
+            {IS_IOS_NATIVE && (
+              <button
+                onClick={handleAppleSignIn}
+                disabled={busy}
+                aria-label="Sign in with Apple"
+                style={{
+                  width: '100%', padding: '12px 16px', marginBottom: 10,
+                  background: '#000', color: '#fff',
+                  border: 'none', borderRadius: 12, cursor: 'pointer',
+                  fontSize: 15, fontWeight: 600, fontFamily: 'inherit',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  opacity: busy ? 0.6 : 1,
+                }}
+              >
+                <svg width="15" height="18" viewBox="0 0 15 18" fill="#fff" aria-hidden="true">
+                  <path d="M12.52 9.56c-.02-2.03 1.66-3 1.73-3.05-.94-1.38-2.41-1.57-2.93-1.59-1.25-.13-2.44.73-3.07.73-.63 0-1.61-.71-2.65-.69-1.36.02-2.62.79-3.32 2.01-1.42 2.46-.36 6.1 1.02 8.09.67.98 1.48 2.07 2.53 2.03 1.02-.04 1.4-.66 2.63-.66 1.22 0 1.57.66 2.65.64 1.09-.02 1.78-.99 2.45-1.97.77-1.13 1.09-2.22 1.11-2.28-.02-.01-2.13-.82-2.15-3.26zM10.51 3.6c.56-.68.94-1.62.83-2.56-.81.03-1.79.54-2.37 1.22-.52.6-.97 1.56-.85 2.48.9.07 1.82-.46 2.39-1.14z"/>
+                </svg>
+                Sign in with Apple
+              </button>
+            )}
             <GoogleButton
               onCredential={handleGoogleCredential}
               onError={() => setError('Google sign-in failed. Try email + password.')}

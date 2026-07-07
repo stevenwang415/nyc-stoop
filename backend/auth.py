@@ -25,6 +25,7 @@ from database import get_db
 from email_service import send_password_reset_email
 from models import PasswordResetToken, User
 from schemas import (
+    AppleAuthRequest,
     AuthResponse,
     ForgotPasswordRequest,
     GoogleAuthRequest,
@@ -48,6 +49,22 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")
 
+# Sign in with Apple: the native flow's identity token has the app's bundle id
+# as its audience. Comma-separated to allow a future web Services ID too.
+APPLE_BUNDLE_IDS = [
+    s.strip() for s in os.environ.get("APPLE_BUNDLE_IDS", "com.nycstoop.app").split(",") if s.strip()
+]
+_APPLE_JWKS_URL = "https://appleid.apple.com/auth/keys"
+_apple_jwk_client = None  # lazy singleton; PyJWKClient caches keys internally
+
+
+def _get_apple_jwk_client():
+    global _apple_jwk_client
+    if _apple_jwk_client is None:
+        import jwt as pyjwt
+        _apple_jwk_client = pyjwt.PyJWKClient(_APPLE_JWKS_URL, cache_keys=True)
+    return _apple_jwk_client
+
 
 # ── Helpers ───────────────────────────────────────────────────────────────
 def _to_public(user: User) -> UserPublic:
@@ -58,6 +75,7 @@ def _to_public(user: User) -> UserPublic:
         picture_url=user.picture_url,
         has_password=bool(user.password_hash),
         has_google=bool(user.google_sub),
+        has_apple=bool(user.apple_sub),
     )
 
 
@@ -173,6 +191,62 @@ def google_auth(req: GoogleAuthRequest, db: Session = Depends(get_db)) -> AuthRe
             user.display_name = info["name"]
         if not user.picture_url and info.get("picture"):
             user.picture_url = info["picture"]
+
+    db.commit()
+    db.refresh(user)
+    return _auth_response(user)
+
+
+@router.post("/apple", response_model=AuthResponse)
+def apple_auth(req: AppleAuthRequest, db: Session = Depends(get_db)) -> AuthResponse:
+    """Sign in with Apple: verify the identity token against Apple's JWKS,
+    then upsert — mirroring /auth/google (match apple_sub, then link by email)."""
+    import jwt as pyjwt
+
+    try:
+        signing_key = _get_apple_jwk_client().get_signing_key_from_jwt(req.identity_token)
+        info = pyjwt.decode(
+            req.identity_token,
+            signing_key.key,
+            algorithms=["RS256"],
+            audience=APPLE_BUNDLE_IDS,
+            issuer="https://appleid.apple.com",
+        )
+    except Exception as exc:  # signature, audience, issuer, expiry, JWKS fetch
+        logger.warning("Apple identity token verification failed: %s", exc)
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid Apple credential")
+
+    sub = info.get("sub")
+    email = _normalize_email(info.get("email", ""))
+    if not sub:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Apple credential missing subject")
+    # Apple's email_verified claim can be a bool or the string "true".
+    verified = info.get("email_verified", True)
+    if isinstance(verified, str):
+        verified = verified.lower() == "true"
+
+    # Upsert: prefer match by apple_sub, then by verified email (links existing
+    # email/password or Google accounts to Apple).
+    user = db.scalar(select(User).where(User.apple_sub == sub))
+    if not user and email and verified:
+        user = db.scalar(select(User).where(User.email == email))
+        if user and not user.apple_sub:
+            user.apple_sub = sub
+
+    if not user:
+        if not email:
+            # Extremely rare (email is present on first auth; private relay
+            # otherwise) — without an email we can't create the account row.
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Apple credential missing email")
+        user = User(
+            email=email,
+            apple_sub=sub,
+            display_name=(req.full_name or "").strip() or None,
+        )
+        db.add(user)
+    else:
+        if not user.display_name and req.full_name:
+            user.display_name = req.full_name.strip() or None
 
     db.commit()
     db.refresh(user)

@@ -62,10 +62,18 @@ is already open).
   clean empty states, not spinners).
 - **Location** — only request when the user acts (you already prompt contextually);
   the purpose string is in place.
-- **Sign in with Google** — if you keep it, Apple requires you ALSO offer Sign in
-  with Apple (Guideline 4.8). Alternatives: ship v1 with no account (everything is
-  localStorage anyway), or add Sign in with Apple alongside.
-  **This is the most likely rejection after 4.2 — decide before submitting.**
+- **Sign in with Apple — DONE (satisfies Guideline 4.8 alongside Google).**
+  Native flow via @capacitor-community/apple-sign-in; button renders only in the
+  iOS app, listed above Google (Apple expects at-least-equal prominence). Backend
+  verifies the identity token against Apple's JWKS (`/auth/apple`), links to
+  existing accounts by verified email, and the users table gains `apple_sub`
+  automatically on next boot. Remaining setup:
+  1. Xcode → App target → Signing & Capabilities → **+ Capability → "Sign in
+     with Apple"** (one click; updates the App ID + entitlement).
+  2. Redeploy the backend (new `cryptography` requirement; DB migrates itself).
+     If your bundle id isn't `com.nycstoop.app`, set env `APPLE_BUNDLE_IDS`.
+  3. Test on device: first sign-in shows the name/email consent sheet; also test
+     "Hide My Email" (private relay) — the account should still create.
 - **Privacy nutrition label** (App Store Connect): location (app functionality,
   not linked), and whatever the Google sign-in collects if kept.
 - **Privacy policy URL** — required field; a page on the vercel domain is fine.

@@ -150,6 +150,10 @@ export async function googleAuth(credential) {
   return request('/auth/google', { method: 'POST', body: { credential } })
 }
 
+export async function appleAuth(identityToken, fullName = null) {
+  return request('/auth/apple', { method: 'POST', body: { identity_token: identityToken, full_name: fullName } })
+}
+
 export async function forgotPassword(email) {
   return request('/auth/forgot-password', { method: 'POST', body: { email } })
 }

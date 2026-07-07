@@ -22,6 +22,13 @@ class GoogleAuthRequest(BaseModel):
     credential: str = Field(min_length=10)  # raw Google ID token (JWT)
 
 
+class AppleAuthRequest(BaseModel):
+    identity_token: str = Field(min_length=10)  # raw Apple identity token (JWT)
+    # Apple only provides the user's name on the FIRST authorization, and only
+    # to the client — so the app forwards it for initial account creation.
+    full_name: Optional[str] = Field(default=None, max_length=255)
+
+
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
@@ -39,6 +46,7 @@ class UserPublic(BaseModel):
     picture_url: Optional[str] = None
     has_password: bool = False  # True if the account has a password (vs. Google-only)
     has_google: bool = False
+    has_apple: bool = False
 
 
 class AuthResponse(BaseModel):

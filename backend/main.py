@@ -39,6 +39,12 @@ logger = logging.getLogger(__name__)
 def _bootstrap_db() -> None:
     import models  # noqa: F401 — register models on Base before create_all
     Base.metadata.create_all(bind=engine)
+    # create_all never adds columns to EXISTING tables — patch later additions
+    # here (Postgres IF NOT EXISTS keeps this idempotent on every boot).
+    from sqlalchemy import text
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS apple_sub VARCHAR(255)"))
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_apple_sub ON users (apple_sub)"))
     logger.info("Database tables ensured.")
 
 
