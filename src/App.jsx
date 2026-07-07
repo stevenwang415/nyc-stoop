@@ -32,6 +32,12 @@ import { venueImages } from './data/venueImages.js'
 // (idempotent by stable `seed_*` ids so re-runs don't duplicate).
 import { seedUserPlaces } from './data/places.js'
 
+// Safe localStorage write — Safari private mode and WKWebView storage pressure
+// can throw on setItem; a failed persist should never crash the app.
+function lsSet(key, value) {
+  try { window.localStorage.setItem(key, value) } catch {}
+}
+
 // (venueColors + venueCoords previously lived inline here — ~210 lines of
 // hardcoded data. Moved to ./data/venueMeta.js so this file stays focused on
 // app logic. Add new entries there, then re-import here as needed.)
@@ -1196,7 +1202,7 @@ function eventHeroImage(e) { return eventImagePick(e).url }
 const SAVED_EVENTS_KEY = 'nyc_saved_events'
 function loadSavedEvents() { try { return JSON.parse(localStorage.getItem(SAVED_EVENTS_KEY) || '[]') } catch { return [] } }
 function persistSavedEvents(arr) {
-  try { localStorage.setItem(SAVED_EVENTS_KEY, JSON.stringify(arr)) } catch {}
+  try { lsSet(SAVED_EVENTS_KEY, JSON.stringify(arr)) } catch {}
   try { window.dispatchEvent(new Event('nyc-saved-events')) } catch {}
 }
 function isEventSaved(id) { return loadSavedEvents().some(e => e && e.id === id) }
@@ -1314,7 +1320,7 @@ function EventDetail({ event }) {
     <div style={{ padding: '0 20px calc(40px + env(safe-area-inset-bottom, 0px))' }}>
       {heroImg ? (
         <div style={{ height: 150, borderRadius: 18, overflow: 'hidden', marginBottom: 16, background: `linear-gradient(135deg, ${e.color}, ${e.color}B0)` }}>
-          <img src={heroImg} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          <img src={heroImg} alt="" onError={e => { e.currentTarget.style.display = 'none' }} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
         </div>
       ) : (
         <div style={{ height: 120, borderRadius: 18, background: `linear-gradient(135deg, ${e.color}, ${e.color}B0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 52, marginBottom: 16 }}>{e.emoji}</div>
@@ -1418,7 +1424,7 @@ function ThisWeekSection() {
             <button key={e.id} onClick={() => setSelected(e)}
               style={{ flexShrink: 0, width: 252, height: 250, border: '1px solid rgba(33,27,20,0.10)', borderRadius: 16, overflow: 'hidden', background: 'var(--card)', boxShadow: '0 6px 18px rgba(33,27,20,0.05)', cursor: 'pointer', textAlign: 'left', padding: 0, fontFamily: 'inherit', display: 'flex', flexDirection: 'column' }}>
               <div style={{ position: 'relative', height: 134, background: e.color, overflow: 'hidden', flexShrink: 0 }}>
-                {heroImg && <img src={heroImg} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
+                {heroImg && <img src={heroImg} alt="" onError={e => { e.currentTarget.style.display = 'none' }} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
                 <div style={{ position: 'absolute', inset: 0, background: heroImg ? 'linear-gradient(to top, rgba(13,18,25,0.55), rgba(13,18,25,0.05))' : 'linear-gradient(160deg, rgba(255,255,255,0.16), rgba(0,0,0,0.18))' }} />
                 {!heroImg && <div style={{ position: 'absolute', top: 12, left: 14, fontFamily: 'var(--serif)', fontStyle: 'italic', fontSize: 40, color: 'rgba(255,255,255,0.30)', lineHeight: 1 }}>{initial}</div>}
                 <div style={{ position: 'absolute', top: 13, right: 14, fontSize: 9.5, letterSpacing: '0.2em', fontWeight: 700, color: '#fff', textTransform: 'uppercase', background: 'rgba(0,0,0,0.22)', padding: '4px 8px', borderRadius: 999 }}>{e.kindLabel}</div>
@@ -1440,6 +1446,11 @@ function ThisWeekSection() {
 
 function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, onOpenSettings = () => {}, onPlanNight = () => {}, userVenues = {}, weather = null }) {
   const [query, setQuery] = useState('')
+  // Live clock for the header chip (Tue · 7:42 PM). Ticks every 30s.
+  const [now, setNow] = React.useState(() => new Date())
+  React.useEffect(() => { const t = setInterval(() => setNow(new Date()), 30000); return () => clearInterval(t) }, [])
+  const headerDay = now.toLocaleDateString('en-US', { weekday: 'short' })
+  const headerTime = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
   // Last-visit ribbon — show what changed since the user's previous open.
   // null = first visit; we don't pester first-timers with a "what's new" banner.
   const [whatsNewVisible, setWhatsNewVisible] = React.useState(() => {
@@ -1452,11 +1463,11 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
     } catch { return false }
   })
   React.useEffect(() => {
-    try { localStorage.setItem('nyc_last_visit', new Date().toISOString().slice(0, 10)) } catch {}
+    try { lsSet('nyc_last_visit', new Date().toISOString().slice(0, 10)) } catch {}
   }, [])
   function dismissWhatsNew() {
     setWhatsNewVisible(false)
-    try { localStorage.setItem('nyc_whats_new_dismissed_for', EDITORIAL_LAST_UPDATED) } catch {}
+    try { lsSet('nyc_whats_new_dismissed_for', EDITORIAL_LAST_UPDATED) } catch {}
   }
   const [browseBy, setBrowseBy] = useState('topics') // 'topics' | 'neighborhoods'
 
@@ -1488,7 +1499,7 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
     })
     Object.values(userVenues || {}).forEach(uv => {
       if ((uv.name || '').toLowerCase().includes(q))
-        results.push({ type: 'user_venue', id: uv.id, name: uv.name, sub: `Your place · ${uv.neighborhood || ''}` })
+        results.push({ type: 'user_venue', id: uv.id, name: uv.name, seed: typeof uv.id === 'string' && uv.id.startsWith('seed_'), sub: `${typeof uv.id === 'string' && uv.id.startsWith('seed_') ? 'Place' : 'Your place'} · ${uv.neighborhood || ''}` })
     })
     // Boost exact-prefix matches to the top.
     results.sort((a, b) => {
@@ -1540,22 +1551,23 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
             >✕</button>
           </div>
         )}
-        {/* ── Header — circular menu · serif wordmark + eyebrow · circular avatar ── */}
+        {/* ── Header — weather (top-left) · serif wordmark (centered) · avatar ── */}
         <div style={{
+          position: 'relative',
           padding: 'calc(env(safe-area-inset-top, 0px) + 12px) 20px 10px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--canvas)',
         }}>
-          {/* Top-left weather — Apple-Weather-style symbol + temperature. Falls back
-              to an empty 40px box (keeps the wordmark centered) until it loads. */}
-          <div style={{ minWidth: 40, height: 40, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4 }} aria-label={weather ? `${weather.temp} degrees` : undefined}>
+          <div style={{ minWidth: 40, height: 40, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5, zIndex: 1 }} aria-label={weather ? `${weather.temp} degrees, ${headerDay} ${headerTime}` : undefined}>
             {weather && (
               <>
                 <span style={{ fontSize: 20, lineHeight: 1 }} aria-hidden="true">{weatherEmoji(weather.code, weather.isDay)}</span>
                 <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)', lineHeight: 1 }}>{weather.temp}°</span>
               </>
             )}
+            <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--ink-2)', lineHeight: 1, whiteSpace: 'nowrap' }}>{headerDay} · {headerTime}</span>
           </div>
-          <div style={{ textAlign: 'center', lineHeight: 1 }}>
+          {/* Absolutely centered so the wider weather chip on the left can't push it off-center. */}
+          <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', textAlign: 'center', lineHeight: 1, pointerEvents: 'none' }}>
             <div style={{ fontSize: 9, letterSpacing: '0.28em', color: 'var(--field-clay)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 3 }}>The City Guide</div>
             <div style={{ fontFamily: 'var(--serif)', fontSize: 25, fontWeight: 500, letterSpacing: '0.01em', color: 'var(--ink)' }}>
               NYC <span style={{ fontStyle: 'italic', color: 'var(--accent)' }}>Stoop</span>
@@ -1563,7 +1575,7 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
           </div>
           <button onClick={onOpenSettings} aria-label="Profile and settings" style={{
             width: 40, height: 40, borderRadius: 999, background: 'var(--accent)',
-            border: 'none', cursor: 'pointer', padding: 0,
+            border: 'none', cursor: 'pointer', padding: 0, zIndex: 1,
             display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
             boxShadow: '0 2px 8px rgba(190,77,43,0.35)',
           }}>
@@ -1571,6 +1583,15 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
           </button>
         </div>
         <div style={{ padding: '6px 20px 12px', background: 'var(--canvas)' }}>
+          {/* Contextual lead — weather × time of day, one line. */}
+          {(() => {
+            const line = weatherLine(weather, now.getHours())
+            return line ? (
+              <div style={{ textAlign: 'center', fontFamily: 'var(--serif)', fontStyle: 'italic', fontSize: 14.5, color: 'var(--ink-2)', padding: '0 4px 10px', lineHeight: 1.35 }}>
+                {line}
+              </div>
+            ) : null
+          })()}
           <div style={{
             display: 'flex', alignItems: 'center', gap: 11,
             background: 'var(--card)', border: '1px solid rgba(33,27,20,0.12)',
@@ -1639,9 +1660,11 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                   sight:      { label: 'Sight',  color: '#0891b2' },
                   figure:     { label: 'Artist', color: '#7c3aed' },
                   work:       { label: 'Work',   color: '#059669' },
-                  user_venue: { label: 'Yours',  color: '#b45309' },
+                  user_venue: { label: 'Place',  color: '#b45309' },
                 }
                 const meta = typeMeta[r.type] || { label: r.type, color: '#666' }
+                // Seed imports aren't the user's own places — badge them honestly.
+                if (r.type === 'user_venue' && !r.seed) meta.label = 'Yours'
                 const onPress = () => {
                   if (r.type === 'venue')        push({ screen: 'venue', venueId: r.id })
                   else if (r.type === 'sight')   push({ screen: 'sight', sightId: r.id })
@@ -1758,6 +1781,39 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                                 <span style={{ position: 'absolute', left: 14, right: 14, bottom: 12, fontFamily: 'var(--serif)', fontSize: 21, fontWeight: 600, color: '#fff', lineHeight: 1.08 }}>{it.title}</span>
                               </span>
                               <span style={{ background: 'var(--card)', padding: '11px 14px 13px', fontSize: 12.5, color: 'var(--ink-3)' }}>{it.meta}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )
+                  })()}
+                </div>
+
+                {/* ── Feeling something specific? — the curated moods, rehomed as
+                    collections. Activities answer "I know what I want"; these answer
+                    "guide me." Smaller cards so the hierarchy reads verbs-first. ── */}
+                <div style={{ padding: '22px 0 0' }}>
+                  <div style={{ padding: '0 20px' }}>
+                    <h2 style={{ fontFamily: 'var(--serif)', fontWeight: 500, fontSize: 20, margin: 0, letterSpacing: '0.01em', color: 'var(--ink)' }}>Feeling something specific?</h2>
+                  </div>
+                  {(() => {
+                    const TINT = ['#6B4453', '#475A66', '#C6892F', '#6F7A45', '#B7472A']
+                    return (
+                      <div style={{ display: 'flex', gap: 11, overflowX: 'auto', padding: '12px 20px 4px', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }} className="hide-scrollbar">
+                        {moods.map((m, i) => {
+                          const tint = TINT[i % TINT.length]
+                          return (
+                            <button key={m.id} onClick={() => push({ screen: 'mood', moodId: m.id })} style={{
+                              flexShrink: 0, width: 136, padding: 0, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
+                              borderRadius: 14, overflow: 'hidden', border: '1px solid rgba(33,27,20,0.10)', background: 'var(--card)',
+                              boxShadow: '0 4px 12px rgba(33,27,20,0.04)', display: 'flex', flexDirection: 'column',
+                            }}>
+                              <span style={{ height: 84, position: 'relative', background: tint, display: 'block' }}>
+                                <span style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(255,255,255,0.10), rgba(0,0,0,0.22))' }} />
+                                <span style={{ position: 'absolute', top: 10, left: 12, fontSize: 17 }} aria-hidden="true">{m.emoji}</span>
+                                <span style={{ position: 'absolute', left: 12, right: 12, bottom: 10, fontFamily: 'var(--serif)', fontSize: 16.5, fontWeight: 600, color: '#fff', lineHeight: 1.1 }}>{m.label}</span>
+                              </span>
+                              <span style={{ background: 'var(--card)', padding: '9px 12px 11px', fontSize: 11.5, color: 'var(--ink-3)' }}>{flattenMoodPicks(m).length} picks</span>
                             </button>
                           )
                         })}
@@ -2527,7 +2583,7 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
               <span style={{ fontSize: 12, color: 'var(--ink-3)', flexShrink: 1 }}>{venue.nowPlaying.through}</span>
               <a
-                href={venue.nowPlaying.bookingUrl}
+                href={venue.nowPlaying.bookingUrl || venue.ticketUrl || venue.website}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
@@ -2553,7 +2609,7 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
               <div style={{ fontSize: 13, color: 'var(--gray-600)', lineHeight: 1.45 }}>{venue.nowPlaying.tagline}</div>
             </div>
             <a
-              href={venue.nowPlaying.bookingUrl}
+              href={venue.nowPlaying.bookingUrl || venue.ticketUrl || venue.website}
               target="_blank"
               rel="noopener noreferrer"
               style={{ fontSize: 12, color: 'var(--gray-600)', textDecoration: 'underline', flexShrink: 0 }}
@@ -3392,7 +3448,7 @@ function WorkScreen({ workId, push, savedItems = {}, toggleSave = () => {} }) {
                         <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>{venue.nowPlaying.through}</div>
                       </div>
                       <a
-                        href={venue.nowPlaying.bookingUrl}
+                        href={venue.nowPlaying.bookingUrl || venue.ticketUrl || venue.website}
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{
@@ -3409,7 +3465,7 @@ function WorkScreen({ workId, push, savedItems = {}, toggleSave = () => {} }) {
                     }}>
                       <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 3 }}>At {venue?.name}</div>
                       <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.4 }}>{venue.nowPlaying.tagline}</div>
-                      <a href={venue.nowPlaying.bookingUrl} target="_blank" rel="noopener noreferrer"
+                      <a href={venue.nowPlaying.bookingUrl || venue.ticketUrl || venue.website} target="_blank" rel="noopener noreferrer"
                         style={{ fontSize: 12, color: '#6b7280', textDecoration: 'underline', display: 'inline-block', marginTop: 6 }}>
                         Check upcoming schedule →
                       </a>
@@ -4488,6 +4544,27 @@ function weatherEmoji(code, isDay) {
   return '🌡️'
 }
 
+// Weather + time-of-day → one contextual line under the header. The cheapest
+// "it knows me" moment: the data is already fetched for the header chip.
+function weatherLine(weather, hour) {
+  if (!weather) return null
+  const { code, temp } = weather
+  const tod = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
+  if (code >= 95) return 'Thunder out there — a long-lunch, museum kind of day.'
+  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 'Snow day — coffee first, then somewhere warm.'
+  if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return `Rainy ${tod} — museums, bookstores, a long ramen.`
+  if (code === 45 || code === 48) return 'Foggy — the city’s gone cinematic. Walk the bridge anyway.'
+  if (temp >= 88) return `${temp}° and steamy — shade, iced coffee, waterfront.`
+  if (temp <= 35) return `${temp}° out there — bundle up, keep it indoors and cozy.`
+  if (code <= 1) {
+    if (tod === 'morning') return 'Clear morning — bagel weather.'
+    if (tod === 'afternoon') return 'Sunny afternoon — the waterfront is calling.'
+    return 'Clear night — rooftop weather.'
+  }
+  if (code <= 3) return `Soft gray ${tod} — good wandering weather.`
+  return null
+}
+
 // Browser geolocation → Promise<{ lat, lng }>. The "allow location" prompt is
 // the browser's own native dialog; we just call this. Rejects on denial,
 // unsupported, or timeout — callers disable "Near me" in those cases.
@@ -4639,6 +4716,72 @@ const MANHATTAN_DETAIL_CENTERS = {
   soho: [40.7240, -74.0010, 15], les: [40.7180, -73.9870, 15],
   wtc: [40.7120, -74.0120, 15], chinatown: [40.7158, -73.9970, 15], fidi: [40.7060, -74.0110, 15],
 }
+// Map-pan targets for the Brooklyn schematic areas (same tap-to-pan behavior).
+const BROOKLYN_DETAIL_CENTERS = {
+  bk_greenpoint: [40.7300, -73.9515, 14], bk_williamsburg: [40.7140, -73.9573, 14],
+  bk_dumbo: [40.7033, -73.9903, 15], bk_downtown: [40.6905, -73.9855, 15],
+  bk_clinton: [40.6890, -73.9660, 15], bk_prospect_hts: [40.6745, -73.9670, 14],
+  bk_park_slope: [40.6710, -73.9814, 14], bk_crown_hts: [40.6695, -73.9440, 14],
+  bk_east: [40.6895, -73.9270, 13], bk_lower: [40.6640, -74.0000, 13],
+}
+
+// Friendly display names for the schematic areas (the SVG labels are ALL-CAPS
+// abbreviations; the picks sheet wants real names).
+const DETAIL_AREA_LABELS = {
+  harlem: 'Harlem', morningside: 'Morningside Heights', east_harlem: 'East Harlem',
+  uws: 'Upper West Side', ues: 'Upper East Side', mw: 'Midtown West', me: 'Midtown East',
+  garment: 'Garment District', gramercy: 'Gramercy & Flatiron', chelsea: 'Chelsea',
+  greenwich: 'Greenwich Village', east_village: 'East Village', soho: 'SoHo', les: 'Lower East Side',
+  wtc: 'World Trade Center', chinatown: 'Chinatown', fidi: 'Financial District',
+  bk_greenpoint: 'Greenpoint', bk_williamsburg: 'Williamsburg', bk_dumbo: 'DUMBO',
+  bk_downtown: 'Downtown Brooklyn', bk_clinton: 'Clinton Hill', bk_prospect_hts: 'Prospect Heights',
+  bk_park_slope: 'Park Slope', bk_crown_hts: 'Crown Heights', bk_east: 'East Brooklyn', bk_lower: 'Lower Brooklyn',
+}
+// Manhattan detail areas → the coarse regions classifyLatLngToArea knows about
+// (Brooklyn detail ids already match the classifier 1:1).
+const MANHATTAN_DETAIL_TO_COARSE = {
+  harlem: 'uptown', morningside: 'uptown', east_harlem: 'uptown',
+  uws: 'uws', ues: 'ues', mw: 'mw', me: 'me', garment: 'mw',
+  gramercy: 'gramercy', chelsea: 'chelsea',
+  greenwich: 'wv', soho: 'wv', east_village: 'ev', les: 'ev',
+  wtc: 'lower', chinatown: 'lower', fidi: 'lower',
+}
+// Top picks for a tapped schematic area: curated venues whose coordinates
+// classify into the area's region, ranked by distance to the area center so
+// neighborhood-local spots win. Returns up to 5.
+function picksForDetailArea(areaId) {
+  const center = MANHATTAN_DETAIL_CENTERS[areaId] || BROOKLYN_DETAIL_CENTERS[areaId]
+  if (!center) return []
+  const want = areaId.startsWith('bk_')
+    ? { borough: 'brooklyn', areaId }
+    : { borough: 'manhattan', areaId: MANHATTAN_DETAIL_TO_COARSE[areaId] }
+  const out = []
+  for (const id in venueCoords) {
+    const c = venueCoords[id]
+    const v = venues[id]
+    if (!v || typeof c.lat !== 'number' || typeof c.lng !== 'number') continue
+    const where = classifyLatLngToArea(c.lat, c.lng)
+    if (!where || where.borough !== want.borough || where.areaId !== want.areaId) continue
+    out.push({ id, name: v.name, neighborhood: v.neighborhood || '', domain: c.domain, lat: c.lat, lng: c.lng, d: distanceMiles({ lat: center[0], lng: center[1] }, { lat: c.lat, lng: c.lng }) })
+  }
+  out.sort((a, b) => a.d - b.d)
+  // Curated venues are Manhattan-heavy; fill remaining slots from the imported
+  // places pool (they carry coords + the new one-line descriptions) so Brooklyn
+  // areas get real answers too. Seeds have no venue page — they render as
+  // info rows (name + blurb), not links.
+  if (out.length < 5) {
+    const fillers = []
+    for (const p of (seedUserPlaces || [])) {
+      if (typeof p.lat !== 'number' || typeof p.lng !== 'number') continue
+      const where = classifyLatLngToArea(p.lat, p.lng)
+      if (!where || where.borough !== want.borough || where.areaId !== want.areaId) continue
+      fillers.push({ id: p.id, seed: true, name: p.name, neighborhood: p.neighborhood || '', blurb: p.description || '', tip: p.insiderTip || '', category: p.category, lat: p.lat, lng: p.lng, d: distanceMiles({ lat: center[0], lng: center[1] }, { lat: p.lat, lng: p.lng }) })
+    }
+    fillers.sort((a, b) => a.d - b.d)
+    out.push(...fillers.slice(0, 5 - out.length))
+  }
+  return out.slice(0, 5)
+}
 // Pure SVG, tappable. Mirrors BoroughAreaMap styling but Manhattan-only and
 // always fully colored (this is a neighborhood reference, not a pick filter).
 function ManhattanDetailMap({ selectedArea = null, onSelectArea = () => {} }) {
@@ -4676,6 +4819,64 @@ function ManhattanDetailMap({ selectedArea = null, onSelectArea = () => {} }) {
         <polygon points={D.timesSq.points} fill="#f3e1bd" stroke="#bfae73" strokeWidth="1.2" />
         <text x={D.timesSq.labelAt[0]} y={D.timesSq.labelAt[1]} fontSize="6" fontWeight="800" fill="#6b5a1f"
           textAnchor="middle" style={{ pointerEvents: 'none', fontFamily: 'inherit' }}>TSQ</text>
+      </svg>
+    </div>
+  )
+}
+
+// Brooklyn counterpart for the Map tab "Neighborhoods" view. Reuses the
+// schematic geometry from MOOD_MAP_SVG.brooklyn (single source of truth with
+// the mood flow) but styled to match ManhattanDetailMap: blue backdrop, always
+// fully colored, every area tappable → pans the real map.
+function BrooklynDetailMap({ selectedArea = null, onSelectArea = () => {} }) {
+  const D = MOOD_MAP_SVG.brooklyn
+  return (
+    <div style={{ width: '100%', height: '100%', overflowY: 'auto', background: '#e7eef6' }}>
+      <svg
+        viewBox={D.viewBox}
+        xmlns="http://www.w3.org/2000/svg"
+        preserveAspectRatio="xMidYMid meet"
+        style={{ display: 'block', width: '100%', maxWidth: 460, margin: '0 auto', padding: '10px 0' }}
+      >
+        <rect x="0" y="0" width="100%" height="100%" fill="#e7eef6" />
+        {(D.adjacent || []).map((g, i) => {
+          if (g.kind === 'water-label') {
+            return (
+              <text key={'wl' + i} x={g.at[0]} y={g.at[1]}
+                transform={g.rotate ? `rotate(${g.rotate} ${g.at[0]} ${g.at[1]})` : undefined}
+                fontSize="9" fill="#7aa0c4" fontStyle="italic" textAnchor="middle"
+                style={{ pointerEvents: 'none', fontFamily: 'inherit' }}>{g.label}</text>
+            )
+          }
+          return (
+            <g key={'adj' + i}>
+              <path d={g.d} fill="#f1f5f9" stroke="#e2e8f0" strokeWidth="1" />
+              {g.label && (
+                <text x={g.labelAt[0]} y={g.labelAt[1]} fontSize="10" fontWeight="700" fill="#94a3b8"
+                  textAnchor="middle" style={{ pointerEvents: 'none', fontFamily: 'inherit' }}>{g.label}</text>
+              )}
+            </g>
+          )
+        })}
+        {D.baseLand && (
+          <polygon points={D.baseLand} fill="#dbe4ea" stroke="#c9d4dc" strokeWidth="1.2" strokeLinejoin="round" />
+        )}
+        {D.areas.map(a => {
+          const active = selectedArea === a.id
+          const label = Array.isArray(a.label) ? a.label : [a.label]
+          const fs = a.labelSize || 11
+          return (
+            <g key={a.id} onClick={() => onSelectArea(active ? null : a.id)} style={{ cursor: 'pointer' }}>
+              <polygon points={a.points} fill={a.color} fillOpacity={active ? 1 : 0.9}
+                stroke={active ? '#0f172a' : '#ffffff'} strokeWidth={active ? 3 : 1.4} strokeLinejoin="round" />
+              {label.map((line, li) => (
+                <text key={li} x={a.labelAt[0]} y={a.labelAt[1] + li * (fs + 1) - ((label.length - 1) * (fs + 1)) / 2}
+                  fontSize={fs} fontWeight="800" fill="#33414d" textAnchor="middle" letterSpacing="0.02"
+                  style={{ pointerEvents: 'none', fontFamily: 'inherit' }}>{line}</text>
+              ))}
+            </g>
+          )
+        })}
       </svg>
     </div>
   )
@@ -4846,7 +5047,8 @@ function BoroughReferenceMap({ borough, pins, selectedArea, height = 280 }) {
       center: view.center,
       zoom: view.zoom,
       zoomControl: false,
-      attributionControl: false,
+      // Attribution required by OSM tile usage policy — keep it on (compact).
+      attributionControl: true,
       scrollWheelZoom: false,
       dragging: true,
       tap: true,
@@ -6991,7 +7193,7 @@ function BottomNav({ activeTab, onTabPress, savedCount, onAddPlace }) {
   // hero of the bar instead of the old "Eat" center button.
   const tabs = [
     { id: 'explore', icon: 'compass',  label: 'Explore' },
-    { id: 'tonight', icon: 'moon',     label: 'Tonight', accent: true },
+    { id: 'tonight', icon: 'moon',     label: 'Events', accent: true },
     { id: 'map',     icon: 'mapPin',   label: 'Map' },
     { id: 'saved',   icon: 'bookmark', label: 'My Trip' },
   ]
@@ -7078,6 +7280,81 @@ const MAP_FILTERS = [
   { id: 'hip_hop', label: 'Hip-Hop' },
 ]
 
+// Session cache for MapScreen's Neighborhoods view (survives the unmount that
+// happens when a venue page opens inside the Map tab).
+let _mapSchemCache = null
+
+// ── AreaPickCard — in-sheet place card for the Map tab's area sheet. Photo up
+// top (curated imageUrl, or Google photo for imports), save + map actions, and
+// a back arrow instead of page navigation. Extracted as a component so the
+// Google-photo hook is legal here.
+function AreaPickCard({ pick: p, onBack, onShowMap, onFull = null, savedItems = {}, toggleSave = () => {} }) {
+  const v = p.seed ? null : venues[p.id]
+  const g = useGooglePhoto(p.seed ? p : null)
+  const [imgFailed, setImgFailed] = React.useState(false)
+  const imageSrc = (p.seed ? g?.photoUrl : v?.imageUrl) || null
+  const image = imageSrc && !imgFailed ? imageSrc : null
+  const desc = p.seed ? p.blurb : (v?.description || '')
+  const tip = p.seed ? p.tip : (v?.insiderTip || '')
+  const metaBits = [p.neighborhood, v?.price ? '$'.repeat(v.price) : null, v?.hours || null].filter(Boolean)
+  const saved = !!savedItems[p.seed ? `user_venue:${p.id}` : `venue:${p.id}`]
+  const backBtn = (overlay) => (
+    <button onClick={onBack} aria-label="Back to list" style={{
+      border: 'none', borderRadius: 999, width: 32, height: 32,
+      cursor: 'pointer', fontSize: 16, lineHeight: 1, flexShrink: 0,
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      ...(overlay
+        ? { position: 'absolute', top: 10, left: 10, background: 'rgba(255,255,255,0.92)', color: 'var(--ink)', boxShadow: '0 2px 8px rgba(15,23,42,0.25)' }
+        : { background: 'var(--gray-100)', color: 'var(--ink)' }),
+    }}>←</button>
+  )
+  return (
+    <>
+      {image ? (
+        <div style={{ position: 'relative', margin: '0 0 12px' }}>
+          <img src={image} alt={p.name} onError={() => setImgFailed(true)}
+            style={{ display: 'block', width: '100%', height: 140, objectFit: 'cover', borderRadius: 14 }} />
+          <div style={{ position: 'absolute', inset: 0, borderRadius: 14, background: 'linear-gradient(180deg, rgba(0,0,0,0.05) 55%, rgba(0,0,0,0.45))' }} />
+          {backBtn(true)}
+          <div style={{ position: 'absolute', left: 14, right: 14, bottom: 10, fontFamily: 'var(--serif)', fontSize: 20, fontWeight: 600, color: '#fff', textShadow: '0 1px 6px rgba(0,0,0,0.45)' }}>{p.name}</div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+          {backBtn(false)}
+          <div style={{ fontFamily: 'var(--serif)', fontSize: 19, fontWeight: 600, color: 'var(--ink)', flex: 1, minWidth: 0 }}>{p.name}</div>
+        </div>
+      )}
+      {metaBits.length > 0 && (
+        <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginBottom: desc ? 8 : 12 }}>{metaBits.join(' · ')}</div>
+      )}
+      {desc && <p style={{ fontSize: 14, lineHeight: 1.55, color: 'var(--ink-2)', margin: '0 0 10px' }}>{desc}</p>}
+      {tip && (
+        <div style={{ background: 'rgba(190,77,43,0.08)', border: '1px solid rgba(190,77,43,0.18)', borderRadius: 10, padding: '9px 12px', fontSize: 13, lineHeight: 1.45, color: 'var(--ink-2)', marginBottom: 12 }}>
+          <span style={{ fontWeight: 700, color: 'var(--accent-text)' }}>Tip · </span>{tip}
+        </div>
+      )}
+      <button onClick={() => toggleSave(p.seed ? 'user_venue' : 'venue', p.id)} style={{
+        width: '100%', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+        background: saved ? 'var(--ink)' : 'var(--accent)', color: '#fff', borderRadius: 12,
+        padding: '12px 16px', fontSize: 13.5, fontWeight: 700, marginBottom: 8,
+        opacity: saved ? 0.85 : 1,
+      }}>{saved ? '✓ In My Trip' : '+ Add to My Trip'}</button>
+      <button onClick={onShowMap} style={{
+        width: '100%', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+        background: 'var(--gray-900)', color: '#fff', borderRadius: 12,
+        padding: '12px 16px', fontSize: 13.5, fontWeight: 700,
+      }}>Show on the live map</button>
+      {!p.seed && onFull && (
+        <button onClick={onFull} style={{
+          width: '100%', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+          background: 'none', color: 'var(--accent-text)', padding: '11px 16px 2px',
+          fontSize: 13, fontWeight: 700,
+        }}>Full details →</button>
+      )}
+    </>
+  )
+}
+
 function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, savedItems = {}, toggleSave = () => {} }) {
   const mapContainerRef = useRef(null)
   const mapInstanceRef  = useRef(null)
@@ -7086,8 +7363,17 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
   const [selectedVenueId, setSelectedVenueId] = useState(null)
   // Map tab has two views: the detailed neighborhood schematic and the live
   // Leaflet pin map. Arriving via "View on map" (highlight) jumps to the live map.
-  const [view, setView]             = useState('real')  // live Map is the default view
-  const [schemArea, setSchemArea]   = useState(null)
+  // MapScreen unmounts whenever "Full details" opens a venue page in this tab,
+  // losing all view state — so back landed users on the live map instead of the
+  // neighborhood list they came from. The session cache below restores the
+  // schematic view + open area sheet on remount (list view, not the card).
+  const _schemC = _mapSchemCache
+  const [view, setView]             = useState(_schemC?.view || 'real')  // live Map is the default view
+  const [schemArea, setSchemArea]   = useState(_schemC?.schemArea || null)
+  const [schemBorough, setSchemBorough] = useState(_schemC?.schemBorough || 'manhattan')  // Neighborhoods view: manhattan | brooklyn
+  const [areaSheet, setAreaSheet]   = useState(_schemC?.areaSheet || null)  // { areaId, label, picks } | null — schematic tap payoff
+  const [areaDetail, setAreaDetail] = useState(null)  // pick from the sheet → in-sheet detail card (not a page)
+  useEffect(() => { _mapSchemCache = { view, schemArea, schemBorough, areaSheet } }, [view, schemArea, schemBorough, areaSheet])
   const [userLoc, setUserLoc]       = useState(null)   // {lat,lng} | null
   const [geoStatus, setGeoStatus]   = useState('idle') // idle | locating | denied
   const userMarkerRef = useRef(null)
@@ -7192,11 +7478,26 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
   const selInfo  = selectedVenueId ? venueCoords[selectedVenueId] : null
 
   // Tap a neighborhood on the schematic → flip to the live map, centered there.
+  // Tap a neighborhood on the schematic → open the picks sheet (the payoff is
+  // "what's good there", not a bare pan). "See on live map" does the pan.
   const handleSchemSelect = (areaId) => {
     setSchemArea(areaId)
-    if (!areaId) return
-    const c = MANHATTAN_DETAIL_CENTERS[areaId]
+    setAreaDetail(null)
+    if (!areaId) { setAreaSheet(null); return }
+    setAreaSheet({ areaId, label: DETAIL_AREA_LABELS[areaId] || areaId, picks: picksForDetailArea(areaId) })
+  }
+  // "Show on live map" from a detail card — flip views, pan to the spot, and
+  // (for curated venues) open its pin card so the user lands on the answer.
+  const showPickOnMap = (p) => {
+    setAreaSheet(null); setAreaDetail(null); setView('real')
+    if (!p.seed) setSelectedVenueId(p.id)
+    const m = mapInstanceRef.current
+    if (m && typeof p.lat === 'number') setTimeout(() => { m.invalidateSize(); m.setView([p.lat, p.lng], 16) }, 60)
+  }
+  const panToArea = (areaId) => {
+    const c = MANHATTAN_DETAIL_CENTERS[areaId] || BROOKLYN_DETAIL_CENTERS[areaId]
     if (!c) return
+    setAreaSheet(null)
     setView('real')
     const m = mapInstanceRef.current
     if (m) setTimeout(() => { m.invalidateSize(); m.setView([c[0], c[1]], c[2]) }, 60)
@@ -7272,8 +7573,92 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
       <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
         <div ref={mapContainerRef} style={{ position: 'absolute', inset: 0 }} />
         {view === 'schematic' && (
-          <div style={{ position: 'absolute', inset: 0, zIndex: 600, background: 'var(--canvas)' }}>
-            <ManhattanDetailMap selectedArea={schemArea} onSelectArea={handleSchemSelect} />
+          <div style={{ position: 'absolute', inset: 0, zIndex: 1100, background: 'var(--canvas)', display: 'flex', flexDirection: 'column' }}>
+            {/* Borough toggle — Manhattan | Brooklyn */}
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0 2px', background: '#e7eef6', flexShrink: 0 }}>
+              <div role="tablist" style={{ display: 'inline-flex', background: 'rgba(255,255,255,0.75)', borderRadius: 999, padding: 3, boxShadow: '0 1px 4px rgba(29,39,51,0.10)' }}>
+                {['manhattan', 'brooklyn'].map(b => {
+                  const on = schemBorough === b
+                  return (
+                    <button key={b} role="tab" aria-selected={on}
+                      onClick={() => { setSchemBorough(b); setSchemArea(null); setAreaSheet(null); setAreaDetail(null) }}
+                      style={{
+                        border: 'none', cursor: 'pointer', padding: '6px 16px', borderRadius: 999,
+                        fontSize: 12.5, fontWeight: 700, fontFamily: 'inherit', textTransform: 'capitalize',
+                        background: on ? 'var(--gray-900)' : 'transparent',
+                        color: on ? '#fff' : 'var(--gray-500)',
+                        transition: 'background 120ms ease, color 120ms ease',
+                      }}>{b}</button>
+                  )
+                })}
+              </div>
+            </div>
+            <div style={{ flex: 1, minHeight: 0 }}>
+              {schemBorough === 'brooklyn'
+                ? <BrooklynDetailMap selectedArea={schemArea} onSelectArea={handleSchemSelect} />
+                : <ManhattanDetailMap selectedArea={schemArea} onSelectArea={handleSchemSelect} />}
+            </div>
+
+            {/* ── Area picks sheet — the tap payoff: top spots in the tapped
+                neighborhood, each opening its venue page; live map is secondary. ── */}
+            {areaSheet && (
+              <>
+                <div onClick={() => handleSchemSelect(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(15,23,42,0.28)' }} />
+                <div style={{
+                  position: 'absolute', left: 0, right: 0, bottom: 0,
+                  background: 'var(--card)', borderRadius: '18px 18px 0 0',
+                  boxShadow: '0 -10px 30px rgba(15,23,42,0.22)',
+                  padding: '14px 18px calc(14px + env(safe-area-inset-bottom, 0px))',
+                  maxHeight: '70%', overflowY: 'auto',
+                }}>
+                  <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--gray-200)', margin: '0 auto 12px' }} />
+                  {areaDetail ? (
+                    <AreaPickCard
+                      pick={areaDetail}
+                      onBack={() => setAreaDetail(null)}
+                      onShowMap={() => showPickOnMap(areaDetail)}
+                      onFull={areaDetail.seed ? null : () => onSelectVenue(areaDetail.id)}
+                      savedItems={savedItems}
+                      toggleSave={toggleSave}
+                    />
+                  ) : (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
+                        <div style={{ fontFamily: 'var(--serif)', fontSize: 20, fontWeight: 600, color: 'var(--ink)' }}>{areaSheet.label}</div>
+                        <button onClick={() => handleSchemSelect(null)} aria-label="Close" style={{ border: 'none', background: 'var(--gray-100)', borderRadius: 999, width: 28, height: 28, cursor: 'pointer', color: 'var(--gray-500)', fontSize: 14, lineHeight: 1 }}>✕</button>
+                      </div>
+                      {areaSheet.picks.length === 0 ? (
+                        <div style={{ fontSize: 13.5, color: 'var(--ink-3)', lineHeight: 1.5, padding: '4px 0 12px' }}>
+                          No curated spots mapped here yet — try the live map for everything nearby.
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+                          {areaSheet.picks.map(p => (
+                            <button key={p.id} onClick={() => setAreaDetail(p)} style={{
+                              display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left',
+                              background: 'var(--canvas)', border: '1px solid rgba(33,27,20,0.08)', borderRadius: 12,
+                              padding: '11px 14px', cursor: 'pointer', fontFamily: 'inherit',
+                            }}>
+                              <span style={{ width: 9, height: 9, borderRadius: 999, flexShrink: 0, background: p.seed ? ({ food: '#c1876b', outdoors: '#6fae8e', culture: '#8aa4c0' }[p.category] || '#b0a698') : (MAP_DOMAIN_COLORS[p.domain] || '#888') }} />
+                              <span style={{ flex: 1, minWidth: 0 }}>
+                                <span style={{ display: 'block', fontSize: 14.5, fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
+                                {p.neighborhood && <span style={{ display: 'block', fontSize: 12, color: 'var(--ink-3)', marginTop: 1 }}>{p.neighborhood}</span>}
+                              </span>
+                              <span style={{ color: 'var(--gray-300)', fontSize: 18, flexShrink: 0 }}>›</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <button onClick={() => panToArea(areaSheet.areaId)} style={{
+                        width: '100%', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                        background: 'var(--gray-900)', color: '#fff', borderRadius: 12,
+                        padding: '12px 16px', fontSize: 13.5, fontWeight: 700,
+                      }}>See {areaSheet.label} on the live map</button>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -7723,7 +8108,7 @@ function EventsBrowser({ onNavigate = () => {} }) {
                 }}>
                   <div style={{ width: 78, height: 78, flexShrink: 0, borderRadius: 12, overflow: 'hidden', background: e.color, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {img
-                      ? <img src={img} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                      ? <img src={img} alt="" loading="lazy" onError={e => { e.currentTarget.style.display = 'none' }} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                       : <span style={{ fontFamily: 'var(--serif)', fontStyle: 'italic', fontSize: 30, color: 'rgba(255,255,255,0.4)' }}>{initial}</span>}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -7917,7 +8302,7 @@ function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onV
     <div className="screen" style={{ paddingBottom: 80 }}>
       <div className="home-header">
         <div className="section-row">
-          <div className="home-wordmark">Tonight</div>
+          <div className="home-wordmark">Events</div>
           {onViewMap && (<button className="see-all" onClick={onViewMap}>Map view</button>)}
         </div>
         <div className="home-subtitle">{`${dayName} · ${displayHour}:${minute} ${ampm}`}</div>
@@ -8100,7 +8485,7 @@ function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onV
                 }}>
                   <div style={{ width: 74, height: 74, flexShrink: 0, borderRadius: 10, overflow: 'hidden', background: `linear-gradient(135deg, ${ev.color}, ${ev.color}B0)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {(() => { const img = eventHeroImage(ev); return img
-                      ? <img src={img} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                      ? <img src={img} alt="" loading="lazy" onError={e => { e.currentTarget.style.display = 'none' }} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                       : <span style={{ fontSize: 24 }} aria-hidden="true">{ev.emoji}</span> })()}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -8202,7 +8587,7 @@ function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onV
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                       }}>
                         {pick.image ? (
-                          <img src={pick.image} alt={pick.imageAlt || ''} loading="lazy"
+                          <img src={pick.image} alt={pick.imageAlt || ''} loading="lazy" onError={e => { e.currentTarget.style.display = 'none' }}
                             style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                         ) : (
                           <span style={{ fontSize: 30, lineHeight: 1, filter: 'drop-shadow(0 1px 4px rgba(0,0,0,0.18))' }}>
@@ -9023,7 +9408,7 @@ function getDayLabel(dayIndex, tripStartDate) {
 // ── Saved events — events the user added to "My Trip" (own localStorage list,
 // since dated events aren't routable venues). Re-reads on the 'nyc-saved-events'
 // signal so adds/removes anywhere reflect here live. ──
-function SavedEventsSection() {
+function SavedEventsSection({ hiddenIds = null }) {
   const [raw, setRaw] = React.useState(() => loadSavedEvents())
   const [sel, setSel] = React.useState(null)
   React.useEffect(() => {
@@ -9034,7 +9419,10 @@ function SavedEventsSection() {
   if (!raw.length) return null
   const today0 = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d })()
   const isDate = (d) => d instanceof Date && !isNaN(d)
-  const evs = raw.map(hydrateSavedEvent).sort((a, b) => {
+  // Events already pinned inside a trip day render there instead — don't double-list.
+  const visible = hiddenIds ? raw.filter(e => e && !hiddenIds.has(e.id)) : raw
+  if (!visible.length) return null
+  const evs = visible.map(hydrateSavedEvent).sort((a, b) => {
     const ad = isDate(a.date) ? a.date.getTime() : 8.64e15
     const bd = isDate(b.date) ? b.date.getTime() : 8.64e15
     return ad - bd
@@ -9068,7 +9456,7 @@ function SavedEventsSection() {
             <div key={e.id} style={{ display: 'flex', gap: 12, alignItems: 'center', background: 'var(--card)', border: '1px solid rgba(33,27,20,0.10)', borderRadius: 16, padding: 10, boxShadow: '0 4px 14px rgba(33,27,20,0.05)' }}>
               <button onClick={() => setSel(e)} style={{ flex: 1, minWidth: 0, display: 'flex', gap: 12, alignItems: 'center', textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit', background: 'none', border: 'none', padding: 0 }}>
                 <div style={{ width: 70, height: 70, flexShrink: 0, borderRadius: 12, overflow: 'hidden', background: e.color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {img ? <img src={img} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontFamily: 'var(--serif)', fontStyle: 'italic', fontSize: 28, color: 'rgba(255,255,255,0.4)' }}>{initial}</span>}
+                  {img ? <img src={img} alt="" loading="lazy" onError={e => { e.currentTarget.style.display = 'none' }} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontFamily: 'var(--serif)', fontStyle: 'italic', fontSize: 28, color: 'rgba(255,255,255,0.4)' }}>{initial}</span>}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: e.color }}>{e.kindLabel}</div>
@@ -9086,7 +9474,7 @@ function SavedEventsSection() {
   )
 }
 
-function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, setVenueNote = () => {}, userVenues = {}, removeUserVenue = () => {}, addUserVenue = () => null, addPlaceFromHeader = () => {} }) {
+function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, setVenueNote = () => {}, userVenues = {}, removeUserVenue = () => {}, addUserVenue = () => null, addPlaceFromHeader = () => {}, weather = null }) {
   // Per-meal-per-day cuisine. Keyed by `${dayIdx}:${meal}` → cuisineId. Each meal stands alone — no trip-level default.
   const [mealCuisines, setMealCuisines] = React.useState(() => {
     try { return JSON.parse(localStorage.getItem('nyc_meal_cuisines') || '{}') } catch { return {} }
@@ -9099,7 +9487,7 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
       const next = { ...prev }
       const key = `${dayIdx}:${meal}`
       if (cuisineId == null) delete next[key]; else next[key] = cuisineId
-      try { localStorage.setItem('nyc_meal_cuisines', JSON.stringify(next)) } catch {}
+      try { lsSet('nyc_meal_cuisines', JSON.stringify(next)) } catch {}
       return next
     })
   }
@@ -9127,7 +9515,7 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     setCollapsedDays(prev => {
       const next = new Set(prev)
       if (next.has(dayIdx)) next.delete(dayIdx); else next.add(dayIdx)
-      try { localStorage.setItem('nyc_collapsed_days', JSON.stringify([...next])) } catch {}
+      try { lsSet('nyc_collapsed_days', JSON.stringify([...next])) } catch {}
       return next
     })
   }
@@ -9144,12 +9532,12 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
 
   function setAndStoreTripDays(val) {
     setTripDays(val)
-    localStorage.setItem('nyc_trip_days', JSON.stringify(val))
+    lsSet('nyc_trip_days', JSON.stringify(val))
   }
 
   function setAndStoreTripStartDate(val) {
     setTripStartDate(val)
-    try { if (val) localStorage.setItem('nyc_trip_start_date', val); else localStorage.removeItem('nyc_trip_start_date') } catch {}
+    try { if (val) lsSet('nyc_trip_start_date', val); else localStorage.removeItem('nyc_trip_start_date') } catch {}
   }
 
   // Collect venue IDs: directly saved venues + venues from saved works
@@ -9181,13 +9569,13 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     const brandNew = allVenueIds.filter(id => !known.has(id))
     // Always update the known set
     const updatedKnown = new Set([...known, ...allVenueIds])
-    localStorage.setItem('nyc_plan_known', JSON.stringify([...updatedKnown]))
+    lsSet('nyc_plan_known', JSON.stringify([...updatedKnown]))
     // Add only brand-new venues to the selection
     if (brandNew.length > 0) {
       setPlanSelection(prev => {
         const next = new Set(prev)
         brandNew.forEach(id => next.add(id))
-        localStorage.setItem('nyc_plan_sel', JSON.stringify([...next]))
+        lsSet('nyc_plan_sel', JSON.stringify([...next]))
         return next
       })
     }
@@ -9198,7 +9586,7 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     setPlanSelection(prev => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id); else next.add(id)
-      localStorage.setItem('nyc_plan_sel', JSON.stringify([...next]))
+      lsSet('nyc_plan_sel', JSON.stringify([...next]))
       return next
     })
     // Seed-imported user_venues (and any user_venue created outside the
@@ -9225,7 +9613,7 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
   function moveStopToDay(venueId, targetDayIdx) {
     const next = { ...stopDayOverrides, [venueId]: targetDayIdx }
     setStopDayOverrides(next)
-    try { localStorage.setItem('nyc_stop_day_overrides', JSON.stringify(next)) } catch {}
+    try { lsSet('nyc_stop_day_overrides', JSON.stringify(next)) } catch {}
   }
 
   function getSwapCandidates(domain, excludeIds) {
@@ -9422,6 +9810,11 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     Afternoon: { bg: '#dbeafe', text: '#1e40af', dot: '#3b82f6' },
     Evening:   { bg: '#ede9fe', text: '#5b21b6', dot: '#7c3aed' },
   }
+  // The DISPLAYED period always derives from the sequenced clock time, so the
+  // label can never contradict the time next to it (< 12 Morning, 12–5 Afternoon,
+  // ≥ 5pm Evening). stop.period stays the static venue attribute for scheduling.
+  const periodForClock = (h, fallback) =>
+    h == null ? fallback : h < 12 ? 'Morning' : h < 17 ? 'Afternoon' : 'Evening'
 
   const schedulingRef = React.useRef(null)
 
@@ -9478,11 +9871,46 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     try { return JSON.parse(localStorage.getItem('nyc_stop_order') || 'null') } catch { return null }
   })
 
+  // Saved events (from the Events tab) — kept in sync so dated ones can render
+  // pinned inside their trip day (see eventsByDay below).
+  const [savedEvts, setSavedEvts] = React.useState(() => loadSavedEvents())
+  React.useEffect(() => {
+    const refresh = () => setSavedEvts(loadSavedEvents())
+    window.addEventListener('nyc-saved-events', refresh)
+    return () => window.removeEventListener('nyc-saved-events', refresh)
+  }, [])
+
+  // 16-day NYC daily forecast — fetched once an arrival date exists, so each
+  // trip day's header can show its own weather without leaving the planner.
+  const [forecast, setForecast] = React.useState(null) // { 'YYYY-MM-DD': {code,hi,lo} } | null
+  React.useEffect(() => {
+    if (!tripStartDate) return
+    let alive = true
+    fetch('https://api.open-meteo.com/v1/forecast?latitude=40.7128&longitude=-74.006&daily=weather_code,temperature_2m_max,temperature_2m_min&forecast_days=16&temperature_unit=fahrenheit&timezone=America%2FNew_York')
+      .then(r => r.json())
+      .then(d => {
+        if (!alive || !d?.daily?.time) return
+        const map = {}
+        d.daily.time.forEach((t, i) => {
+          map[t] = { code: d.daily.weather_code[i], hi: Math.round(d.daily.temperature_2m_max[i]), lo: Math.round(d.daily.temperature_2m_min[i]) }
+        })
+        setForecast(map)
+      }).catch(() => {})
+    return () => { alive = false }
+  }, [tripStartDate])
+  const forecastForDay = (dayIdx) => {
+    if (!forecast || !tripStartDate) return null
+    const p = tripStartDate.split('-').map(Number)
+    const d = new Date(p[0], p[1] - 1, p[2] + dayIdx)
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    return forecast[key] || null
+  }
+
   function toggleChecked(id) {
     setCheckedStops(prev => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id); else next.add(id)
-      try { localStorage.setItem('nyc_checked_stops', JSON.stringify([...next])) } catch {}
+      try { lsSet('nyc_checked_stops', JSON.stringify([...next])) } catch {}
       return next
     })
   }
@@ -9497,7 +9925,25 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     if (to < 0 || to >= next.length) return
     ;[next[idx], next[to]] = [next[to], next[idx]]
     setStopOrderOverride(next)
-    try { localStorage.setItem('nyc_stop_order', JSON.stringify(next)) } catch {}
+    try { lsSet('nyc_stop_order', JSON.stringify(next)) } catch {}
+  }
+
+  // Visible ↑/↓ reorder — same order store the drag writes to (nyc_day_item_orders),
+  // so tap-nudge and drag stay perfectly interchangeable. Works for stops and meals.
+  function nudgeItem(dayIdx, itemId, dir, defaultItemIds) {
+    const saved = dayItemOrders[dayIdx]
+    const base = saved
+      ? [...saved.filter(id => defaultItemIds.includes(id)), ...defaultItemIds.filter(id => !saved.includes(id))]
+      : [...defaultItemIds]
+    const idx = base.indexOf(itemId)
+    const to = idx + dir
+    if (idx === -1 || to < 0 || to >= base.length) return
+    ;[base[idx], base[to]] = [base[to], base[idx]]
+    setDayItemOrders(prev => {
+      const next = { ...prev, [dayIdx]: base }
+      try { lsSet('nyc_day_item_orders', JSON.stringify(next)) } catch {}
+      return next
+    })
   }
 
   // ── Drag-to-reorder state ────────────────────────────────────────────
@@ -9631,11 +10077,11 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
         // Same-day reorder: save the full item order (stops + meals) for this day.
         const nextDayOrders = { ...dayItemOrders, [thisDayIdx]: dragOrder }
         setDayItemOrders(nextDayOrders)
-        try { localStorage.setItem('nyc_day_item_orders', JSON.stringify(nextDayOrders)) } catch {}
+        try { lsSet('nyc_day_item_orders', JSON.stringify(nextDayOrders)) } catch {}
         // Also sync stop-only order to stopOrderOverride for today-checklist.
         const stopIds = dragOrder.filter(id => id !== '__lunch__' && id !== '__dinner__')
         setStopOrderOverride(stopIds)
-        try { localStorage.setItem('nyc_stop_order', JSON.stringify(stopIds)) } catch {}
+        try { lsSet('nyc_stop_order', JSON.stringify(stopIds)) } catch {}
       }
     }
     dragTimerRef.current = null
@@ -9724,6 +10170,10 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
       const firstStop = reorderedItems.find(it => it.type === 'stop')?.stop
       let clock = firstStop ? firstStop.startHour : 10
       let prevId = null
+      // A stop never starts before its period's window opens (Afternoon ≥ 12pm,
+      // Evening ≥ 5pm) — otherwise back-to-back packing could clock an evening
+      // venue at 1:50pm while its label still said "Evening".
+      const periodFloor = { Morning: 0, Afternoon: 12, Evening: 17 }
       reorderedItems.forEach(it => {
         if (it.type === 'restaurant') { clock += 1.25; return }
         const s = it.stop
@@ -9731,6 +10181,7 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
           const t = estimateTravel(prevId, s.id)
           clock += (t?.mins ?? 12) / 60
         }
+        clock = Math.max(clock, periodFloor[s.period] ?? 0)
         stopClock[s.id] = clock
         clock += (typeof s.duration === 'number' ? s.duration : 1)
         prevId = s.id
@@ -9766,8 +10217,10 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
           return
         }
         const s = it.stop
-        const t = fmtHour(dp.stopClock[s.id] ?? s.startHour)
-        const meta = [s.period, s.neighborhood].filter(Boolean).map(esc).join(' · ')
+        // Match the in-app cards: period derived from the sequenced clock, no
+        // per-stop times (users put exact times in their notes).
+        const t = periodForClock(dp.stopClock[s.id] ?? s.startHour, s.period)
+        const meta = [s.neighborhood].filter(Boolean).map(esc).join(' · ')
         const note = (venueNotes[s.id] || '').trim()
         rows += `<div class="stop"><div class="time">${esc(t)}</div><div class="b">`
           + `<div class="name">${esc(s.name)}</div>`
@@ -9819,12 +10272,40 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
     return n + (hasDaytime ? 1 : 0) + (hasEve ? 1 : 0)  // lunch only on daytime days + dinner if any evening
   }, 0)
 
+  // ── Saved events → trip days. With an arrival date set, any saved event whose
+  // date lands inside the trip renders pinned inside that day (it's date-fixed —
+  // the one thing the planner can't move). Without a date, events stay in the
+  // "Saved events" section as before. Plain computation, no hooks — safe here.
+  const eventsByDay = (() => {
+    if (!tripStartDate) return {}
+    const parts = tripStartDate.split('-').map(Number)
+    const start = new Date(parts[0], parts[1] - 1, parts[2]); start.setHours(0, 0, 0, 0)
+    const map = {}
+    savedEvts.map(hydrateSavedEvent).forEach(e => {
+      if (!(e.date instanceof Date) || isNaN(e.date)) return
+      const d0 = new Date(e.date); d0.setHours(0, 0, 0, 0)
+      const idx = Math.round((d0 - start) / 86400000)
+      if (idx >= 0 && idx < days.length) { (map[idx] = map[idx] || []).push(e) }
+    })
+    return map
+  })()
+  const plannedEventIds = new Set(Object.values(eventsByDay).flat().map(e => e.id))
+
   return (
     <div className="screen">
 
       {/* ══ Header — branded to match Explore / Tonight ══ */}
       <div className="home-header">
-        <div className="home-wordmark">My Trip</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <div className="home-wordmark">My Trip</div>
+          {/* Current conditions — same source as the home header, so no tab-hopping. */}
+          {weather && (
+            <div aria-label={`Current weather: ${weather.temp} degrees`} style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+              <span style={{ fontSize: 18, lineHeight: 1 }} aria-hidden="true">{weatherEmoji(weather.code, weather.isDay)}</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', lineHeight: 1 }}>{weather.temp}°</span>
+            </div>
+          )}
+        </div>
         <div className="home-subtitle">
           {totalStops === 0
             ? 'Save venues and we’ll plan your day'
@@ -9835,8 +10316,55 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
         </div>
       </div>
 
-      {/* ══ Saved events — concerts/shows/street events added from Tonight ══ */}
-      <SavedEventsSection />
+      {/* ══ Trip basics — dates + length, promoted out of the settings drawer.
+          These DEFINE the trip; hiding them behind "⚙ Trip settings" meant many
+          users never discovered real day labels or the day-count control. ══ */}
+      <div style={{ padding: '4px 20px 14px', borderBottom: '1px solid var(--gray-100)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-400)', flexShrink: 0, width: 58 }}>Arriving</span>
+          <input
+            type="date"
+            value={tripStartDate}
+            onChange={e => setAndStoreTripStartDate(e.target.value)}
+            style={{
+              flex: 1, padding: '6px 10px', borderRadius: 10,
+              border: '1.5px solid var(--gray-200)', fontSize: 12.5,
+              color: tripStartDate ? 'var(--gray-900)' : 'var(--gray-400)',
+              background: 'var(--white)', outline: 'none', fontFamily: 'inherit',
+            }}
+          />
+          {tripStartDate && (
+            <button onClick={() => setAndStoreTripStartDate('')} style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              fontSize: 11, color: 'var(--gray-400)', padding: '4px 6px', borderRadius: 8, flexShrink: 0,
+            }}>✕</button>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-400)', flexShrink: 0, width: 58 }}>Days</span>
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }} className="hide-scrollbar">
+            {[null, 1, 2, 3, 4, 5, 6, 7].map(n => {
+              const active = tripDays === n
+              return (
+                <button key={n ?? 'auto'} onClick={() => setAndStoreTripDays(n)} style={{
+                  flexShrink: 0, padding: '5px 12px', borderRadius: 20, border: 'none', cursor: 'pointer',
+                  fontSize: 12, fontWeight: active ? 700 : 500,
+                  background: active ? 'var(--gray-900)' : 'var(--gray-100)',
+                  color: active ? '#fff' : 'var(--gray-500)',
+                  transition: 'all 0.15s ease',
+                }}>
+                  {n === null ? 'Auto' : n}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* ══ Saved events — concerts/shows/street events added from Tonight.
+          Events dated inside the trip window render pinned in their day below;
+          this section keeps only the ones that don't land on a trip day. ══ */}
+      <SavedEventsSection hiddenIds={plannedEventIds} />
 
       {/* ══ Your Places — user-added venues. They auto-flow into the itinerary below.
           Split into manual (inline) and imported (foldable) so a 62-entry Google
@@ -10164,13 +10692,12 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
           padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 10,
           textAlign: 'left',
         }}>
-          <span style={{ fontSize: 16 }}>⚙</span>
+          <span style={{ fontSize: 16 }}>✓</span>
           <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-600)' }}>
-            Trip settings
+            Choose stops
           </span>
           <span style={{ fontSize: 11, color: 'var(--gray-400)', marginLeft: 4 }}>
-            {tripDays ? `${tripDays} day${tripDays !== 1 ? 's' : ''}` : 'Auto'}
-            {tripStartDate ? ' · arriving ' + tripStartDate.slice(5) : ''}
+            {venueIds.length} of {allVenueIds.length} in plan
           </span>
           <span style={{ marginLeft: 'auto', fontSize: 16, color: 'var(--gray-400)', transition: 'transform 200ms', transform: settingsOpen ? 'rotate(180deg)' : 'rotate(0)' }}>
             ⌄
@@ -10179,56 +10706,8 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
 
         {settingsOpen && (
           <div style={{ padding: '4px 20px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {/* Trip length */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-400)', flexShrink: 0, width: 78 }}>
-                Length
-              </span>
-              <div style={{ display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
-                {[null, 1, 2, 3, 4, 5, 6, 7].map(n => {
-                  const active = tripDays === n
-                  return (
-                    <button key={n ?? 'auto'} onClick={() => setAndStoreTripDays(n)} style={{
-                      flexShrink: 0, padding: '5px 13px', borderRadius: 20, border: 'none', cursor: 'pointer',
-                      fontSize: 12, fontWeight: active ? 700 : 500,
-                      background: active ? 'var(--gray-900)' : 'var(--gray-100)',
-                      color: active ? '#fff' : 'var(--gray-500)',
-                      transition: 'all 0.15s ease',
-                    }}>
-                      {n === null ? 'Auto' : n === 1 ? '1 day' : `${n} days`}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            {/* Arrival */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-400)', flexShrink: 0, width: 78 }}>
-                Arrival
-              </span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
-                <input
-                  type="date"
-                  value={tripStartDate}
-                  onChange={e => setAndStoreTripStartDate(e.target.value)}
-                  style={{
-                    flex: 1, padding: '5px 10px', borderRadius: 10,
-                    border: '1.5px solid var(--gray-200)', fontSize: 12,
-                    color: tripStartDate ? 'var(--gray-900)' : 'var(--gray-400)',
-                    background: 'var(--white)', outline: 'none', fontFamily: 'inherit',
-                  }}
-                />
-                {tripStartDate && (
-                  <button onClick={() => setAndStoreTripStartDate('')} style={{
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    fontSize: 11, color: 'var(--gray-400)', padding: '4px 8px',
-                    borderRadius: 8, flexShrink: 0,
-                  }}>✕ Clear</button>
-                )}
-              </div>
-            </div>
-
+            {/* Length + Arrival moved to the visible "Trip basics" strip at the top of
+                the page — they define the trip and shouldn't hide in a drawer. */}
             {/* Cuisine selection moved to each meal card — every meal can have its own cuisine now. */}
 
             {/* Planning with — 2-column grid for stop chips (cleaner alignment than free wrap) */}
@@ -10271,7 +10750,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                   })}
                 </div>
                 {allVenueIds.length > 1 && venueIds.length < allVenueIds.length && (
-                  <button onClick={() => { const s = new Set(allVenueIds); setPlanSelection(s); localStorage.setItem('nyc_plan_sel', JSON.stringify([...s])) }}
+                  <button onClick={() => { const s = new Set(allVenueIds); setPlanSelection(s); lsSet('nyc_plan_sel', JSON.stringify([...s])) }}
                     style={{ fontSize: 11, color: 'var(--gray-400)', background: 'none', border: 'none', cursor: 'pointer', padding: '8px 0 0', textDecoration: 'underline' }}>
                     Select all
                   </button>
@@ -10379,7 +10858,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                         {DOMAIN_ICONS[stop.domain] || '📍'} {stop.name}
                       </div>
                       <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 2 }}>
-                        {stop.period} · {fmtHour(stopClock[stop.id] ?? stop.startHour)} · {stop.neighborhood}
+                        {periodForClock(stopClock[stop.id] ?? stop.startHour, stop.period)} · {stop.neighborhood}
                       </div>
                     </div>
                   </button>
@@ -10440,6 +10919,8 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
           : dayPlan.hasEvening ? 'Dinner'
           : dayPlan.hasDaytime ? 'Lunch' : ''
         if (mealLabel) summaryBits.push(mealLabel)
+        const dayEventCount = (eventsByDay[dayIdx] || []).length
+        if (dayEventCount) summaryBits.push(`${dayEventCount} event${dayEventCount !== 1 ? 's' : ''}`)
 
         const isCollapsed = collapsedDays.has(dayIdx)
         // Highlight this day's container when it's the cross-day drop target.
@@ -10480,6 +10961,16 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                 letterSpacing: '0.04em',
               }}>{getDayLabel(dayIdx, tripStartDate).toUpperCase()}</div>
               <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-700)' }}>{day.area}</div>
+              {/* Per-day forecast — needs an arrival date; silently absent beyond the 16-day window. */}
+              {(() => {
+                const fx = forecastForDay(dayIdx)
+                return fx ? (
+                  <div aria-label={`Forecast: high ${fx.hi}, low ${fx.lo}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                    <span style={{ fontSize: 14, lineHeight: 1 }} aria-hidden="true">{weatherEmoji(fx.code, 1)}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-600)', lineHeight: 1 }}>{fx.hi}°<span style={{ fontWeight: 500, color: 'var(--gray-400)' }}>/{fx.lo}°</span></span>
+                  </div>
+                ) : null
+              })()}
               {dayIdx === 0 && (
                 <div style={{
                   marginLeft: 'auto', fontSize: 11, color: 'var(--gray-400)',
@@ -10521,37 +11012,49 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                       key={`rest-${item.meal}`}
                       ref={el => { if (el) stopCardRefs.current[mealId] = el; else delete stopCardRefs.current[mealId] }}
                       style={{
-                        background: dragId === mealId ? 'var(--gray-50)' : 'var(--white)',
-                        border: dragId === mealId ? '2px solid var(--gray-400)' : '1px solid var(--gray-200)',
+                        background: dragId === mealId ? 'var(--gray-100)' : 'var(--card)',
+                        border: dragId === mealId ? '2px solid var(--gray-400)' : '1px solid rgba(33,27,20,0.10)',
                         borderRadius: 14, padding: '14px 16px 14px 36px',
                         display: 'flex', flexDirection: 'column', gap: 12,
                         position: 'relative',
                         opacity: dragId !== null && dragId !== mealId ? 0.55 : 1,
                         transform: dragId === mealId ? 'scale(1.025)' : 'scale(1)',
-                        boxShadow: dragId === mealId ? '0 8px 24px rgba(0,0,0,0.18)' : 'none',
+                        boxShadow: dragId === mealId ? '0 8px 24px rgba(0,0,0,0.18)' : '0 4px 14px rgba(33,27,20,0.05)',
                         transition: dragId ? 'opacity 0.1s' : 'transform 0.18s, opacity 0.18s, box-shadow 0.18s',
                         userSelect: 'none', WebkitUserSelect: 'none',
                         zIndex: dragId === mealId ? 10 : 'auto',
                       }}
                     >
-                      {/* Drag handle — always visible. Touching here starts an immediate drag. */}
-                      <div
-                        onTouchStart={e => { e.stopPropagation(); onItemTouchStart(e, mealId, dayIdx, defaultItemIds) }}
-                        onTouchMove={e => onItemTouchMove(e, mealId)}
-                        onTouchEnd={() => onItemTouchEnd(mealId, dayIdx)}
-                        onTouchCancel={() => onItemTouchEnd(mealId, dayIdx)}
-                        onMouseDown={e => { e.stopPropagation(); e.preventDefault(); onItemTouchStart(e, mealId, dayIdx, defaultItemIds) }}
-                        style={{
-                          position: 'absolute', top: 0, left: 0, bottom: 0,
-                          width: 30, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          color: dragId === mealId ? 'var(--gray-700)' : 'var(--gray-300)',
-                          fontSize: 18, userSelect: 'none', WebkitUserSelect: 'none',
-                          letterSpacing: '-1px', cursor: dragId === mealId ? 'grabbing' : 'grab',
-                          touchAction: 'none',
-                        }}
-                        aria-label="Drag to reorder"
-                      >
-                        ⠿
+                      {/* Left rail — visible ↑/↓ nudge buttons around the drag grip, so
+                          reordering never depends on discovering the press-and-hold. */}
+                      <div style={{
+                        position: 'absolute', top: 0, left: 0, bottom: 0, width: 30,
+                        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
+                      }}>
+                        <button onClick={() => nudgeItem(dayIdx, mealId, -1, defaultItemIds)} aria-label="Move up" style={{
+                          border: 'none', background: 'none', cursor: 'pointer', padding: '3px 6px',
+                          fontSize: 10, color: 'var(--gray-400)', lineHeight: 1,
+                        }}>▲</button>
+                        <div
+                          onTouchStart={e => { e.stopPropagation(); onItemTouchStart(e, mealId, dayIdx, defaultItemIds) }}
+                          onTouchMove={e => onItemTouchMove(e, mealId)}
+                          onTouchEnd={() => onItemTouchEnd(mealId, dayIdx)}
+                          onTouchCancel={() => onItemTouchEnd(mealId, dayIdx)}
+                          onMouseDown={e => { e.stopPropagation(); e.preventDefault(); onItemTouchStart(e, mealId, dayIdx, defaultItemIds) }}
+                          style={{
+                            color: dragId === mealId ? 'var(--gray-700)' : 'var(--gray-300)',
+                            fontSize: 18, userSelect: 'none', WebkitUserSelect: 'none',
+                            letterSpacing: '-1px', cursor: dragId === mealId ? 'grabbing' : 'grab',
+                            touchAction: 'none', padding: '2px 6px',
+                          }}
+                          aria-label="Drag to reorder"
+                        >
+                          ⠿
+                        </div>
+                        <button onClick={() => nudgeItem(dayIdx, mealId, 1, defaultItemIds)} aria-label="Move down" style={{
+                          border: 'none', background: 'none', cursor: 'pointer', padding: '3px 6px',
+                          fontSize: 10, color: 'var(--gray-400)', lineHeight: 1,
+                        }}>▼</button>
                       </div>
                       {/* Meal label — cuisine badge tapped opens an inline picker FOR THIS MEAL on THIS DAY only. */}
                       {(() => {
@@ -10627,7 +11130,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                       {/* Restaurant card — auto-filled with the nearest good spot; cuisine optional */}
                       {restaurant && (
                         <div style={{
-                          background: 'var(--gray-50)', border: '1px solid var(--gray-200)',
+                          background: 'var(--canvas)', border: '1px solid rgba(33,27,20,0.08)',
                           borderRadius: 12, padding: '14px 15px',
                         }}>
                           <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gray-900)', marginBottom: 3, lineHeight: 1.3 }}>
@@ -10674,7 +11177,8 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
 
                 // Normal stop card
                 const stop = item.stop
-                const pc = PERIOD_COLORS[stop.period] || PERIOD_COLORS.Afternoon
+                const shownPeriod = periodForClock(stopClock[stop.id] ?? stop.startHour, stop.period)
+                const pc = PERIOD_COLORS[shownPeriod] || PERIOD_COLORS.Afternoon
                 const bookUrl = stop.nowPlaying?.bookingUrl || stop.ticketUrl || stop.scheduleUrl
                 const stopPosition = (stopOrderOverride || allStopIds).indexOf(stop.id)
                 const isFirst = stopPosition === 0
@@ -10705,39 +11209,51 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                     key={stop.id}
                     ref={el => { if (el) stopCardRefs.current[stop.id] = el; else delete stopCardRefs.current[stop.id] }}
                     style={{
-                      background: dragId === stop.id ? 'var(--gray-50)' : 'var(--white)',
-                      border: dragId === stop.id ? '2px solid var(--gray-400)' : '1px solid var(--gray-200)',
+                      background: dragId === stop.id ? 'var(--gray-100)' : 'var(--card)',
+                      border: dragId === stop.id ? '2px solid var(--gray-400)' : '1px solid rgba(33,27,20,0.10)',
                       borderRadius: 14,
                       overflow: 'hidden',
                       position: 'relative',
                       opacity: dragId !== null && dragId !== stop.id ? 0.55 : 1,
                       transform: dragId === stop.id ? 'scale(1.025)' : 'scale(1)',
-                      boxShadow: dragId === stop.id ? '0 8px 24px rgba(0,0,0,0.18)' : 'none',
+                      boxShadow: dragId === stop.id ? '0 8px 24px rgba(0,0,0,0.18)' : '0 4px 14px rgba(33,27,20,0.05)',
                       transition: dragId ? 'opacity 0.1s' : 'transform 0.18s, opacity 0.18s, box-shadow 0.18s',
                       userSelect: 'none', WebkitUserSelect: 'none',
                       zIndex: dragId === stop.id ? 10 : 'auto',
                       paddingLeft: 28,  // make room for drag handle
                     }}
                   >
-                    {/* Drag handle — always visible. Pressing here starts a drag immediately (Wanderlog-style). */}
-                    <div
-                      onTouchStart={e => { e.stopPropagation(); onItemTouchStart(e, stop.id, dayIdx, defaultItemIds) }}
-                      onTouchMove={e => onItemTouchMove(e, stop.id)}
-                      onTouchEnd={() => onItemTouchEnd(stop.id, dayIdx)}
-                      onTouchCancel={() => onItemTouchEnd(stop.id, dayIdx)}
-                      onMouseDown={e => { e.stopPropagation(); e.preventDefault(); onItemTouchStart(e, stop.id, dayIdx, defaultItemIds) }}
-                      style={{
-                        position: 'absolute', top: 0, left: 0, bottom: 0, zIndex: 5,
-                        width: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        color: dragId === stop.id ? 'var(--gray-700)' : 'var(--gray-300)',
-                        background: dragId === stop.id ? 'var(--gray-50)' : 'transparent',
-                        fontSize: 18, userSelect: 'none', WebkitUserSelect: 'none',
-                        letterSpacing: '-1px', cursor: dragId === stop.id ? 'grabbing' : 'grab',
-                        touchAction: 'none',
-                      }}
-                      aria-label="Drag to reorder"
-                    >
-                      ⠿
+                    {/* Left rail — ↑/↓ nudge buttons + drag grip (drag stays primary;
+                        the arrows make reorder discoverable without the long-press). */}
+                    <div style={{
+                      position: 'absolute', top: 0, left: 0, bottom: 0, zIndex: 5, width: 28,
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
+                      background: dragId === stop.id ? 'var(--gray-50)' : 'transparent',
+                    }}>
+                      <button onClick={e => { e.stopPropagation(); nudgeItem(dayIdx, stop.id, -1, defaultItemIds) }} aria-label="Move up" style={{
+                        border: 'none', background: 'none', cursor: 'pointer', padding: '3px 5px',
+                        fontSize: 10, color: 'var(--gray-400)', lineHeight: 1,
+                      }}>▲</button>
+                      <div
+                        onTouchStart={e => { e.stopPropagation(); onItemTouchStart(e, stop.id, dayIdx, defaultItemIds) }}
+                        onTouchMove={e => onItemTouchMove(e, stop.id)}
+                        onTouchEnd={() => onItemTouchEnd(stop.id, dayIdx)}
+                        onTouchCancel={() => onItemTouchEnd(stop.id, dayIdx)}
+                        onMouseDown={e => { e.stopPropagation(); e.preventDefault(); onItemTouchStart(e, stop.id, dayIdx, defaultItemIds) }}
+                        style={{
+                          color: dragId === stop.id ? 'var(--gray-700)' : 'var(--gray-300)',
+                          fontSize: 18, userSelect: 'none', WebkitUserSelect: 'none',
+                          letterSpacing: '-1px', cursor: dragId === stop.id ? 'grabbing' : 'grab',
+                          touchAction: 'none', padding: '2px 5px',
+                        }}
+                        aria-label="Drag to reorder"
+                      >
+                        ⠿
+                      </div>
+                      <button onClick={e => { e.stopPropagation(); nudgeItem(dayIdx, stop.id, 1, defaultItemIds) }} aria-label="Move down" style={{
+                        border: 'none', background: 'none', cursor: 'pointer', padding: '3px 5px',
+                        fontSize: 10, color: 'var(--gray-400)', lineHeight: 1,
+                      }}>▼</button>
                     </div>
                     {/* Period + time bar */}
                     <div style={{
@@ -10750,7 +11266,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                         background: pc.dot, display: 'inline-block', flexShrink: 0,
                       }} />
                       <span style={{ fontSize: 11, fontWeight: 700, color: pc.text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                        {stop.period} · {fmtHour(stopClock[stop.id] ?? stop.startHour)}
+                        {shownPeriod}
                       </span>
                       <span style={{ marginLeft: 'auto', fontSize: 11, color: pc.text, opacity: 0.7 }}>
                         ~{stop.duration < 1 ? `${Math.round(stop.duration * 60)} min` : stop.duration % 1 === 0 ? `${stop.duration} hrs` : `${stop.duration.toFixed(1)} hrs`}
@@ -10922,7 +11438,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                               <button onClick={() => {
                                 const { [stop.id]: _, ...rest } = stopDayOverrides
                                 setStopDayOverrides(rest)
-                                try { localStorage.setItem('nyc_stop_day_overrides', JSON.stringify(rest)) } catch {}
+                                try { lsSet('nyc_stop_day_overrides', JSON.stringify(rest)) } catch {}
                               }} style={{
                                 marginLeft: 'auto', fontSize: 11, fontWeight: 500, padding: '4px 8px',
                                 borderRadius: 8, border: 'none', cursor: 'pointer',
@@ -10942,6 +11458,38 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
             </div>
               )
             })()}
+
+            {/* ── Pinned events — saved events dated on this trip day. Date-fixed,
+                so no drag handle: the planner works around them. ── */}
+            {!isCollapsed && (eventsByDay[dayIdx] || []).map(ev => {
+              const d = ev.date
+              const hasTime = d instanceof Date && !isNaN(d) && (d.getHours() || d.getMinutes())
+              const time = hasTime ? `${(d.getHours() % 12) || 12}${d.getMinutes() ? ':' + String(d.getMinutes()).padStart(2, '0') : ''}${d.getHours() < 12 ? 'am' : 'pm'}` : 'Evening'
+              return (
+                <div key={'ev-' + ev.id} style={{
+                  margin: '0 0 10px', borderRadius: 14, overflow: 'hidden',
+                  border: '1px solid rgba(190,77,43,0.25)', background: 'var(--card)',
+                  boxShadow: '0 4px 14px rgba(33,27,20,0.05)',
+                }}>
+                  <div style={{ background: 'rgba(190,77,43,0.10)', padding: '7px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 12 }}>🎟</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-text)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      Your event · {time}
+                    </span>
+                    <button onClick={() => toggleEventSaved(ev)} aria-label="Remove event from trip" style={{
+                      marginLeft: 'auto', border: 'none', background: 'none', cursor: 'pointer',
+                      color: 'var(--accent-text)', fontSize: 13, lineHeight: 1, padding: 2, opacity: 0.7,
+                    }}>✕</button>
+                  </div>
+                  <div style={{ padding: '10px 14px' }}>
+                    <div style={{ fontFamily: 'var(--serif)', fontSize: 16, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.25 }}>{ev.title}</div>
+                    {(ev.location || ev.kindLabel) && (
+                      <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 3 }}>{[ev.kindLabel, ev.location].filter(Boolean).join(' · ')}</div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
 
             {/* Inline "Add a place" — Wanderlog-style. Appears at the bottom of each
                 expanded day so users can search-and-insert a venue without first having
@@ -11012,7 +11560,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
             {/* Save plan */}
             <button
               onClick={() => {
-                localStorage.setItem('nyc_plan_sel',   JSON.stringify(venueIds))
+                lsSet('nyc_plan_sel',   JSON.stringify(venueIds))
                 const snap = {
                   savedAt: Date.now(),
                   venueIds,
@@ -11026,7 +11574,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                   lunchRestaurants: Object.fromEntries(Object.entries(lunchRestaurants).map(([k,r]) => [k, r ? { id: r.id, name: r.name, price: r.price, neighborhood: r.neighborhood, reservationUrl: r.reservationUrl, mapsUrl: r.mapsUrl } : null])),
                   dinnerRestaurants: Object.fromEntries(Object.entries(dinnerRestaurants).map(([k,r]) => [k, r ? { id: r.id, name: r.name, price: r.price, neighborhood: r.neighborhood, reservationUrl: r.reservationUrl, mapsUrl: r.mapsUrl } : null])),
                 }
-                localStorage.setItem('nyc_plan_snapshot', JSON.stringify(snap))
+                lsSet('nyc_plan_snapshot', JSON.stringify(snap))
                 setSavedPlanView(true)
               }}
               style={{
@@ -11118,7 +11666,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                       <button key={id} onClick={() => {
                         const next = { ...venueSwaps, [swapModal.venueId]: id }
                         setVenueSwaps(next)
-                        try { localStorage.setItem('nyc_venue_swaps', JSON.stringify(next)) } catch {}
+                        try { lsSet('nyc_venue_swaps', JSON.stringify(next)) } catch {}
                         setSwapModal(null)
                       }} style={{
                         display: 'flex', alignItems: 'center', gap: 12,
@@ -11146,7 +11694,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                   const next = { ...venueSwaps }
                   delete next[swapModal.venueId]
                   setVenueSwaps(next)
-                  try { localStorage.setItem('nyc_venue_swaps', JSON.stringify(next)) } catch {}
+                  try { lsSet('nyc_venue_swaps', JSON.stringify(next)) } catch {}
                   setSwapModal(null)
                 }} style={{
                   marginTop: 16, width: '100%', fontSize: 13, color: 'var(--gray-400)',
@@ -11259,7 +11807,7 @@ function SavedScreen({ savedItems, onSelect, toggleSave, onPlan, venueNotes = {}
     if (next.has(venueId)) next.delete(venueId); else next.add(venueId)
     const arr = [...next]
     setPlanSelArr(arr)
-    try { localStorage.setItem('nyc_plan_sel', JSON.stringify(arr)) } catch {}
+    try { lsSet('nyc_plan_sel', JSON.stringify(arr)) } catch {}
   }
 
   const DOMAIN_META = {
@@ -13561,7 +14109,7 @@ export default function App() {
     catch { return false }
   })
   function dismissOnboarding() {
-    try { localStorage.setItem('nyc_onboarded_v1', '1') } catch {}
+    try { lsSet('nyc_onboarded_v1', '1') } catch {}
     setShowOnboarding(false)
   }
 
@@ -13585,7 +14133,7 @@ export default function App() {
         if (!alive) return
         const loc = { lat, lng }
         setUserLoc(loc)
-        try { localStorage.setItem('nyc_user_loc', JSON.stringify(loc)) } catch {}
+        try { lsSet('nyc_user_loc', JSON.stringify(loc)) } catch {}
       })
       .catch(() => {})
     return () => { alive = false }
@@ -13650,7 +14198,7 @@ export default function App() {
         if (id.startsWith('seed_') && !seedIds.has(id)) { delete next[id]; changed = true }
       }
       if (!changed) return prev
-      try { localStorage.setItem('nyc_user_venues', JSON.stringify(next)) } catch {}
+      try { lsSet('nyc_user_venues', JSON.stringify(next)) } catch {}
       return next
     })
   }, [])
@@ -13659,14 +14207,14 @@ export default function App() {
     const id = 'user_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6)
     setUserVenues(prev => {
       const next = { ...prev, [id]: { id, isCustom: true, savedAt: Date.now(), ...data } }
-      try { localStorage.setItem('nyc_user_venues', JSON.stringify(next)) } catch {}
+      try { lsSet('nyc_user_venues', JSON.stringify(next)) } catch {}
       return next
     })
     // Auto-save so it shows in the saved count + My Trip right away.
     setSavedItems(prev => {
       const key = `user_venue:${id}`
       const next = { ...prev, [key]: { type: 'user_venue', id, savedAt: Date.now() } }
-      try { localStorage.setItem('nyc_saved', JSON.stringify(next)) } catch {}
+      try { lsSet('nyc_saved', JSON.stringify(next)) } catch {}
       return next
     })
     return id
@@ -13674,14 +14222,14 @@ export default function App() {
   function removeUserVenue(id) {
     setUserVenues(prev => {
       const { [id]: _, ...rest } = prev
-      try { localStorage.setItem('nyc_user_venues', JSON.stringify(rest)) } catch {}
+      try { lsSet('nyc_user_venues', JSON.stringify(rest)) } catch {}
       return rest
     })
     setSavedItems(prev => {
       const key = `user_venue:${id}`
       if (!prev[key]) return prev
       const { [key]: _, ...rest } = prev
-      try { localStorage.setItem('nyc_saved', JSON.stringify(rest)) } catch {}
+      try { lsSet('nyc_saved', JSON.stringify(rest)) } catch {}
       return rest
     })
   }
@@ -13750,22 +14298,22 @@ export default function App() {
       ...ids,
     ])]
     try {
-      localStorage.setItem('nyc_plan_sel', JSON.stringify(ids))
-      localStorage.setItem('nyc_plan_known', JSON.stringify(allKnown))
+      lsSet('nyc_plan_sel', JSON.stringify(ids))
+      lsSet('nyc_plan_known', JSON.stringify(allKnown))
     } catch {}
 
     const days = when === 'weekend' ? 2 : 1
     const d = new Date()
     if (when === 'weekend') d.setDate(d.getDate() + ((6 - d.getDay() + 7) % 7)) // upcoming Saturday (today if Sat)
     try {
-      localStorage.setItem('nyc_trip_days', JSON.stringify(days))
-      localStorage.setItem('nyc_trip_start_date', d.toISOString().slice(0, 10))
+      lsSet('nyc_trip_days', JSON.stringify(days))
+      lsSet('nyc_trip_start_date', d.toISOString().slice(0, 10))
     } catch {}
 
     // Open the freshly-built plan in the Full plan view (not the day-of
     // Checklist) — the user asked for a plan to look at, and a "tonight" plan
     // arrives today, which would otherwise default My Trip to the checklist.
-    try { localStorage.setItem('nyc_plan_open_full', '1') } catch {}
+    try { lsSet('nyc_plan_open_full', '1') } catch {}
 
     setPlanNightOpen(false)
     setActiveTab('saved')
@@ -13777,7 +14325,7 @@ export default function App() {
   const setVenueNote = React.useCallback((venueId, text) => {
     setVenueNotesRaw(prev => {
       const next = { ...prev, [venueId]: text }
-      try { localStorage.setItem('nyc_venue_notes', JSON.stringify(next)) } catch {}
+      try { lsSet('nyc_venue_notes', JSON.stringify(next)) } catch {}
       return next
     })
   }, [])
@@ -13795,7 +14343,7 @@ export default function App() {
       const key = `${type}:${id}`
       if (next[key]) delete next[key]
       else next[key] = { type, id, savedAt: Date.now() }
-      try { localStorage.setItem('nyc_saved', JSON.stringify(next)) } catch {}
+      try { lsSet('nyc_saved', JSON.stringify(next)) } catch {}
       return next
     })
   }
@@ -13814,12 +14362,12 @@ export default function App() {
         if (type === 'sight'  && !ALL_SIGHTS[id]) return
         next[key] = { type, id, savedAt: Date.now() }
       })
-      try { localStorage.setItem('nyc_saved', JSON.stringify(next)) } catch {}
+      try { lsSet('nyc_saved', JSON.stringify(next)) } catch {}
       return next
     })
     try {
-      if (sharedTrip.days)  localStorage.setItem('nyc_trip_days', JSON.stringify(sharedTrip.days))
-      if (sharedTrip.start) localStorage.setItem('nyc_trip_start_date', sharedTrip.start)
+      if (sharedTrip.days)  lsSet('nyc_trip_days', JSON.stringify(sharedTrip.days))
+      if (sharedTrip.start) lsSet('nyc_trip_start_date', sharedTrip.start)
     } catch {}
     dismissSharedTrip()
     setActiveTab('saved')
@@ -13879,7 +14427,9 @@ export default function App() {
       return { isHome: false, canGoBack: true, onBack: () => setSavedSel(null), title: title || '' }
     }
     if (activeTab === 'saved') {
-      return { isHome: false, canGoBack: false, onBack: null, title: 'My Trip' }
+      // Tab root — no TopNav bar, same as every other tab's root (the page has
+      // its own "My Trip" wordmark header; the white bar duplicated it).
+      return { isHome: true, canGoBack: false, onBack: null, title: '' }
     }
     return { isHome: true, canGoBack: false, onBack: null, title: '' }
   }
@@ -13973,6 +14523,7 @@ export default function App() {
               removeUserVenue={removeUserVenue}
               addUserVenue={addUserVenue}
               addPlaceFromHeader={() => setAddPlaceOpen(true)}
+              weather={weather}
             />
           </PlanErrorBoundary>
         )

@@ -1,0 +1,10 @@
+{
+  "appId": "com.nycstoop.app",
+  "appName": "NYC Stoop",
+  "webDir": "dist",
+  "backgroundColor": "#F3EBDC",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#F3EBDC"
+  }
+}
