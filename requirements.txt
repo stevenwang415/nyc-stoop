@@ -1,16 +1,17 @@
 # Python deps for the Vercel serverless function (api/index.py → backend FastAPI).
-# Deliberately NOT `-r backend/requirements.txt`: serverless doesn't need uvicorn
-# (Vercel serves the ASGI app directly), and uvicorn[standard]'s native deps
-# (uvloop/httptools) are a common build failure on Vercel's Python.
+# Ranges (not hard pins): Vercel's builder may run a newer Python than the 2024
+# pins had prebuilt wheels for, which made `uv pip install` try to compile Rust
+# (pydantic-core) from source and fail. Ranges let uv pick wheel-compatible
+# releases on whatever Python the builder uses; .python-version requests 3.12.
 # backend/requirements.txt remains the source of truth for local/Docker runs.
-fastapi==0.115.0
-sqlalchemy==2.0.35
-psycopg2-binary==2.9.10
-python-dotenv==1.0.1
-pydantic[email]==2.9.2
-pyjwt==2.9.0
-cryptography==43.0.1
-bcrypt==4.2.0
-google-auth==2.35.0
-requests==2.32.3
-resend==2.4.0
+fastapi>=0.115,<1
+sqlalchemy>=2.0.35,<2.1
+psycopg2-binary>=2.9.10,<3
+python-dotenv>=1.0,<2
+pydantic[email]>=2.9,<3
+pyjwt>=2.9,<3
+cryptography>=43
+bcrypt>=4.2,<5
+google-auth>=2.35,<3
+requests>=2.32,<3
+resend>=2.4,<3
