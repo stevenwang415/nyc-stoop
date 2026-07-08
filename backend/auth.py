@@ -156,7 +156,8 @@ def login(req: LoginRequest, db: Session = Depends(get_db)) -> AuthResponse:
 
 @router.post("/google", response_model=AuthResponse)
 def google_auth(req: GoogleAuthRequest, db: Session = Depends(get_db)) -> AuthResponse:
-    if not GOOGLE_CLIENT_ID:
+    # GOOGLE_CLIENT_IDS falls back to GOOGLE_CLIENT_ID — either env var configures us.
+    if not GOOGLE_CLIENT_IDS:
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Google sign-in is not configured")
 
     try:
