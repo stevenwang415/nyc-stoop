@@ -1444,6 +1444,108 @@ function ThisWeekSection() {
   )
 }
 
+// ── MoodCoverArt — hand-drawn SVG scenes for the collection cards. Each mood
+// gets a tiny editorial illustration in the app's field palette instead of a
+// flat tint + emoji (which read as machine-generated). 140×96, sliced to fill.
+function MoodCoverArt({ moodId }) {
+  const svgProps = {
+    viewBox: '0 0 140 96',
+    preserveAspectRatio: 'xMidYMid slice',
+    style: { position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block' },
+    'aria-hidden': true,
+  }
+  switch (moodId) {
+    case 'just_chilling': // dawn over the waterfront — low sun, still water, pier posts
+      return (
+        <svg {...svgProps}>
+          <rect width="140" height="96" fill="#E8CDA8" />
+          <circle cx="70" cy="52" r="22" fill="#C6892F" />
+          <circle cx="70" cy="52" r="30" fill="#C6892F" opacity="0.25" />
+          <rect y="52" width="140" height="44" fill="#8FA3A8" />
+          <rect y="52" width="140" height="5" fill="#7C939A" />
+          <path d="M0 62h140" stroke="#E8CDA8" strokeWidth="1.6" opacity="0.5" />
+          <path d="M20 70h34M86 76h30M34 84h44" stroke="#E8CDA8" strokeWidth="1.6" opacity="0.35" strokeLinecap="round" />
+          <rect x="16" y="56" width="3" height="16" rx="1.5" fill="#5C5142" />
+          <rect x="26" y="58" width="3" height="14" rx="1.5" fill="#5C5142" />
+          <circle cx="102" cy="30" r="1.6" fill="#FFF" opacity="0.7" />
+          <path d="M96 22c3 0 3-2.4 6-2.4s3 2.4 6 2.4" stroke="#7A6A50" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+        </svg>
+      )
+    case 'date_night': // plum night — moon, skyline, lit windows, one table candle
+      return (
+        <svg {...svgProps}>
+          <rect width="140" height="96" fill="#4A3140" />
+          <circle cx="106" cy="22" r="11" fill="#F3EBDC" />
+          <circle cx="102" cy="19" r="10" fill="#4A3140" />
+          <circle cx="30" cy="14" r="1.2" fill="#F3EBDC" opacity="0.8" />
+          <circle cx="52" cy="24" r="1" fill="#F3EBDC" opacity="0.6" />
+          <circle cx="76" cy="10" r="1.1" fill="#F3EBDC" opacity="0.7" />
+          <path d="M0 66V44h14v-8h10v14h12V36h6l2-8 2 8h6v22h14V50h12v16h16V54h12v12h20v-6h14v36H0z" fill="#2E1F2A" />
+          <g fill="#C6892F">
+            <rect x="6" y="52" width="3" height="4" opacity="0.9" /><rect x="17" y="44" width="3" height="4" opacity="0.7" />
+            <rect x="40" y="46" width="3" height="4" opacity="0.85" /><rect x="60" y="58" width="3" height="4" opacity="0.7" />
+            <rect x="78" y="56" width="3" height="4" opacity="0.9" /><rect x="96" y="60" width="3" height="4" opacity="0.75" />
+            <rect x="118" y="66" width="3" height="4" opacity="0.85" />
+          </g>
+          <path d="M64 88c0-3 2.6-5 6-5s6 2 6 5" stroke="#C6892F" strokeWidth="1.6" fill="none" strokeLinecap="round" />
+          <circle cx="70" cy="79" r="1.8" fill="#E8CDA8" />
+        </svg>
+      )
+    case 'family_day': // park hill, sun, kite on a string
+      return (
+        <svg {...svgProps}>
+          <rect width="140" height="96" fill="#DCE3C8" />
+          <circle cx="118" cy="18" r="10" fill="#C6892F" />
+          <circle cx="118" cy="18" r="15" fill="#C6892F" opacity="0.22" />
+          <path d="M0 96V70c22-12 44-14 70-9s48 2 70-6v41z" fill="#6F7A45" />
+          <path d="M0 96V80c26-8 52-8 78-3s42 1 62-5v24z" fill="#5D6A3A" opacity="0.9" />
+          <path d="M44 26l8 10-8 10-8-10z" fill="#B7472A" />
+          <path d="M44 46c-2 6 2 8-1 13s2 7-1 11" stroke="#5C5142" strokeWidth="1.3" fill="none" strokeLinecap="round" />
+          <path d="M50 50l4 2M38 54l4 2" stroke="#B7472A" strokeWidth="1.4" strokeLinecap="round" />
+          <circle cx="20" cy="20" r="1.4" fill="#FFF" opacity="0.9" />
+          <path d="M12 30c3.5 0 3.5-2.6 7-2.6s3.5 2.6 7 2.6" stroke="#B9C29B" strokeWidth="2.4" fill="none" strokeLinecap="round" />
+        </svg>
+      )
+    case 'rainy_day': // slate rain, one warm umbrella
+      return (
+        <svg {...svgProps}>
+          <rect width="140" height="96" fill="#475A66" />
+          <g stroke="#93A6B0" strokeWidth="1.3" strokeLinecap="round" opacity="0.55">
+            <path d="M18 8l-5 14M44 4l-5 14M70 10l-5 14M96 2l-5 14M122 8l-5 14" />
+            <path d="M30 30l-5 14M58 34l-5 14M86 28l-5 14M112 34l-5 14M134 30l-4 11" />
+            <path d="M12 54l-4 11M100 56l-4 11M128 58l-4 11" />
+          </g>
+          <path d="M38 62c0-12 14-20 32-20s32 8 32 20c-5-4-10-4-14 0-4-5-9-5-13 0-4-5-9-5-13 0-4-4-9-4-14 0-4-4-9-4-10 0z" fill="#B7472A" />
+          <path d="M70 62v20c0 4-3 6-6 6" stroke="#F3EBDC" strokeWidth="2" fill="none" strokeLinecap="round" />
+          <ellipse cx="52" cy="92" rx="16" ry="2.4" fill="#3A4B55" />
+          <ellipse cx="96" cy="90" rx="10" ry="2" fill="#3A4B55" />
+        </svg>
+      )
+    case 'first_time_nyc': // clay dusk, the skyline you came for, a guiding star
+      return (
+        <svg {...svgProps}>
+          <rect width="140" height="96" fill="#C97F52" />
+          <rect width="140" height="40" fill="#D89562" opacity="0.7" />
+          <path d="M70 8l1.8 4.6 4.6 1.8-4.6 1.8L70 21l-1.8-4.8-4.6-1.8 4.6-1.8z" fill="#F3EBDC" />
+          <path d="M0 96V60h12V48h8v12h10V38h10v22h8l4-18 2-8 2 8 4 18h8V30h4l2-10 2 10h4v30h10V44h10v16h8v-8h12v10h10v34z" fill="#6E3A24" />
+          <g fill="#F3EBDC" opacity="0.8">
+            <rect x="15" y="66" width="2.6" height="3.4" /><rect x="34" y="48" width="2.6" height="3.4" />
+            <rect x="56" y="52" width="2.6" height="3.4" /><rect x="70" y="40" width="2.6" height="3.4" />
+            <rect x="88" y="56" width="2.6" height="3.4" /><rect x="106" y="62" width="2.6" height="3.4" />
+            <rect x="124" y="70" width="2.6" height="3.4" />
+          </g>
+        </svg>
+      )
+    default: // unknown mood — warm tint fallback, never a blank
+      return (
+        <svg {...svgProps}>
+          <rect width="140" height="96" fill="#8A7B63" />
+          <circle cx="112" cy="20" r="12" fill="#F3EBDC" opacity="0.3" />
+        </svg>
+      )
+  }
+}
+
 function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, onOpenSettings = () => {}, onPlanNight = () => {}, userVenues = {}, weather = null }) {
   const [query, setQuery] = useState('')
   // Live clock for the header chip (Tue · 7:42 PM). Ticks every 30s.
@@ -1793,35 +1895,28 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
 
                 {/* ── Feeling something specific? — the curated moods, rehomed as
                     collections. Activities answer "I know what I want"; these answer
-                    "guide me." Smaller cards so the hierarchy reads verbs-first. ── */}
+                    "guide me." Smaller cards so the hierarchy reads verbs-first.
+                    Covers are hand-drawn SVG scenes (see MoodCoverArt), one per mood. ── */}
                 <div style={{ padding: '22px 0 0' }}>
                   <div style={{ padding: '0 20px' }}>
                     <h2 style={{ fontFamily: 'var(--serif)', fontWeight: 500, fontSize: 20, margin: 0, letterSpacing: '0.01em', color: 'var(--ink)' }}>Feeling something specific?</h2>
                   </div>
-                  {(() => {
-                    const TINT = ['#6B4453', '#475A66', '#C6892F', '#6F7A45', '#B7472A']
-                    return (
-                      <div style={{ display: 'flex', gap: 11, overflowX: 'auto', padding: '12px 20px 4px', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }} className="hide-scrollbar">
-                        {moods.map((m, i) => {
-                          const tint = TINT[i % TINT.length]
-                          return (
-                            <button key={m.id} onClick={() => push({ screen: 'mood', moodId: m.id })} style={{
-                              flexShrink: 0, width: 136, padding: 0, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
-                              borderRadius: 14, overflow: 'hidden', border: '1px solid rgba(33,27,20,0.10)', background: 'var(--card)',
-                              boxShadow: '0 4px 12px rgba(33,27,20,0.04)', display: 'flex', flexDirection: 'column',
-                            }}>
-                              {/* Pick counts removed — they read as inventory, not invitation. */}
-                              <span style={{ height: 96, position: 'relative', background: tint, display: 'block' }}>
-                                <span style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(255,255,255,0.10), rgba(0,0,0,0.22))' }} />
-                                <span style={{ position: 'absolute', top: 10, left: 12, fontSize: 17 }} aria-hidden="true">{m.emoji}</span>
-                                <span style={{ position: 'absolute', left: 12, right: 12, bottom: 10, fontFamily: 'var(--serif)', fontSize: 16.5, fontWeight: 600, color: '#fff', lineHeight: 1.1 }}>{m.label}</span>
-                              </span>
-                            </button>
-                          )
-                        })}
-                      </div>
-                    )
-                  })()}
+                  <div style={{ display: 'flex', gap: 11, overflowX: 'auto', padding: '12px 20px 4px', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }} className="hide-scrollbar">
+                    {moods.map(m => (
+                      <button key={m.id} onClick={() => push({ screen: 'mood', moodId: m.id })} style={{
+                        flexShrink: 0, width: 136, padding: 0, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
+                        borderRadius: 14, overflow: 'hidden', border: '1px solid rgba(33,27,20,0.10)', background: 'var(--card)',
+                        boxShadow: '0 4px 12px rgba(33,27,20,0.04)', display: 'flex', flexDirection: 'column',
+                      }}>
+                        <span style={{ height: 96, position: 'relative', display: 'block' }}>
+                          <MoodCoverArt moodId={m.id} />
+                          {/* Scrim keeps the serif label legible over any scene */}
+                          <span style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0) 45%, rgba(20,14,8,0.42))' }} />
+                          <span style={{ position: 'absolute', left: 12, right: 12, bottom: 9, fontFamily: 'var(--serif)', fontSize: 16.5, fontWeight: 600, color: '#fff', lineHeight: 1.1, textShadow: '0 1px 4px rgba(0,0,0,0.35)' }}>{m.label}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* ── Browse by topic / neighborhood — toggle pill + horizontal chip scroll ── */}
