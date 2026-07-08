@@ -1444,6 +1444,132 @@ function ThisWeekSection() {
   )
 }
 
+// ── ActivityCoverArt — hand-drawn SVG scenes for the "What do you feel like?"
+// cards, same illustration language as MoodCoverArt below. 158×150, sliced.
+function ActivityCoverArt({ activityId }) {
+  const svgProps = {
+    viewBox: '0 0 158 150',
+    preserveAspectRatio: 'xMidYMid slice',
+    style: { position: 'absolute', inset: 0, width: '100%', height: '100%', display: 'block' },
+    'aria-hidden': true,
+  }
+  switch (activityId) {
+    case 'eat': // a steaming bowl on a warm table, fork and knife standing by
+      return (
+        <svg {...svgProps}>
+          <rect width="158" height="150" fill="#D9A87C" />
+          <rect y="96" width="158" height="54" fill="#B7472A" />
+          <path d="M0 96h158" stroke="#8E3520" strokeWidth="2" opacity="0.5" />
+          <ellipse cx="79" cy="98" rx="34" ry="9" fill="#8E3520" opacity="0.35" />
+          <path d="M45 92c0 14 14 24 34 24s34-10 34-24z" fill="#F3EBDC" />
+          <path d="M45 92c0 14 14 24 34 24s34-10 34-24z" fill="none" stroke="#D9C7A8" strokeWidth="1.5" />
+          <ellipse cx="79" cy="92" rx="34" ry="8" fill="#C6892F" />
+          <ellipse cx="79" cy="92" rx="26" ry="5.6" fill="#A96F22" />
+          <path d="M66 74c-3-6 3-8 0-14M79 72c-3-6 3-8 0-14M92 74c-3-6 3-8 0-14" stroke="#F3EBDC" strokeWidth="2" fill="none" strokeLinecap="round" opacity="0.85" />
+          <rect x="24" y="84" width="3" height="30" rx="1.5" fill="#5C4230" />
+          <path d="M23 84v-7M25.5 84v-7M28 84v-7" stroke="#5C4230" strokeWidth="1.6" strokeLinecap="round" />
+          <path d="M131 114V80c4 2 6 8 6 14 0 5-2 8-4 9v11z" fill="#5C4230" />
+        </svg>
+      )
+    case 'drinks': // two glasses touching at golden hour
+      return (
+        <svg {...svgProps}>
+          <rect width="158" height="150" fill="#5C3A4F" />
+          <circle cx="120" cy="34" r="16" fill="#C6892F" opacity="0.55" />
+          <rect y="112" width="158" height="38" fill="#3E2635" />
+          <path d="M38 58l20 22v26M58 80l20-22" stroke="#F3EBDC" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M40 60h36l-4 5H44z" fill="#E8CDA8" opacity="0.9" />
+          <path d="M48 112h20" stroke="#F3EBDC" strokeWidth="2.2" strokeLinecap="round" />
+          <rect x="92" y="62" width="26" height="48" rx="3" fill="none" stroke="#F3EBDC" strokeWidth="2.2" />
+          <rect x="94" y="76" width="22" height="32" rx="2" fill="#C6892F" opacity="0.8" />
+          <circle cx="100" cy="88" r="1.8" fill="#F3EBDC" opacity="0.8" />
+          <circle cx="108" cy="96" r="1.5" fill="#F3EBDC" opacity="0.7" />
+          <circle cx="104" cy="80" r="1.4" fill="#F3EBDC" opacity="0.6" />
+          <path d="M92 66l-8-10" stroke="#6F7A45" strokeWidth="2.4" strokeLinecap="round" />
+          <circle cx="83" cy="55" r="3.4" fill="#6F7A45" />
+        </svg>
+      )
+    case 'coffee': // morning cup, saucer, croissant crescent
+      return (
+        <svg {...svgProps}>
+          <rect width="158" height="150" fill="#E8D9BC" />
+          <circle cx="126" cy="28" r="14" fill="#C6892F" opacity="0.4" />
+          <rect y="104" width="158" height="46" fill="#C79A62" />
+          <path d="M0 104h158" stroke="#A97F4C" strokeWidth="2" opacity="0.6" />
+          <path d="M46 66h52v20c0 12-10 20-26 20s-26-8-26-20z" fill="#B7472A" />
+          <path d="M98 70h10c7 0 11 4 11 10s-4 10-11 10h-12" fill="none" stroke="#B7472A" strokeWidth="5" />
+          <ellipse cx="72" cy="66" rx="26" ry="6" fill="#7A2E1B" />
+          <ellipse cx="72" cy="112" rx="34" ry="6" fill="#A97F4C" />
+          <path d="M60 52c-3-6 3-8 0-14M74 50c-3-6 3-8 0-14M88 52c-3-6 3-8 0-14" stroke="#8A6A42" strokeWidth="2" fill="none" strokeLinecap="round" opacity="0.8" />
+          <path d="M118 120c2-8 10-13 18-11-4 3-5 6-4 10-5-2-10-1-14 1z" fill="#C6892F" />
+        </svg>
+      )
+    case 'outdoors': // the park: lawn, one good tree, picnic blanket
+      return (
+        <svg {...svgProps}>
+          <rect width="158" height="150" fill="#CFE0D4" />
+          <circle cx="128" cy="26" r="12" fill="#C6892F" />
+          <circle cx="128" cy="26" r="18" fill="#C6892F" opacity="0.2" />
+          <path d="M0 150V78c30-14 62-16 90-8s48 4 68-4v84z" fill="#6F7A45" />
+          <path d="M0 150V102c34-10 66-8 96-2s44 0 62-6v56z" fill="#5D6A3A" />
+          <rect x="44" y="58" width="5" height="34" rx="2.5" fill="#5C4230" />
+          <circle cx="46" cy="46" r="20" fill="#7C8A4E" />
+          <circle cx="34" cy="52" r="12" fill="#7C8A4E" />
+          <circle cx="58" cy="52" r="13" fill="#7C8A4E" />
+          <circle cx="46" cy="38" r="12" fill="#8B9A5C" />
+          <path d="M92 120l28-8 12 10-28 8z" fill="#E8CDA8" />
+          <path d="M98 122l24-7M104 126l20-6" stroke="#B7472A" strokeWidth="1.6" opacity="0.7" />
+          <path d="M16 24c4 0 4-3 8-3s4 3 8 3" stroke="#93A88F" strokeWidth="2" fill="none" strokeLinecap="round" />
+        </svg>
+      )
+    case 'culture': // museum steps, columns, one red banner
+      return (
+        <svg {...svgProps}>
+          <rect width="158" height="150" fill="#8FA3B0" />
+          <path d="M79 14L24 40h110z" fill="#F3EBDC" />
+          <path d="M79 22l-42 20h84z" fill="#D9CBB2" />
+          <rect x="28" y="44" width="102" height="6" fill="#F3EBDC" />
+          <g fill="#F3EBDC">
+            <rect x="34" y="54" width="10" height="52" /><rect x="58" y="54" width="10" height="52" />
+            <rect x="82" y="54" width="10" height="52" /><rect x="106" y="54" width="10" height="52" />
+          </g>
+          <g fill="#C9BBA0"><rect x="34" y="54" width="10" height="4" /><rect x="58" y="54" width="10" height="4" /><rect x="82" y="54" width="10" height="4" /><rect x="106" y="54" width="10" height="4" /></g>
+          <rect x="28" y="106" width="102" height="6" fill="#D9CBB2" />
+          <rect x="20" y="112" width="118" height="7" fill="#F3EBDC" />
+          <rect x="12" y="119" width="134" height="7" fill="#D9CBB2" />
+          <rect y="126" width="158" height="24" fill="#6B7B87" />
+          <rect x="120" y="58" width="14" height="34" fill="#B7472A" />
+          <path d="M120 92l7 6 7-6" fill="#B7472A" />
+        </svg>
+      )
+    case 'live': // spotlight on a double bass, night stage
+      return (
+        <svg {...svgProps}>
+          <rect width="158" height="150" fill="#2E2433" />
+          <path d="M74 0l50 118H36z" fill="#E8CDA8" opacity="0.16" />
+          <path d="M74 0l30 118H52z" fill="#E8CDA8" opacity="0.14" />
+          <rect y="118" width="158" height="32" fill="#231B27" />
+          <ellipse cx="80" cy="120" rx="40" ry="5" fill="#161018" opacity="0.8" />
+          <path d="M80 44v66" stroke="#C6892F" strokeWidth="3" strokeLinecap="round" />
+          <path d="M80 62c-12 0-18 8-16 18 1 7-3 8-2 14 2 12 10 18 18 18s16-6 18-18c1-6-3-7-2-14 2-10-4-18-16-18z" fill="#B7472A" />
+          <path d="M72 96h16M74 90c2 3 10 3 12 0" stroke="#7A2E1B" strokeWidth="1.6" strokeLinecap="round" fill="none" />
+          <circle cx="80" cy="42" r="4" fill="#C6892F" />
+          <path d="M76 38l-3-3M84 38l3-3" stroke="#C6892F" strokeWidth="1.8" strokeLinecap="round" />
+          <circle cx="26" cy="26" r="1.4" fill="#F3EBDC" opacity="0.6" />
+          <circle cx="132" cy="20" r="1.2" fill="#F3EBDC" opacity="0.5" />
+          <circle cx="142" cy="52" r="1.3" fill="#F3EBDC" opacity="0.45" />
+        </svg>
+      )
+    default:
+      return (
+        <svg {...svgProps}>
+          <rect width="158" height="150" fill="#8A7B63" />
+          <circle cx="126" cy="28" r="14" fill="#F3EBDC" opacity="0.3" />
+        </svg>
+      )
+  }
+}
+
 // ── MoodCoverArt — hand-drawn SVG scenes for the collection cards. Each mood
 // gets a tiny editorial illustration in the app's field palette instead of a
 // flat tint + emoji (which read as machine-generated). 140×96, sliced to fill.
@@ -1856,11 +1982,11 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                     <h2 style={{ fontFamily: 'var(--serif)', fontWeight: 500, fontSize: 25, margin: 0, letterSpacing: '0.01em', color: 'var(--ink)' }}>What do you feel like?</h2>
                   </div>
                   {(() => {
-                    const FIELD = ['#B7472A', '#C6892F', '#6B4453', '#6F7A45', '#475A66']
                     // Activity-first: lead with the six activities. "Eat" opens the
                     // dedicated restaurant browser; the rest open the guided flow
                     // seeded with that activity (place → picks), via the synthetic
-                    // "anything" mood. Same card visual as before.
+                    // "anything" mood. Covers are hand-drawn scenes (ActivityCoverArt),
+                    // matching the collection cards below — numbered badges retired.
                     const items = [
                       { key: 'eat',      title: 'Eat',      meta: 'Restaurants',            onClick: () => push({ screen: 'eat' }) },
                       { key: 'drinks',   title: 'Drinks',   meta: 'Bars, cocktails, wine',  onClick: () => push({ screen: 'mood', moodId: 'anything', activityId: 'drinks' }) },
@@ -1871,23 +1997,20 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                     ]
                     return (
                       <div style={{ display: 'flex', gap: 13, overflowX: 'auto', padding: '16px 20px 4px', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }} className="hide-scrollbar">
-                        {items.map((it, i) => {
-                          const field = FIELD[i % FIELD.length]
-                          return (
-                            <button key={it.key} onClick={it.onClick} style={{
-                              flexShrink: 0, width: 158, padding: 0, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
-                              borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(33,27,20,0.10)', background: 'var(--card)',
-                              boxShadow: '0 6px 18px rgba(33,27,20,0.05)', display: 'flex', flexDirection: 'column',
-                            }}>
-                              <span style={{ height: 150, position: 'relative', background: field, display: 'block' }}>
-                                <span style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(255,255,255,0.10), rgba(0,0,0,0.22))' }} />
-                                <span style={{ position: 'absolute', top: 12, left: 14, fontSize: 11, letterSpacing: '0.1em', fontWeight: 700, color: 'rgba(255,255,255,0.78)' }}>{String(i + 1).padStart(2, '0')}</span>
-                                <span style={{ position: 'absolute', left: 14, right: 14, bottom: 12, fontFamily: 'var(--serif)', fontSize: 21, fontWeight: 600, color: '#fff', lineHeight: 1.08 }}>{it.title}</span>
-                              </span>
-                              <span style={{ background: 'var(--card)', padding: '11px 14px 13px', fontSize: 12.5, color: 'var(--ink-3)' }}>{it.meta}</span>
-                            </button>
-                          )
-                        })}
+                        {items.map(it => (
+                          <button key={it.key} onClick={it.onClick} style={{
+                            flexShrink: 0, width: 158, padding: 0, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit',
+                            borderRadius: 16, overflow: 'hidden', border: '1px solid rgba(33,27,20,0.10)', background: 'var(--card)',
+                            boxShadow: '0 6px 18px rgba(33,27,20,0.05)', display: 'flex', flexDirection: 'column',
+                          }}>
+                            <span style={{ height: 150, position: 'relative', display: 'block' }}>
+                              <ActivityCoverArt activityId={it.key} />
+                              <span style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0) 50%, rgba(20,14,8,0.40))' }} />
+                              <span style={{ position: 'absolute', left: 14, right: 14, bottom: 12, fontFamily: 'var(--serif)', fontSize: 21, fontWeight: 600, color: '#fff', lineHeight: 1.08, textShadow: '0 1px 4px rgba(0,0,0,0.35)' }}>{it.title}</span>
+                            </span>
+                            <span style={{ background: 'var(--card)', padding: '11px 14px 13px', fontSize: 12.5, color: 'var(--ink-3)' }}>{it.meta}</span>
+                          </button>
+                        ))}
                       </div>
                     )
                   })()}
