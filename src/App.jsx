@@ -1810,12 +1810,12 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                               borderRadius: 14, overflow: 'hidden', border: '1px solid rgba(33,27,20,0.10)', background: 'var(--card)',
                               boxShadow: '0 4px 12px rgba(33,27,20,0.04)', display: 'flex', flexDirection: 'column',
                             }}>
-                              <span style={{ height: 84, position: 'relative', background: tint, display: 'block' }}>
+                              {/* Pick counts removed — they read as inventory, not invitation. */}
+                              <span style={{ height: 96, position: 'relative', background: tint, display: 'block' }}>
                                 <span style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(255,255,255,0.10), rgba(0,0,0,0.22))' }} />
                                 <span style={{ position: 'absolute', top: 10, left: 12, fontSize: 17 }} aria-hidden="true">{m.emoji}</span>
                                 <span style={{ position: 'absolute', left: 12, right: 12, bottom: 10, fontFamily: 'var(--serif)', fontSize: 16.5, fontWeight: 600, color: '#fff', lineHeight: 1.1 }}>{m.label}</span>
                               </span>
-                              <span style={{ background: 'var(--card)', padding: '9px 12px 11px', fontSize: 11.5, color: 'var(--ink-3)' }}>{flattenMoodPicks(m).length} picks</span>
                             </button>
                           )
                         })}
