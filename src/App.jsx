@@ -9647,6 +9647,20 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
   const [importsOpen, setImportsOpen] = React.useState(false)
   const [importQuery, setImportQuery] = React.useState('')
   // Per-day collapse — Set of day indices the user has folded up. Persisted so it survives reload.
+  // Day tabs (Funliday-style): null = "All days" overview; N = show only day N.
+  // Not persisted — a fresh open should always start at the overview.
+  const [dayFilter, setDayFilter] = React.useState(null)
+
+  // Trip basics start collapsed once a date exists (set once, read often);
+  // first-time users see the controls open so they discover them.
+  const [basicsOpen, setBasicsOpen] = React.useState(() => {
+    try { return !localStorage.getItem('nyc_trip_start_date') } catch { return true }
+  })
+
+  // Which below-the-schedule inventory section is unfolded from its chip:
+  // 'events' | 'places' | 'plans' | null (all collapsed).
+  const [invOpen, setInvOpen] = React.useState(null)
+
   const [collapsedDays, setCollapsedDays] = React.useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem('nyc_collapsed_days') || '[]')) } catch { return new Set() }
   })
@@ -9864,9 +9878,12 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
   }
 
     // Build a Google Maps multi-stop directions URL from the itinerary
-  function buildRouteUrl() {
+  // onlyDayIdx: route a single day (used when the day tabs filter to one day —
+  // that's the "standing on the sidewalk" moment); null routes the whole trip.
+  function buildRouteUrl(onlyDayIdx = null) {
     const waypoints = []
     days.forEach((day, di) => {
+      if (onlyDayIdx !== null && di !== onlyDayIdx) return
       const stops = day.stops || []
       const lunchR = lunchRestaurants[di]
       const dinnerR = dinnerRestaurants[di]
@@ -9944,6 +9961,12 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     visual_art: '🎨', jazz: '🎷', classical_music: '🎼', theater: '🎭',
     history: '📜', architecture: '🏛️', sports: '🏆', hip_hop: '🎤', food: '🍴',
   }
+  // Each day gets its own hue from the field palette (same family as the home
+  // cover art) — color as wayfinding on a long monochrome page: the day tab,
+  // the day pill, and the meal accents share it, so you always know where you
+  // are. Cycles past 5 days.
+  const DAY_HUES = ['#B7472A', '#475A66', '#6F7A45', '#6B4453', '#C6892F']
+  const dayHue = (i) => DAY_HUES[i % DAY_HUES.length]
   const PERIOD_COLORS = {
     Morning:   { bg: '#fef9c3', text: '#854d0e', dot: '#ca8a04' },
     Afternoon: { bg: '#dbeafe', text: '#1e40af', dot: '#3b82f6' },
@@ -10455,10 +10478,32 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
         </div>
       </div>
 
-      {/* ══ Trip basics — dates + length, promoted out of the settings drawer.
-          These DEFINE the trip; hiding them behind "⚙ Trip settings" meant many
-          users never discovered real day labels or the day-count control. ══ */}
+      {/* ══ Trip basics — dates are SET ONCE, READ OFTEN: show a one-line
+          summary card; the actual controls only unfold behind Edit. (They used
+          to be two always-visible rows pushing the schedule below the fold.) ══ */}
       <div style={{ padding: '4px 20px 14px', borderBottom: '1px solid var(--gray-100)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-400)' }}>Your trip</div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {(() => {
+                if (!tripStartDate) return <span style={{ color: 'var(--gray-400)', fontWeight: 500 }}>No dates yet — planning by day</span>
+                const p = tripStartDate.split('-').map(Number)
+                const s = new Date(p[0], p[1] - 1, p[2])
+                const e = new Date(p[0], p[1] - 1, p[2] + Math.max(days.length - 1, 0))
+                const fmt = d => d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+                return <>{days.length > 1 ? `${fmt(s)} – ${fmt(e)}` : fmt(s)} <span style={{ color: 'var(--gray-400)', fontWeight: 500 }}>· {days.length} day{days.length !== 1 ? 's' : ''}</span></>
+              })()}
+            </div>
+          </div>
+          <button onClick={() => setBasicsOpen(o => !o)} style={{
+            flexShrink: 0, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+            background: basicsOpen ? 'var(--gray-900)' : 'none',
+            color: basicsOpen ? '#fff' : 'var(--accent-text)',
+            fontSize: 12.5, fontWeight: 700, padding: '6px 12px', borderRadius: 999,
+          }}>{basicsOpen ? 'Done' : 'Edit'}</button>
+        </div>
+        {basicsOpen && (<div style={{ marginTop: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
           <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-400)', flexShrink: 0, width: 58 }}>Arriving</span>
           <input
@@ -10498,340 +10543,9 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
             })}
           </div>
         </div>
+        </div>)}
       </div>
 
-      {/* ══ Saved events — concerts/shows/street events added from Tonight.
-          Events dated inside the trip window render pinned in their day below;
-          this section keeps only the ones that don't land on a trip day. ══ */}
-      <SavedEventsSection hiddenIds={plannedEventIds} />
-
-      {/* ══ Your Places — user-added venues. They auto-flow into the itinerary below.
-          Split into manual (inline) and imported (foldable) so a 62-entry Google
-          Maps import doesn't dominate the My Trip screen.
-          Now always rendered (even when empty) so the "+ Add a place" entry
-          point is always available — it lost its bottom-nav slot to Eat. ══ */}
-      {(() => {
-        // The seed catalog (seed_*) lives in userVenues for lookups, but it is
-        // the APP's dataset, not the user's — never present it as "Your Places".
-        const userList = Object.values(userVenues || {})
-          .filter(v => !(typeof v?.id === 'string' && v.id.startsWith('seed_')))
-          .sort((a, b) => b.savedAt - a.savedAt)
-        const USER_CAT = { food:'🍴', coffee:'☕', drink:'🍷', drinks:'🍷', art:'🎨', music:'🎵', history:'📜', sports:'🏆', shopping:'🛍️', other:'📍' }
-
-        function isImported(v) {
-          if (typeof v?.id === 'string' && v.id.startsWith('seed_')) return true
-          const s = v?.source || ''
-          return s === 'google_takeout' || s === 'google_places_paste' || s.startsWith('google_')
-        }
-        const manualList = userList.filter(v => !isImported(v))
-        const importedList = userList.filter(isImported)
-        const importedFiltered = importQuery.trim()
-          ? importedList.filter(v => (v.name || '').toLowerCase().includes(importQuery.trim().toLowerCase()))
-          : importedList
-        // Only mount a window of rows — rendering all ~500 imported places at once
-        // froze the My Trip screen. The search box narrows; the rest stay off-DOM.
-        const IMPORT_RENDER_CAP = 50
-        const importedShown = importedFiltered.slice(0, IMPORT_RENDER_CAP)
-        const importedHidden = importedFiltered.length - importedShown.length
-
-        // Compact row renderer — keeps the imported accordion light. Manual
-        // section uses the richer card layout below to give them more weight.
-        function renderCompactRow(uv) {
-          const emoji = USER_CAT[uv.category] || '📍'
-          const inPlan = planSelection.has(uv.id)
-          return (
-            <div key={uv.id} style={{
-              background: 'var(--card)', border: '1px solid var(--gray-200)',
-              borderRadius: 10, padding: '8px 10px',
-              display: 'flex', alignItems: 'center', gap: 10,
-            }}>
-              <span style={{ fontSize: 16, flexShrink: 0 }}>{emoji}</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--gray-900)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {uv.name}
-                </div>
-              </div>
-              <button
-                onClick={() => toggleVenueInPlan(uv.id)}
-                title={inPlan ? 'Remove from this trip' : 'Add to this trip'}
-                style={{
-                  padding: '4px 8px', borderRadius: 999,
-                  background: inPlan ? 'var(--gray-900)' : 'var(--gray-100)',
-                  color: inPlan ? '#fff' : 'var(--gray-500)',
-                  border: 'none', cursor: 'pointer',
-                  fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
-                  flexShrink: 0,
-                }}
-              >
-                {inPlan ? '✓ In plan' : '+ Plan'}
-              </button>
-              <button
-                onClick={() => removeUserVenue(uv.id)}
-                title="Remove place"
-                style={{
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  fontSize: 12, color: 'var(--gray-400)', padding: '2px 4px',
-                  flexShrink: 0,
-                }}
-              >✕</button>
-            </div>
-          )
-        }
-
-        return (
-          <div style={{ padding: '16px 20px 18px', borderBottom: '1px solid var(--gray-100)', background: 'var(--gray-50)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-500)' }}>
-                Your Places · {userList.length}
-              </div>
-              {/* Primary Add-a-place entry point now that bottom nav slot is
-                  Eat. Sits in My Trip header because that's where adding a
-                  place makes contextual sense. */}
-              <button
-                onClick={() => addPlaceFromHeader?.()}
-                style={{
-                  background: 'var(--gray-900)', color: '#fff',
-                  border: 'none', borderRadius: 999,
-                  padding: '5px 12px', fontFamily: 'inherit',
-                  fontSize: 11, fontWeight: 700, cursor: 'pointer',
-                  display: 'inline-flex', alignItems: 'center', gap: 4,
-                }}
-              >
-                <span style={{ fontSize: 13, lineHeight: 1 }}>+</span> Add a place
-              </button>
-            </div>
-            {userList.length === 0 && (
-              <div style={{
-                padding: '14px 16px',
-                background: 'var(--white)', border: '1px dashed var(--gray-300)',
-                borderRadius: 12, textAlign: 'center',
-                fontSize: 12, color: 'var(--gray-500)', lineHeight: 1.55,
-              }}>
-                You haven't added any personal places yet.
-                <br />Tap <strong>+ Add a place</strong> to save a favorite restaurant, bar, or spot.
-              </div>
-            )}
-
-            {/* Manual picks — full cards. Typically a small list. */}
-            {manualList.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {manualList.map(uv => {
-                  const emoji = USER_CAT[uv.category] || '📍'
-                  const inPlan = planSelection.has(uv.id)
-                  return (
-                    <div key={uv.id} style={{
-                      background: 'var(--card)', border: '1px solid var(--gray-200)',
-                      borderRadius: 12, padding: '11px 12px',
-                      display: 'flex', alignItems: 'flex-start', gap: 10,
-                    }}>
-                      <span style={{ fontSize: 20, flexShrink: 0, marginTop: 1 }}>{emoji}</span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-900)', lineHeight: 1.25 }}>
-                          {uv.name}
-                        </div>
-                        <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 2 }}>
-                          {uv.neighborhood}
-                        </div>
-                        {uv.blurb && (
-                          <div style={{
-                            fontSize: 12, color: 'var(--gray-600)', marginTop: 5, lineHeight: 1.45,
-                            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-                          }}>
-                            {uv.blurb}
-                          </div>
-                        )}
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                        <button
-                          onClick={() => toggleVenueInPlan(uv.id)}
-                          title={inPlan ? 'Remove from this trip' : 'Add to this trip'}
-                          style={{
-                            padding: '4px 9px', borderRadius: 999,
-                            background: inPlan ? 'var(--gray-900)' : 'var(--gray-100)',
-                            color: inPlan ? '#fff' : 'var(--gray-500)',
-                            border: 'none', cursor: 'pointer',
-                            fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
-                          }}
-                        >
-                          {inPlan ? '✓ In plan' : '+ Plan'}
-                        </button>
-                        <button
-                          onClick={() => removeUserVenue(uv.id)}
-                          title="Remove place"
-                          style={{
-                            background: 'none', border: 'none', cursor: 'pointer',
-                            fontSize: 12, color: 'var(--gray-400)', padding: '2px 6px',
-                          }}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-
-            {/* "Imported from Google Maps" list removed from My Trip. */}
-          </div>
-        )
-      })()}
-
-      {/* ══ SECTION 1: Saved Plans ══ */}
-      <div style={{ padding: '16px 20px 18px', borderBottom: '1px solid var(--gray-100)' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-400)', marginBottom: 12 }}>
-          Saved Plans
-        </div>
-
-        {/* Empty state — single, count-aware block (collapsed the old stacked
-            "No plans yet" + "Nothing saved yet" pair) + 3-step how-it-works row.
-            Hidden once the working plan already has days — the live itinerary
-            below makes the how-it-works explainer redundant. */}
-        {!_snap && days.length === 0 && (() => {
-          // Hearts + imported/custom places, without double-counting user_venue
-          // entries that live in both savedItems and userVenues.
-          // Count only what the USER chose: editorial saves, their own added
-          // places, and catalog (seed) places they explicitly saved — never the
-          // whole built-in dataset that also lives in userVenues.
-          const _ownVenueCount = Object.keys(userVenues || {}).filter(id => !String(id).startsWith('seed_')).length
-          const _savedSeedCount = Object.values(savedItems || {}).filter(s => s.type === 'user_venue' && String(s.id).startsWith('seed_')).length
-          const totalSaved =
-            Object.values(savedItems || {}).filter(s => s.type !== 'user_venue').length +
-            _ownVenueCount + _savedSeedCount
-          return (
-            <div style={{ textAlign: 'center', padding: '14px 0 8px' }}>
-              <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: '-0.01em', color: 'var(--ink)', marginBottom: 6 }}>
-                {totalSaved > 0
-                  ? `You have ${totalSaved} saved place${totalSaved !== 1 ? 's' : ''} — build tonight's plan`
-                  : 'Save a few places, then build tonight’s plan'}
-              </div>
-              {/* 3-step how-it-works row */}
-              <div style={{
-                display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8,
-                margin: '14px 0 18px',
-              }}>
-                {[
-                  { n: 1, label: 'Add places', sub: 'Tap “+ Add to My Trip”' },
-                  { n: 2, label: 'Pick your days', sub: 'Set trip length below' },
-                  { n: 3, label: 'Get a plan', sub: 'We route your day' },
-                ].map(step => (
-                  <div key={step.n} style={{
-                    background: 'var(--gray-100)', borderRadius: 16, padding: '12px 8px',
-                  }}>
-                    <div style={{
-                      width: 24, height: 24, borderRadius: 999, margin: '0 auto 6px',
-                      background: 'var(--accent)', color: '#fff',
-                      fontSize: 12, fontWeight: 800,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>{step.n}</div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)' }}>{step.label}</div>
-                    <div style={{ fontSize: 10.5, color: 'var(--ink-2)', marginTop: 2, lineHeight: 1.3 }}>{step.sub}</div>
-                  </div>
-                ))}
-              </div>
-              <button
-                onClick={() => schedulingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                style={{
-                  background: 'var(--accent)', color: '#fff', border: 'none',
-                  borderRadius: 999, padding: '13px 32px',
-                  fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                  boxShadow: '0 6px 16px rgba(224,85,44,.35)',
-                }}
-              >
-                Build tonight&rsquo;s plan
-              </button>
-            </div>
-          )
-        })()}
-
-        {/* Saved plan card */}
-        {_snap && (
-          <div style={{ position: 'relative' }}>
-            {/* Confirm-delete overlay */}
-            {confirmDelete && (
-              <div style={{
-                position: 'absolute', inset: 0, zIndex: 10,
-                background: 'rgba(255,255,255,0.97)', borderRadius: 14,
-                border: '1px solid var(--gray-200)',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                gap: 16, padding: '20px 24px',
-              }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gray-900)' }}>Remove this plan?</div>
-                <div style={{ display: 'flex', gap: 10, width: '100%' }}>
-                  <button
-                    onClick={() => {
-                      try { localStorage.removeItem('nyc_plan_snapshot') } catch {}
-                      setConfirmDelete(false)
-                    }}
-                    style={{
-                      flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', cursor: 'pointer',
-                      background: 'var(--gray-900)', color: '#fff', fontWeight: 700, fontSize: 14,
-                    }}
-                  >
-                    Yes, remove
-                  </button>
-                  <button
-                    onClick={() => setConfirmDelete(false)}
-                    style={{
-                      flex: 1, padding: '10px 0', borderRadius: 10, cursor: 'pointer',
-                      background: 'var(--gray-100)', color: 'var(--gray-700)', fontWeight: 600, fontSize: 14,
-                      border: '1px solid var(--gray-200)',
-                    }}
-                  >
-                    No, keep it
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* X delete button */}
-            <button
-              onClick={e => { e.stopPropagation(); setConfirmDelete(true) }}
-              style={{
-                position: 'absolute', top: 10, right: 12, zIndex: 5,
-                background: 'none', border: 'none', cursor: 'pointer',
-                padding: 0, fontSize: 13, fontWeight: 700, color: 'var(--gray-400)', lineHeight: 1,
-              }}
-            >
-              ✕
-            </button>
-
-            {/* Card body */}
-            <div
-              onClick={() => setSavedPlanView(true)}
-              style={{
-                background: 'var(--gray-50)', border: '1px solid var(--gray-200)',
-                borderRadius: 14, padding: '14px 16px', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: 12,
-              }}
-            >
-              <span style={{ fontSize: 22 }}>🗓️</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-900)' }}>
-                    {new Date(_snap.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  </span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '2px 8px', borderRadius: 20 }}>✓ Saved</span>
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--gray-500)', lineHeight: 1.5 }}>
-                  {_snap.venueIds?.length} stop{_snap.venueIds?.length !== 1 ? 's' : ''}
-                  {_snap.tripDays ? ` · ${_snap.tripDays} day${_snap.tripDays !== 1 ? 's' : ''}` : ''}
-                  {/* Show count of meals with cuisine set (new mealCuisines shape) or fall back to old format */}
-                  {(() => {
-                    const mealCount = _snap.mealCuisines ? Object.keys(_snap.mealCuisines).length
-                      : ((_snap.lunchCuisine ? 1 : 0) + (_snap.dinnerCuisine ? 1 : 0))
-                    return mealCount > 0 ? ` · ${mealCount} meal${mealCount !== 1 ? 's' : ''} picked` : ''
-                  })()}
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 3, lineHeight: 1.4 }}>
-                  {(_snap.venueIds || []).map(id => venues[id]?.name).filter(Boolean).join(' · ')}
-                </div>
-              </div>
-              <span style={{ fontSize: 20, color: 'var(--gray-300)', flexShrink: 0 }}>›</span>
-            </div>
-          </div>
-        )}
-      </div>
 
       {/* ══ SECTION 2: Trip Settings drawer — collapsed by default so the plan leads ══ */}
       <div ref={schedulingRef} style={{ borderBottom: '1px solid var(--gray-100)' }}>
@@ -11052,8 +10766,51 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
         </div>
       )}
 
+      {/* ── Day selector — horizontal, sticky. On multi-day trips the stacked
+          list meant scrolling through every prior day to reach Day 4; these
+          tabs filter to one day at a time ("All days" restores the overview,
+          which is also where cross-day drag lives). ── */}
+      {!todayMode && days.length > 1 && (
+        <div style={{
+          position: 'sticky', top: 'env(safe-area-inset-top, 0px)', zIndex: 30,
+          background: 'var(--canvas)',
+          padding: '6px 20px 8px',
+          borderBottom: '1px solid var(--gray-100)',
+          display: 'flex', gap: 8, overflowX: 'auto',
+          WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none',
+        }} className="hide-scrollbar">
+          {[null, ...days.map((_, i) => i)].map(idx => {
+            const active = dayFilter === idx
+            const dateLabel = idx !== null && tripStartDate
+              ? (() => { const p = tripStartDate.split('-').map(Number); const d = new Date(p[0], p[1] - 1, p[2] + idx); return `${d.getMonth() + 1}/${d.getDate()}` })()
+              : null
+            return (
+              <button key={idx === null ? 'all' : idx}
+                onClick={() => setDayFilter(idx)}
+                style={{
+                  flexShrink: 0, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                  padding: dateLabel ? '5px 14px 6px' : '9px 14px', borderRadius: 12,
+                  background: active ? (idx === null ? 'var(--gray-900)' : dayHue(idx)) : 'var(--card)',
+                  color: active ? '#fff' : 'var(--gray-600)',
+                  borderBottom: 'none', textAlign: 'center',
+                  boxShadow: active ? 'none' : 'inset 0 0 0 1px rgba(33,27,20,0.10)',
+                }}>
+                {dateLabel && <span style={{ display: 'block', fontSize: 10, fontWeight: 600, opacity: active ? 0.75 : 0.6, marginBottom: 1 }}>{dateLabel}</span>}
+                <span style={{ display: 'block', fontSize: 13, fontWeight: 700 }}>
+                  {idx !== null && !active && <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: 999, background: dayHue(idx), marginRight: 5, verticalAlign: '1px' }} />}
+                  {idx === null ? 'All days' : `Day ${idx + 1}`}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
       {/* ── Plan view ── */}
       {!todayMode && days.map((day, dayIdx) => {
+        // Day tabs: when a single day is selected, hide the others and force
+        // that day open (a filtered-to view should never show a collapsed stub).
+        if (dayFilter !== null && dayFilter < days.length && dayIdx !== dayFilter) return null
         // Single source of truth for ordering, clock, meals, and the summary range.
         const dayPlan = computeDayPlan(day, dayIdx)
 
@@ -11070,7 +10827,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
         const dayEventCount = (eventsByDay[dayIdx] || []).length
         if (dayEventCount) summaryBits.push(`${dayEventCount} event${dayEventCount !== 1 ? 's' : ''}`)
 
-        const isCollapsed = collapsedDays.has(dayIdx)
+        const isCollapsed = dayFilter === null && collapsedDays.has(dayIdx)
         // Highlight this day's container when it's the cross-day drop target.
         // The check is: a drag is in progress (dragId), the cursor is over THIS day,
         // and this day isn't the origin (otherwise every same-day move would tint).
@@ -11104,30 +10861,24 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                 flexShrink: 0,
               }}>▾</span>
               <div style={{
-                background: 'var(--gray-900)', color: '#fff',
+                background: dayHue(dayIdx), color: '#fff',
                 fontSize: 11, fontWeight: 800, padding: '4px 10px', borderRadius: 20,
                 letterSpacing: '0.04em',
               }}>{getDayLabel(dayIdx, tripStartDate).toUpperCase()}</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-700)' }}>{day.area}</div>
-              {/* Per-day forecast — needs an arrival date; silently absent beyond the 16-day window. */}
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-700)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{day.area}</div>
+              {/* One-line header: pill · area · forecast (right-aligned). The old
+                  "drag to reorder" hint is gone — the ▲⠿▼ rails on every card
+                  are their own explanation. Forecast needs an arrival date and
+                  is silently absent beyond the 16-day window. */}
               {(() => {
                 const fx = forecastForDay(dayIdx)
                 return fx ? (
-                  <div aria-label={`Forecast: high ${fx.hi}, low ${fx.lo}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                  <div aria-label={`Forecast: high ${fx.hi}, low ${fx.lo}`} style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                     <span style={{ fontSize: 14, lineHeight: 1 }} aria-hidden="true">{weatherEmoji(fx.code, 1)}</span>
                     <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-600)', lineHeight: 1 }}>{fx.hi}°<span style={{ fontWeight: 500, color: 'var(--gray-400)' }}>/{fx.lo}°</span></span>
                   </div>
                 ) : null
               })()}
-              {dayIdx === 0 && (
-                <div style={{
-                  marginLeft: 'auto', fontSize: 11, color: 'var(--gray-400)',
-                  display: 'inline-flex', alignItems: 'center', gap: 4,
-                }}>
-                  <span style={{ fontSize: 13 }}>⠿</span>
-                  <span>drag to reorder</span>
-                </div>
-              )}
             </div>
 
             {/* Day summary strip — glance-level info. Stays visible even when collapsed so users see what's in each day. */}
@@ -11211,7 +10962,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                         return (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                             <span style={{ fontSize: 15 }}>{isLunch ? '🍴' : '🍷'}</span>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: isLunch ? '#A96F22' : '#6B4453', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
                               {isLunch ? 'Lunch' : 'Dinner'}
                             </span>
                             {cuisineOpt ? (
@@ -11662,20 +11413,11 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
               </button>
             )}
 
-            {dayIdx < days.length - 1 && days[dayIdx + 1] && (
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                margin: '4px 0 20px',
-              }}>
-                <div style={{ flex: 1, height: 1, background: 'var(--gray-200)' }} />
-                <span style={{
-                  fontSize: 11, fontWeight: 700, color: 'var(--gray-400)',
-                  textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap',
-                }}>
-                  Day {dayIdx + 2} · {days[dayIdx + 1].area}
-                </span>
-                <div style={{ flex: 1, height: 1, background: 'var(--gray-200)' }} />
-              </div>
+            {/* (Next-day divider removed — the sticky day tabs + each day's own
+                header make it redundant, and it doubled up as "DAY 2 · DAY 2"
+                when a day had no dominant area name.) */}
+            {dayIdx < days.length - 1 && dayFilter === null && (
+              <div style={{ height: 1, background: 'var(--gray-200)', margin: '4px 0 20px' }} />
             )}
           </div>
         )
@@ -11736,9 +11478,12 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
               <span>{planSaved ? '✓' : '💾'}</span>
               <span>{planSaved ? 'Saved' : 'Save'}</span>
             </button>
-            {/* Open route in Maps */}
+            {/* Open route in Maps — context-aware: filtered to one day, it routes
+                THAT day (the standing-on-the-sidewalk moment); All days routes
+                the whole trip. */}
             {(() => {
-              const url = buildRouteUrl()
+              const routeDay = dayFilter !== null && dayFilter < days.length ? dayFilter : null
+              const url = buildRouteUrl(routeDay)
               return url ? (
                 <a href={url} target="_blank" rel="noopener noreferrer" style={{
                   flex: 1.1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -11746,7 +11491,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                   background: '#111', color: '#fff',
                   fontSize: 13, fontWeight: 700, textDecoration: 'none',
                 }}>
-                  <span>🗺️</span><span>Route</span>
+                  <span>🗺️</span><span>{routeDay !== null ? 'Route day' : days.length > 1 ? 'Route trip' : 'Route'}</span>
                 </a>
               ) : null
             })()}
@@ -11761,13 +11506,8 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
             View your saved plan →
           </button>
         )}
-        <div style={{
-          background: 'var(--gray-50)', border: '1px solid var(--gray-200)',
-          borderRadius: 12, padding: '13px 15px', fontSize: 12, color: 'var(--gray-500)', lineHeight: 1.6,
-        }}>
-          💡 Venues are grouped by neighbourhood and ordered through the day.
-          Tap <strong>Route</strong> to navigate all stops in Google Maps.
-        </div>
+        {/* (Tip banner removed — permanent onboarding copy that repeated forever,
+            and "Route trip / Route day" now explains itself.) */}
       </div>
 
       {/* ── Swap venue modal ── */}
@@ -11857,14 +11597,23 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
         )
       })()}
 
+
+      {/* ══ Below the schedule: only what earns its place. Undated saved events
+          appear automatically when they exist (dated ones pin into their day);
+          Your places + Plans are demoted to quiet rows after the saved list. ══ */}
+      {savedEvts.filter(e => e && !plannedEventIds.has(e.id)).length > 0 && (
+        <SavedEventsSection hiddenIds={plannedEventIds} />
+      )}
+
+
       {/* ── Saved Places section ── */}
-      <div style={{ padding: '0 20px 100px' }}>
+      <div style={{ padding: '0 20px 8px' }}>
         <div style={{
           fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase',
           color: 'var(--gray-400)', padding: '24px 0 12px',
           borderTop: Object.keys(safeItems).length > 0 ? '1px solid var(--gray-100)' : 'none',
         }}>
-          Saved · {Object.keys(safeItems).length}
+          Saved places · {Object.keys(safeItems).length}
         </div>
         {Object.values(safeItems).length === 0 && (
           <div style={{ fontSize: 14, color: 'var(--gray-400)', fontStyle: 'italic' }}>
@@ -11893,26 +11642,420 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
               onClick={() => onSelectSaved?.({ type: item.type, id: item.id })}
             >
               <span style={{ fontSize: 18, width: 28, textAlign: 'center', flexShrink: 0 }}>{icon}</span>
-              <span style={{ flex: 1, fontSize: 14, fontWeight: 500, color: 'var(--gray-800)', lineHeight: 1.4 }}>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500, color: 'var(--gray-800)', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {label || item.id}
               </span>
-              <span style={{ fontSize: 11, color: 'var(--gray-400)', marginRight: 4, textTransform: 'capitalize' }}>
-                {item.type}
-              </span>
+              {/* Plan status — the one thing this list was missing. Venues show
+                  "Day N" (tap = jump to that day via the day tabs) or "+ Add to
+                  plan" (tap = include it). Other types keep their type tag. */}
+              {(() => {
+                if (item.type !== 'venue') {
+                  return (
+                    <span style={{ fontSize: 11, color: 'var(--gray-400)', marginRight: 4, textTransform: 'capitalize', flexShrink: 0 }}>
+                      {item.type}
+                    </span>
+                  )
+                }
+                const inPlan = planSelection.has(item.id)
+                const dayIdx = inPlan ? days.findIndex(d => d.stops.some(s => s.id === item.id)) : -1
+                if (inPlan && dayIdx >= 0) {
+                  // Pill wears its day's hue — the same wayfinding color as the
+                  // day tabs and header pill, so the archive points into the plan.
+                  const hue = dayHue(dayIdx)
+                  return (
+                    <button
+                      onClick={e => { e.stopPropagation(); setDayFilter(days.length > 1 ? dayIdx : null); window.scrollTo(0, 0) }}
+                      style={{
+                        flexShrink: 0, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                        background: hue + '1A', color: hue,
+                        fontSize: 11.5, fontWeight: 700, padding: '5px 10px', borderRadius: 999,
+                        display: 'inline-flex', alignItems: 'center', gap: 3,
+                      }}
+                      title="Show this day"
+                    >Day {dayIdx + 1} <span style={{ opacity: 0.7 }}>›</span></button>
+                  )
+                }
+                return (
+                  <button
+                    onClick={e => { e.stopPropagation(); toggleVenueInPlan(item.id) }}
+                    style={{
+                      flexShrink: 0, cursor: 'pointer', fontFamily: 'inherit',
+                      background: 'var(--white)', color: 'var(--gray-600)',
+                      border: '1px solid var(--gray-200)',
+                      fontSize: 11.5, fontWeight: 700, padding: '4px 10px', borderRadius: 999,
+                    }}
+                  >+ Add to plan</button>
+                )
+              })()}
               {toggleSave && (
                 <button
                   onClick={e => { e.stopPropagation(); toggleSave(item.type, item.id) }}
+                  aria-label="Remove from saved"
                   style={{
                     background: 'none', border: 'none', cursor: 'pointer',
                     fontSize: 16, color: 'var(--gray-300)', padding: '4px 6px', flexShrink: 0,
                   }}
-                  title="Remove"
+                  title="Remove from saved"
                 >✕</button>
               )}
             </div>
           )
         })}
       </div>
+
+      {/* ── Quiet inventory rows — power features, deliberately last and
+          collapsed. They unfold in place; no chips, no counts. ── */}
+      <div style={{ padding: '0 20px' }}>
+        <button onClick={() => setInvOpen(invOpen === 'places' ? null : 'places')} style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          background: 'none', border: 'none', borderTop: '1px solid var(--gray-100)',
+          padding: '13px 2px', cursor: 'pointer', fontFamily: 'inherit',
+          fontSize: 13, fontWeight: 600, color: 'var(--gray-500)',
+        }}>
+          <span>📍 Your added places</span>
+          <span style={{ transform: invOpen === 'places' ? 'rotate(180deg)' : 'none', color: 'var(--gray-400)', transition: 'transform 180ms' }}>⌄</span>
+        </button>
+      </div>
+      {/* ══ Your Places — user-added venues. They auto-flow into the itinerary below.
+          Split into manual (inline) and imported (foldable) so a 62-entry Google
+          Maps import doesn't dominate the My Trip screen.
+          Now always rendered (even when empty) so the "+ Add a place" entry
+          point is always available — it lost its bottom-nav slot to Eat. ══ */}
+      {invOpen === 'places' && (() => {
+        // The seed catalog (seed_*) lives in userVenues for lookups, but it is
+        // the APP's dataset, not the user's — never present it as "Your Places".
+        const userList = Object.values(userVenues || {})
+          .filter(v => !(typeof v?.id === 'string' && v.id.startsWith('seed_')))
+          .sort((a, b) => b.savedAt - a.savedAt)
+        const USER_CAT = { food:'🍴', coffee:'☕', drink:'🍷', drinks:'🍷', art:'🎨', music:'🎵', history:'📜', sports:'🏆', shopping:'🛍️', other:'📍' }
+
+        function isImported(v) {
+          if (typeof v?.id === 'string' && v.id.startsWith('seed_')) return true
+          const s = v?.source || ''
+          return s === 'google_takeout' || s === 'google_places_paste' || s.startsWith('google_')
+        }
+        const manualList = userList.filter(v => !isImported(v))
+        const importedList = userList.filter(isImported)
+        const importedFiltered = importQuery.trim()
+          ? importedList.filter(v => (v.name || '').toLowerCase().includes(importQuery.trim().toLowerCase()))
+          : importedList
+        // Only mount a window of rows — rendering all ~500 imported places at once
+        // froze the My Trip screen. The search box narrows; the rest stay off-DOM.
+        const IMPORT_RENDER_CAP = 50
+        const importedShown = importedFiltered.slice(0, IMPORT_RENDER_CAP)
+        const importedHidden = importedFiltered.length - importedShown.length
+
+        // Compact row renderer — keeps the imported accordion light. Manual
+        // section uses the richer card layout below to give them more weight.
+        function renderCompactRow(uv) {
+          const emoji = USER_CAT[uv.category] || '📍'
+          const inPlan = planSelection.has(uv.id)
+          return (
+            <div key={uv.id} style={{
+              background: 'var(--card)', border: '1px solid var(--gray-200)',
+              borderRadius: 10, padding: '8px 10px',
+              display: 'flex', alignItems: 'center', gap: 10,
+            }}>
+              <span style={{ fontSize: 16, flexShrink: 0 }}>{emoji}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--gray-900)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {uv.name}
+                </div>
+              </div>
+              <button
+                onClick={() => toggleVenueInPlan(uv.id)}
+                title={inPlan ? 'Remove from this trip' : 'Add to this trip'}
+                style={{
+                  padding: '4px 8px', borderRadius: 999,
+                  background: inPlan ? 'var(--gray-900)' : 'var(--gray-100)',
+                  color: inPlan ? '#fff' : 'var(--gray-500)',
+                  border: 'none', cursor: 'pointer',
+                  fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
+                  flexShrink: 0,
+                }}
+              >
+                {inPlan ? '✓ In plan' : '+ Plan'}
+              </button>
+              <button
+                onClick={() => removeUserVenue(uv.id)}
+                title="Remove place"
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  fontSize: 12, color: 'var(--gray-400)', padding: '2px 4px',
+                  flexShrink: 0,
+                }}
+              >✕</button>
+            </div>
+          )
+        }
+
+        return (
+          <div style={{ padding: '16px 20px 18px', borderBottom: '1px solid var(--gray-100)', background: 'var(--gray-50)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-500)' }}>
+                Your Places · {userList.length}
+              </div>
+              {/* Primary Add-a-place entry point now that bottom nav slot is
+                  Eat. Sits in My Trip header because that's where adding a
+                  place makes contextual sense. */}
+              <button
+                onClick={() => addPlaceFromHeader?.()}
+                style={{
+                  background: 'var(--gray-900)', color: '#fff',
+                  border: 'none', borderRadius: 999,
+                  padding: '5px 12px', fontFamily: 'inherit',
+                  fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                }}
+              >
+                <span style={{ fontSize: 13, lineHeight: 1 }}>+</span> Add a place
+              </button>
+            </div>
+            {userList.length === 0 && (
+              <div style={{
+                padding: '14px 16px',
+                background: 'var(--white)', border: '1px dashed var(--gray-300)',
+                borderRadius: 12, textAlign: 'center',
+                fontSize: 12, color: 'var(--gray-500)', lineHeight: 1.55,
+              }}>
+                You haven't added any personal places yet.
+                <br />Tap <strong>+ Add a place</strong> to save a favorite restaurant, bar, or spot.
+              </div>
+            )}
+
+            {/* Manual picks — full cards. Typically a small list. */}
+            {manualList.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {manualList.map(uv => {
+                  const emoji = USER_CAT[uv.category] || '📍'
+                  const inPlan = planSelection.has(uv.id)
+                  return (
+                    <div key={uv.id} style={{
+                      background: 'var(--card)', border: '1px solid var(--gray-200)',
+                      borderRadius: 12, padding: '11px 12px',
+                      display: 'flex', alignItems: 'flex-start', gap: 10,
+                    }}>
+                      <span style={{ fontSize: 20, flexShrink: 0, marginTop: 1 }}>{emoji}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-900)', lineHeight: 1.25 }}>
+                          {uv.name}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 2 }}>
+                          {uv.neighborhood}
+                        </div>
+                        {uv.blurb && (
+                          <div style={{
+                            fontSize: 12, color: 'var(--gray-600)', marginTop: 5, lineHeight: 1.45,
+                            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                          }}>
+                            {uv.blurb}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                        <button
+                          onClick={() => toggleVenueInPlan(uv.id)}
+                          title={inPlan ? 'Remove from this trip' : 'Add to this trip'}
+                          style={{
+                            padding: '4px 9px', borderRadius: 999,
+                            background: inPlan ? 'var(--gray-900)' : 'var(--gray-100)',
+                            color: inPlan ? '#fff' : 'var(--gray-500)',
+                            border: 'none', cursor: 'pointer',
+                            fontSize: 10, fontWeight: 700, letterSpacing: '0.04em',
+                          }}
+                        >
+                          {inPlan ? '✓ In plan' : '+ Plan'}
+                        </button>
+                        <button
+                          onClick={() => removeUserVenue(uv.id)}
+                          title="Remove place"
+                          style={{
+                            background: 'none', border: 'none', cursor: 'pointer',
+                            fontSize: 12, color: 'var(--gray-400)', padding: '2px 6px',
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* "Imported from Google Maps" list removed from My Trip. */}
+          </div>
+        )
+      })()}
+      <div style={{ padding: '0 20px' }}>
+        <button onClick={() => setInvOpen(invOpen === 'plans' ? null : 'plans')} style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          background: 'none', border: 'none', borderTop: '1px solid var(--gray-100)',
+          padding: '13px 2px', cursor: 'pointer', fontFamily: 'inherit',
+          fontSize: 13, fontWeight: 600, color: 'var(--gray-500)',
+        }}>
+          <span>💾 Saved plans</span>
+          <span style={{ transform: invOpen === 'plans' ? 'rotate(180deg)' : 'none', color: 'var(--gray-400)', transition: 'transform 180ms' }}>⌄</span>
+        </button>
+      </div>
+      {/* ══ Saved Plans — snapshots; unfolds from its chip ══ */}
+      {invOpen === 'plans' && (
+      <div style={{ padding: '16px 20px 18px', borderBottom: '1px solid var(--gray-100)' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-400)', marginBottom: 12 }}>
+          Saved Plans
+        </div>
+
+        {/* Empty state — single, count-aware block (collapsed the old stacked
+            "No plans yet" + "Nothing saved yet" pair) + 3-step how-it-works row.
+            Hidden once the working plan already has days — the live itinerary
+            below makes the how-it-works explainer redundant. */}
+        {!_snap && days.length === 0 && (() => {
+          // Hearts + imported/custom places, without double-counting user_venue
+          // entries that live in both savedItems and userVenues.
+          // Count only what the USER chose: editorial saves, their own added
+          // places, and catalog (seed) places they explicitly saved — never the
+          // whole built-in dataset that also lives in userVenues.
+          const _ownVenueCount = Object.keys(userVenues || {}).filter(id => !String(id).startsWith('seed_')).length
+          const _savedSeedCount = Object.values(savedItems || {}).filter(s => s.type === 'user_venue' && String(s.id).startsWith('seed_')).length
+          const totalSaved =
+            Object.values(savedItems || {}).filter(s => s.type !== 'user_venue').length +
+            _ownVenueCount + _savedSeedCount
+          return (
+            <div style={{ textAlign: 'center', padding: '14px 0 8px' }}>
+              <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: '-0.01em', color: 'var(--ink)', marginBottom: 6 }}>
+                {totalSaved > 0
+                  ? `You have ${totalSaved} saved place${totalSaved !== 1 ? 's' : ''} — build tonight's plan`
+                  : 'Save a few places, then build tonight’s plan'}
+              </div>
+              {/* 3-step how-it-works row */}
+              <div style={{
+                display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8,
+                margin: '14px 0 18px',
+              }}>
+                {[
+                  { n: 1, label: 'Add places', sub: 'Tap “+ Add to My Trip”' },
+                  { n: 2, label: 'Pick your days', sub: 'Set trip length below' },
+                  { n: 3, label: 'Get a plan', sub: 'We route your day' },
+                ].map(step => (
+                  <div key={step.n} style={{
+                    background: 'var(--gray-100)', borderRadius: 16, padding: '12px 8px',
+                  }}>
+                    <div style={{
+                      width: 24, height: 24, borderRadius: 999, margin: '0 auto 6px',
+                      background: 'var(--accent)', color: '#fff',
+                      fontSize: 12, fontWeight: 800,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>{step.n}</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)' }}>{step.label}</div>
+                    <div style={{ fontSize: 10.5, color: 'var(--ink-2)', marginTop: 2, lineHeight: 1.3 }}>{step.sub}</div>
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => schedulingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                style={{
+                  background: 'var(--accent)', color: '#fff', border: 'none',
+                  borderRadius: 999, padding: '13px 32px',
+                  fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                  boxShadow: '0 6px 16px rgba(224,85,44,.35)',
+                }}
+              >
+                Build tonight&rsquo;s plan
+              </button>
+            </div>
+          )
+        })()}
+
+        {/* Saved plan card */}
+        {_snap && (
+          <div style={{ position: 'relative' }}>
+            {/* Confirm-delete overlay */}
+            {confirmDelete && (
+              <div style={{
+                position: 'absolute', inset: 0, zIndex: 10,
+                background: 'rgba(255,255,255,0.97)', borderRadius: 14,
+                border: '1px solid var(--gray-200)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                gap: 16, padding: '20px 24px',
+              }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gray-900)' }}>Remove this plan?</div>
+                <div style={{ display: 'flex', gap: 10, width: '100%' }}>
+                  <button
+                    onClick={() => {
+                      try { localStorage.removeItem('nyc_plan_snapshot') } catch {}
+                      setConfirmDelete(false)
+                    }}
+                    style={{
+                      flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', cursor: 'pointer',
+                      background: 'var(--gray-900)', color: '#fff', fontWeight: 700, fontSize: 14,
+                    }}
+                  >
+                    Yes, remove
+                  </button>
+                  <button
+                    onClick={() => setConfirmDelete(false)}
+                    style={{
+                      flex: 1, padding: '10px 0', borderRadius: 10, cursor: 'pointer',
+                      background: 'var(--gray-100)', color: 'var(--gray-700)', fontWeight: 600, fontSize: 14,
+                      border: '1px solid var(--gray-200)',
+                    }}
+                  >
+                    No, keep it
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* X delete button */}
+            <button
+              onClick={e => { e.stopPropagation(); setConfirmDelete(true) }}
+              style={{
+                position: 'absolute', top: 10, right: 12, zIndex: 5,
+                background: 'none', border: 'none', cursor: 'pointer',
+                padding: 0, fontSize: 13, fontWeight: 700, color: 'var(--gray-400)', lineHeight: 1,
+              }}
+            >
+              ✕
+            </button>
+
+            {/* Card body */}
+            <div
+              onClick={() => setSavedPlanView(true)}
+              style={{
+                background: 'var(--gray-50)', border: '1px solid var(--gray-200)',
+                borderRadius: 14, padding: '14px 16px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: 12,
+              }}
+            >
+              <span style={{ fontSize: 22 }}>🗓️</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-900)' }}>
+                    {new Date(_snap.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '2px 8px', borderRadius: 20 }}>✓ Saved</span>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--gray-500)', lineHeight: 1.5 }}>
+                  {_snap.venueIds?.length} stop{_snap.venueIds?.length !== 1 ? 's' : ''}
+                  {_snap.tripDays ? ` · ${_snap.tripDays} day${_snap.tripDays !== 1 ? 's' : ''}` : ''}
+                  {/* Show count of meals with cuisine set (new mealCuisines shape) or fall back to old format */}
+                  {(() => {
+                    const mealCount = _snap.mealCuisines ? Object.keys(_snap.mealCuisines).length
+                      : ((_snap.lunchCuisine ? 1 : 0) + (_snap.dinnerCuisine ? 1 : 0))
+                    return mealCount > 0 ? ` · ${mealCount} meal${mealCount !== 1 ? 's' : ''} picked` : ''
+                  })()}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 3, lineHeight: 1.4 }}>
+                  {(_snap.venueIds || []).map(id => venues[id]?.name).filter(Boolean).join(' · ')}
+                </div>
+              </div>
+              <span style={{ fontSize: 20, color: 'var(--gray-300)', flexShrink: 0 }}>›</span>
+            </div>
+          </div>
+        )}
+      </div>
+      )}
+      <div style={{ height: 90 }} />
     </div>
   )
 }
