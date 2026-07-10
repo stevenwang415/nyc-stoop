@@ -29,9 +29,19 @@ const NYC_BIAS = {
 
 let scriptPromise = null
 
-/** Returns true iff the env var is set. Used to gate the Google block in UI. */
+/** The web key is HTTP-referrer-restricted, which the iOS webview can't satisfy
+ *  (capacitor:// sends no matching referrer) — so photos silently failed in the
+ *  app. Inside the native shell we use a separate, bundle-appropriate key.
+ *  Falls back to the web key so nothing breaks if the iOS key isn't set yet. */
+function mapsKey() {
+  const isNative = typeof window !== 'undefined' && window.Capacitor?.isNativePlatform?.()
+  return (isNative && import.meta.env.VITE_GOOGLE_MAPS_API_KEY_IOS)
+    || import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+}
+
+/** Returns true iff a usable key is set. Used to gate the Google block in UI. */
 export function isGooglePlacesAvailable() {
-  return !!import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+  return !!mapsKey()
 }
 
 /** Loads the Maps JS bootstrap once. Subsequent calls return the cached promise.
@@ -44,7 +54,7 @@ export function isGooglePlacesAvailable() {
  */
 function loadGoogleMapsScript() {
   if (scriptPromise) return scriptPromise
-  const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+  const key = mapsKey()
   if (!key) {
     scriptPromise = Promise.reject(new Error('VITE_GOOGLE_MAPS_API_KEY is not set'))
     return scriptPromise
@@ -128,7 +138,9 @@ export async function searchGooglePlaces(query) {
     })
   } catch (e) {
     console.warn('[googlePlaces] autocomplete failed:', e)
-    return []
+    // null (not []) signals "the search itself failed" — callers can show an
+    // honest error instead of a silent empty list that reads as "no matches".
+    return null
   }
   return (response?.suggestions || []).slice(0, 8).map(s => {
     const p = s.placePrediction

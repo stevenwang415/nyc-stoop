@@ -19,13 +19,16 @@ export const venueImages = {
   moma:             wm('MoMa NY USA 1.jpg'),
   guggenheim:       wm('NYC - Guggenheim Museum.jpg'),
   whitney:          wm('Whitney Museum of American Art August 2024.jpg'),
-  brooklyn:         wm('Brooklyn Museum - Eastern Parkway entrance.jpg'),
-  tenement_museum:  wm('Lower East Side Tenement Museum.jpg'),
+  brooklyn:         wm('Brooklyn Museum Front Entrance.jpg'),
+  tenement_museum:  wm('Tenement Museum New.jpg'),
+
+  // ── Classical ──
+  bargemusic:       wm('Brooklyn Bridge Park td (2019-08-23) 006 - Pier 1, Bargemusic.jpg'),
 
   // ── Jazz ──
   village_vanguard: wm('Vanguard 01.jpg'),
   blue_note:        wm('Blue Note Jazz Club.jpg'),
-  birdland:         wm('Birdland Jazz Club NYC.jpg'),
+  birdland:         wm('Birdland New York.jpg'),
   smalls:           wm('Max-leven-performance-smalls-jazz-club-greenwich-village-nyc-july-2025.jpg'),
 
   // ── Concert halls / opera ──
@@ -35,19 +38,19 @@ export const venueImages = {
 
   // ── Sports ──
   yankee_stadium:   wm('Yankee Stadium overhead 2010.jpg'),
-  msg:              wm('Madison Square Garden (MSG) - Full (48124840533).jpg'),
-  citi_field:       wm('Citi Field in 2021.jpg'),
-  arthur_ashe_stadium: wm('Arthur Ashe Stadium Aerial.jpg'),
+  msg:              wm('Madison Square Garden 2011.jpg'),
+  citi_field:       wm('Citi Field from the south 2025.jpg'),
+  arthur_ashe_stadium: wm('Arthur Ashe Stadium with retractible roof.jpg'),
 
   // ── Landmarks / parks ──
   central_park:     wm('Global Citizen Festival Central Park New York City from NYonAir (15351915006).jpg'),
   high_line:        wm('High Line 20th Street looking downtown.jpg'),
-  one_wtc:          wm('One World Trade Center from the Hudson 2015.jpg'),
+  one_wtc:          wm('One World Trade Center, Financial District, Manhattan, New York.jpg'),
   stonewall_inn:    wm('Stonewall Inn 5 pride weekend 2016.jpg'),
 
   // ── Theaters / Harlem ──
   apollo_theater_hh:wm('Apollo Theater, Harlem (November 2006).jpg'),
-  public_theater:   wm('Public Theater (48064377872).jpg'),
+  public_theater:   wm('Public Theatre Astor Library Building from south.jpg'),
 
   // ── Architecture / skyscrapers ──
   empire_state:           wm('Empire-State-Building.JPG'),

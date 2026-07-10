@@ -32,6 +32,7 @@ import { venueImages } from './data/venueImages.js'
 // (idempotent by stable `seed_*` ids so re-runs don't duplicate).
 import { seedUserPlaces } from './data/places.js'
 import { t, t2, getLang, setLang, getUnit, setUnit, fmtTemp, unitLabel, dateLocale } from './lib/i18n.js'
+import { findSubwayLeg } from './data/subway.js'
 
 // Safe localStorage write — Safari private mode and WKWebView storage pressure
 // can throw on setItem; a failed persist should never crash the app.
@@ -2586,6 +2587,13 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
   const venue = venues[venueId]
   const colors = venueColors[venueId] || { bg: '#5d6b7c', text: '#fff' }
 
+  // Runtime hero fallback: venues with no Commons image and no work-at-venue
+  // image (mostly restaurants/bars) fetch a Google Places photo by name — the
+  // same legal, licensed pipeline the imported places already use. The hook is
+  // a no-op (null arg) when a curated image exists.
+  const _needsGPhoto = !venueImages[venueId] && venue
+  const gHero = useGooglePhoto(_needsGPhoto ? { id: 'venuehero_' + venueId, name: venue.name, neighborhood: venue.neighborhood, address: venue.address, googlePlaceId: 'byname' } : null)
+
   const fromTopic = fromTopicId ? topics[fromTopicId] : null
   const domainId = fromTopic?.domainId || fromDomainId
 
@@ -2670,8 +2678,9 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
       }}>
         {(() => {
           // Photo priority: curated venue photo → first work-at-this-venue image
-          // (covers architecture venues for free) → none (gradient shows).
-          const heroPhoto = venueImages[venueId] || worksHere.find(w => w.imageUrl)?.imageUrl || null
+          // (covers architecture venues for free) → runtime Google Places photo
+          // → none (gradient shows).
+          const heroPhoto = venueImages[venueId] || worksHere.find(w => w.imageUrl)?.imageUrl || gHero?.photoUrl || null
           return heroPhoto ? (
             <img
               src={heroPhoto}
@@ -9222,15 +9231,86 @@ function distanceMiles(a, b) {
 
 // Rough NYC travel-time estimate between two venueCoords entries.
 // Walking ~3.3 mph; subway adds platform/wait overhead; taxi assumed faster than subway for medium distances.
-function estimateTravel(fromId, toId) {
-  const a = venueCoords[fromId]
-  const b = venueCoords[toId]
+// ── NYC subway line bullets — drawn by us (no MTA artwork copied), using the
+// official line colors. Route data comes from the MTA open-data stations set;
+// register for the MTA's free developer license to cover symbol usage.
+const SUBWAY_LINE_COLORS = {
+  '1': '#EE352E', '2': '#EE352E', '3': '#EE352E',
+  '4': '#00933C', '5': '#00933C', '6': '#00933C',
+  '7': '#B933AD',
+  A: '#0039A6', C: '#0039A6', E: '#0039A6',
+  B: '#FF6319', D: '#FF6319', F: '#FF6319', M: '#FF6319',
+  G: '#6CBE45',
+  J: '#996633', Z: '#996633',
+  L: '#A7A9AC',
+  N: '#FCCC0A', Q: '#FCCC0A', R: '#FCCC0A', W: '#FCCC0A',
+  S: '#808183',
+}
+function SubwayBullet({ line }) {
+  const bg = SUBWAY_LINE_COLORS[line] || '#808183'
+  const dark = bg === '#FCCC0A' // yellow lines take black text, like the real signs
+  return (
+    <span aria-label={`${line} train`} style={{
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      width: 15, height: 15, borderRadius: '50%', background: bg,
+      color: dark ? '#111' : '#fff', fontSize: 9.5, fontWeight: 800,
+      lineHeight: 1, flexShrink: 0,
+    }}>{line}</span>
+  )
+}
+
+// Coord-based estimator — lets the travel connectors chain through meal cards
+// (restaurants aren't in venueCoords) as well as stops.
+function estimateTravelCoords(a, b) {
   if (!a || !b) return null
   const miles = distanceMiles(a, b)
   if (miles < 0.35) return { mode: 'walk',   icon: '🚶', mins: Math.max(4, Math.round(miles * 20)) }
   if (miles < 1.0)  return { mode: 'walk',   icon: '🚶', mins: Math.round(miles * 18) }
   if (miles < 6)    return { mode: 'subway', icon: '🚇', mins: Math.round(12 + miles * 4) }
   return                  { mode: 'taxi',   icon: '🚕', mins: Math.round(10 + miles * 3) }
+}
+function estimateTravel(fromId, toId) {
+  return estimateTravelCoords(venueCoords[fromId], venueCoords[toId])
+}
+
+// Curated RESTAURANT_DATA carries no lat/lng — approximate by neighborhood
+// centroid (imported places have real coords). Neighborhood precision is fine
+// for a "~N min" hint; distances stay honest to within a few minutes.
+const HOOD_CENTROIDS = {
+  'Midtown East':        { lat: 40.7549, lng: -73.9720 },
+  'Midtown':             { lat: 40.7580, lng: -73.9819 },
+  'Midtown (MoMA)':      { lat: 40.7614, lng: -73.9776 },
+  'Central Park South':  { lat: 40.7661, lng: -73.9797 },
+  'Grand Central':       { lat: 40.7527, lng: -73.9772 },
+  'Koreatown':           { lat: 40.7476, lng: -73.9868 },
+  'Upper East Side':     { lat: 40.7736, lng: -73.9566 },
+  'Upper West Side':     { lat: 40.7870, lng: -73.9754 },
+  'Greenwich Village':   { lat: 40.7336, lng: -74.0027 },
+  'East Village':        { lat: 40.7270, lng: -73.9840 },
+  'West Village':        { lat: 40.7358, lng: -74.0036 },
+  'Tribeca':             { lat: 40.7163, lng: -74.0086 },
+  'Financial District':  { lat: 40.7075, lng: -74.0113 },
+  'Harlem':              { lat: 40.8116, lng: -73.9465 },
+  'East Harlem':         { lat: 40.7957, lng: -73.9389 },
+  'Carroll Gardens':     { lat: 40.6795, lng: -73.9990 },
+  'Williamsburg':        { lat: 40.7140, lng: -73.9573 },
+  'Gowanus':             { lat: 40.6738, lng: -73.9890 },
+  'Cobble Hill':         { lat: 40.6863, lng: -73.9962 },
+  'Belmont (Bronx)':     { lat: 40.8548, lng: -73.8886 },
+  'South Bronx':         { lat: 40.8163, lng: -73.9204 },
+  'Woodside, Queens':    { lat: 40.7456, lng: -73.9047 },
+  'Flushing, Queens':    { lat: 40.7597, lng: -73.8303 },
+  'Sunnyside, Queens':   { lat: 40.7434, lng: -73.9196 },
+  // area-level fallbacks
+  'Downtown Village':    { lat: 40.7300, lng: -73.9950 },
+  'Lower Manhattan':     { lat: 40.7110, lng: -74.0090 },
+  'Brooklyn':            { lat: 40.6900, lng: -73.9850 },
+  'Bronx':               { lat: 40.8370, lng: -73.9080 },
+  'Queens':              { lat: 40.7450, lng: -73.9000 },
+}
+function restaurantCoords(r) {
+  if (typeof r?.lat === 'number' && typeof r?.lng === 'number') return { lat: r.lat, lng: r.lng }
+  return HOOD_CENTROIDS[r?.neighborhood] || HOOD_CENTROIDS[r?.area] || null
 }
 // ── Plan Error Boundary ─────────────────────────────────────────────────────
 // ── SavedPlanSummary: read-only view of the plan the user just saved ──────────
@@ -10911,6 +10991,59 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
               return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
               {reorderedItems.map((item, itemIdx) => {
+                // ── Travel connector between EVERY consecutive card (stops AND
+                // meals). Stops resolve via venueCoords/userVenues; restaurants
+                // via real coords (imports) or neighborhood centroid (curated). ──
+                const coordsOf = (it) => {
+                  if (it.type === 'stop') {
+                    const c = venueCoords[it.stop.id]
+                    if (c) return c
+                    const uv = userVenues[it.stop.id]
+                    return (typeof uv?.lat === 'number' && typeof uv?.lng === 'number') ? { lat: uv.lat, lng: uv.lng } : null
+                  }
+                  return restaurantCoords(it.meal === 'lunch' ? lunchRestaurants[dayIdx] : dinnerRestaurants[dayIdx])
+                }
+                const _myCoord = coordsOf(item)
+                const _prevCoord = (() => {
+                  for (let j = itemIdx - 1; j >= 0; j--) { const c = coordsOf(reorderedItems[j]); if (c) return c }
+                  return null
+                })()
+                const _travel = itemIdx > 0 && _prevCoord && _myCoord ? estimateTravelCoords(_prevCoord, _myCoord) : null
+                // Same-line subway detail from the MTA station data — "E·F
+                // Downtown · 5 Av/53 St → W 4 St". Transfer trips get no detail
+                // (null) rather than an invented route.
+                const _leg = _travel?.mode === 'subway' ? findSubwayLeg(_prevCoord, _myCoord) : null
+                const travelConnector = _travel && _travel.mins > 0 ? (
+                  <div style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 8,
+                    padding: '2px 16px', margin: '-4px 0 -4px',
+                    color: 'var(--gray-400)', fontSize: 11, fontWeight: 600,
+                  }}>
+                    <span style={{ width: 2, alignSelf: 'stretch', minHeight: 14, background: 'var(--gray-200)', marginLeft: 6 }} />
+                    <span style={{ lineHeight: '15px' }}>{_travel.icon}</span>
+                    <span style={{ lineHeight: '15px' }}>
+                      ~{_travel.mins} min {_travel.mode}
+                      {_leg && (
+                        <span style={{ display: 'block', fontWeight: 500, color: 'var(--gray-500)', marginTop: 3, lineHeight: 1.6 }}>
+                          {/* Flex row centers the line bullets on the text midline —
+                              baseline vertical-align sat visibly low. */}
+                          <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+                            <span>Take the{_leg.dir ? ` ${_leg.dir.toLowerCase()}` : ''}</span>
+                            {_leg.lines.split('·').map((ln, li, arr) => (
+                              <React.Fragment key={ln}>
+                                {li > 0 && li === arr.length - 1 && <span>or</span>}
+                                <SubwayBullet line={ln} />
+                              </React.Fragment>
+                            ))}
+                            <span>at {_leg.from}</span>
+                          </span>
+                          <span style={{ display: 'block' }}>Get off at {_leg.to}</span>
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                ) : null
+
                 if (item.type === 'restaurant') {
                   const isLunch = item.meal === 'lunch'
                   const cuisine = getMealCuisine(dayIdx, item.meal)
@@ -10921,6 +11054,8 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                   const isPickerOpen = openMealPicker === pickerKey
                   const mealId = `__${item.meal}__`
                   return (
+                    <React.Fragment key={`rest-${item.meal}-frag`}>
+                    {travelConnector}
                     <div
                       key={`rest-${item.meal}`}
                       ref={el => { if (el) stopCardRefs.current[mealId] = el; else delete stopCardRefs.current[mealId] }}
@@ -11085,6 +11220,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                         </div>
                       )}
                     </div>
+                    </React.Fragment>
                   )
                 }
 
@@ -11096,28 +11232,11 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                 const stopPosition = (stopOrderOverride || allStopIds).indexOf(stop.id)
                 const isFirst = stopPosition === 0
                 const isLast = stopPosition === (stopOrderOverride || allStopIds).length - 1
-                // Travel-time hint: looks back through the rendered items to find the previous stop (skipping over meal cards)
-                // so the connector shows the geographic gap even when a Lunch card sits between two stops.
-                const prevStop = (() => {
-                  for (let j = itemIdx - 1; j >= 0; j--) {
-                    if (reorderedItems[j].type === 'stop') return reorderedItems[j].stop
-                  }
-                  return null
-                })()
-                const travel = prevStop ? estimateTravel(prevStop.id, stop.id) : null
+                // Travel connector comes from the shared per-item chain above —
+                // it now links from the immediately previous card (meal or stop).
                 return (
                   <React.Fragment key={stop.id + '-frag'}>
-                    {travel && (
-                      <div style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        padding: '2px 16px', margin: '-4px 0 -4px',
-                        color: 'var(--gray-400)', fontSize: 11, fontWeight: 600,
-                      }}>
-                        <span style={{ width: 2, height: 14, background: 'var(--gray-200)', marginLeft: 6 }} />
-                        <span>{travel.icon}</span>
-                        <span>~{travel.mins} min {travel.mode}</span>
-                      </div>
-                    )}
+                    {travelConnector}
                   <div
                     key={stop.id}
                     ref={el => { if (el) stopCardRefs.current[stop.id] = el; else delete stopCardRefs.current[stop.id] }}
@@ -13088,7 +13207,15 @@ function AddStopToDayModal({ onClose, onSelect, userVenues = {}, dayLabel = '' }
     setGoogleError(null)
     const timer = setTimeout(() => {
       searchGooglePlaces(q)
-        .then(items => { if (!cancelled) setGoogleResults(items) })
+        .then(items => {
+          if (cancelled) return
+          if (items === null) { // the search itself failed (key/network), not "no matches"
+            setGoogleResults([])
+            setGoogleError('Place search couldn’t load — check your connection, or try again shortly.')
+          } else {
+            setGoogleResults(items)
+          }
+        })
         .catch(err => { if (!cancelled) { setGoogleResults([]); setGoogleError(err.message || 'Search failed') } })
         .finally(() => { if (!cancelled) setGoogleLoading(false) })
     }, 250)
@@ -13740,32 +13867,91 @@ const inputStyle = {
   outline: 'none', fontFamily: 'inherit',
 }
 
+// ── Onboarding art — hand-drawn scenes in the same illustration language as
+// the home cards (MoodCoverArt / ActivityCoverArt). One per slide, 280×170.
+function OnboardingArt({ slide }) {
+  const svgProps = {
+    viewBox: '0 0 280 170',
+    preserveAspectRatio: 'xMidYMid slice',
+    style: { width: '100%', height: '100%', display: 'block' },
+    'aria-hidden': true,
+  }
+  if (slide === 0) return ( // the city at dusk — welcome
+    <svg {...svgProps}>
+      <rect width="280" height="170" fill="#C97F52" />
+      <rect width="280" height="60" fill="#D89562" opacity="0.7" />
+      <path d="M140 16l2.4 6 6 2.4-6 2.4-2.4 6.2-2.4-6.2-6-2.4 6-2.4z" fill="#F3EBDC" />
+      <circle cx="52" cy="30" r="1.6" fill="#F3EBDC" opacity="0.7" />
+      <circle cx="228" cy="24" r="1.4" fill="#F3EBDC" opacity="0.6" />
+      <path d="M0 170v-60h20V90h14v20h18V70h16v40h14l6-28 3-12 3 12 6 28h14V56h8l3-16 3 16h8v54h18V84h16v26h14V96h20v18h16v-14h22v70z" fill="#6E3A24" />
+      <g fill="#F3EBDC" opacity="0.8">
+        <rect x="26" y="118" width="4" height="5" /><rect x="60" y="80" width="4" height="5" />
+        <rect x="98" y="66" width="4" height="5" /><rect x="140" y="72" width="4" height="5" />
+        <rect x="172" y="94" width="4" height="5" /><rect x="206" y="106" width="4" height="5" />
+        <rect x="244" y="122" width="4" height="5" /><rect x="118" y="94" width="4" height="5" />
+      </g>
+    </svg>
+  )
+  if (slide === 1) return ( // a place card, saved — the + pill on plum night
+    <svg {...svgProps}>
+      <rect width="280" height="170" fill="#5C3A4F" />
+      <circle cx="46" cy="28" r="1.6" fill="#F3EBDC" opacity="0.7" />
+      <circle cx="238" cy="36" r="1.4" fill="#F3EBDC" opacity="0.6" />
+      <circle cx="206" cy="18" r="1.2" fill="#F3EBDC" opacity="0.5" />
+      <rect x="62" y="34" width="156" height="112" rx="12" fill="#FBF6EC" />
+      <rect x="72" y="44" width="136" height="58" rx="8" fill="#8FA3A8" />
+      <circle cx="182" cy="58" r="9" fill="#C6892F" />
+      <path d="M72 102V84c14-10 30-12 46-6s34 4 48-2l42-2v28z" fill="#6F7A45" opacity="0.9" />
+      <rect x="72" y="112" width="86" height="7" rx="3.5" fill="#5C5142" />
+      <rect x="72" y="126" width="58" height="6" rx="3" fill="#B4A78F" />
+      <circle cx="218" cy="130" r="21" fill="#B7472A" />
+      <path d="M218 120v20M208 130h20" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" />
+    </svg>
+  )
+  return ( // saves become a routed day — pins 1·2·3 on a street grid
+    <svg {...svgProps}>
+      <rect width="280" height="170" fill="#E8D9BC" />
+      <g stroke="#D9CBB2" strokeWidth="5">
+        <path d="M0 52h280M0 108h280M56 0v170M140 0v170M224 0v170" />
+      </g>
+      <path d="M48 132C86 118 96 84 132 78s76 6 104-30" fill="none" stroke="#B7472A" strokeWidth="3" strokeDasharray="1 9" strokeLinecap="round" />
+      <g>
+        <path d="M48 132c-11-12-16-19-16-27a16 16 0 1 1 32 0c0 8-5 15-16 27z" fill="#B7472A" />
+        <circle cx="48" cy="104" r="9" fill="#F3EBDC" /><text x="48" y="108.5" textAnchor="middle" fontSize="12" fontWeight="700" fill="#B7472A" fontFamily="Georgia, serif">1</text>
+      </g>
+      <g>
+        <path d="M138 78c-11-12-16-19-16-27a16 16 0 1 1 32 0c0 8-5 15-16 27z" fill="#475A66" />
+        <circle cx="138" cy="50" r="9" fill="#F3EBDC" /><text x="138" y="54.5" textAnchor="middle" fontSize="12" fontWeight="700" fill="#475A66" fontFamily="Georgia, serif">2</text>
+      </g>
+      <g>
+        <path d="M236 102c-11-12-16-19-16-27a16 16 0 1 1 32 0c0 8-5 15-16 27z" fill="#6F7A45" />
+        <circle cx="236" cy="74" r="9" fill="#F3EBDC" /><text x="236" y="78.5" textAnchor="middle" fontSize="12" fontWeight="700" fill="#6F7A45" fontFamily="Georgia, serif">3</text>
+      </g>
+      <path d="M20 24c5 0 5-3 10-3s5 3 10 3" stroke="#C9BBA0" strokeWidth="2" fill="none" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 // ── Onboarding Modal — three-slide welcome flow shown on first app open ──
 function OnboardingModal({ onDismiss }) {
   const [slide, setSlide] = React.useState(0)
-  // Light slides matching the app's design language — each gets one accent
-  // tint used for the emoji tile gradient and the eyebrow.
+  // Three verbs, three slides: what you can DO here → how SAVING works →
+  // what the app does FOR you. Art is hand-drawn (OnboardingArt above).
   const slides = [
     {
-      tint: '#E0552C',
-      emoji: '🗽',
-      eyebrow: 'NYC STOOP',
-      title: "Discover what's on,\ntonight in New York.",
-      body: 'A curated guide to jazz clubs, museums, theater, architecture — hand-picked by NYC editors, refreshed weekly.',
+      eyebrow: 'WELCOME TO NYC STOOP',
+      title: 'Explore. Learn.\nPlan your days.',
+      body: 'A curated New York guide — browse what’s worth doing, read the story behind every place, and turn it all into a schedule.',
     },
     {
-      tint: '#BE4D2B',
-      emoji: '➕',
-      eyebrow: 'BUILD YOUR TRIP',
-      title: 'Add what catches\nyour eye.',
-      body: 'Tap “+ Add to My Trip” on any venue, pick, or museum. Everything you add collects in My Trip.',
+      eyebrow: 'SAVE ANYTHING',
+      title: 'Tap + on what\ncatches your eye.',
+      body: 'Places, restaurants, shows — one button everywhere: “+ Add to My Trip.” Your picks collect in one place.',
     },
     {
-      tint: '#4A8C5C',
-      emoji: '🗓️',
-      eyebrow: 'PLAN YOUR DAYS',
-      title: 'Turn saves into a\nsmart itinerary.',
-      body: 'My Trip groups your venues by neighborhood, suggests restaurants and travel times, and gets you out the door.',
+      eyebrow: 'WE DO THE PLANNING',
+      title: 'Saves become\na routed day.',
+      body: 'My Trip groups picks by neighborhood, adds lunch and dinner, checks the weather, and routes you door to door.',
     },
   ]
   const isLast = slide === slides.length - 1
@@ -13807,22 +13993,21 @@ function OnboardingModal({ onDismiss }) {
         alignItems: 'center', justifyContent: 'center',
         padding: '0 32px', textAlign: 'center', gap: 20,
       }}>
-        {/* Emoji on a 28px-radius gradient tile — same card language as the app */}
-        <span style={{
-          width: 132, height: 132, borderRadius: 28,
-          background: `linear-gradient(135deg, ${current.tint} 0%, ${current.tint}99 100%)`,
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 64, lineHeight: 1, color: '#fff',
-          boxShadow: `0 18px 40px ${current.tint}55`,
-          transition: 'background 380ms ease, box-shadow 380ms ease',
-        }}>{current.emoji}</span>
+        {/* Hand-drawn scene — the same illustration language as the home cards */}
         <div style={{
-          fontSize: 11, fontWeight: 800, letterSpacing: '0.14em',
-          color: 'var(--gray-500)', marginTop: 6,
+          width: '100%', maxWidth: 300, height: 180, borderRadius: 20, overflow: 'hidden',
+          border: '1px solid rgba(33,27,20,0.10)', boxShadow: '0 10px 30px rgba(33,27,20,0.12)',
+          flexShrink: 0,
+        }}>
+          <OnboardingArt slide={slide} />
+        </div>
+        <div style={{
+          fontSize: 11, fontWeight: 700, letterSpacing: '0.16em',
+          color: 'var(--field-clay)', marginTop: 6, textTransform: 'uppercase',
         }}>{current.eyebrow}</div>
         <div style={{
-          fontSize: 28, fontWeight: 800, lineHeight: 1.2, letterSpacing: '-0.02em',
-          maxWidth: 320, whiteSpace: 'pre-line', color: 'var(--ink)',
+          fontFamily: 'var(--serif)', fontSize: 30, fontWeight: 600, lineHeight: 1.15,
+          letterSpacing: '0.01em', maxWidth: 320, whiteSpace: 'pre-line', color: 'var(--ink)',
         }}>
           {current.title}
         </div>
@@ -14490,11 +14675,11 @@ export default function App() {
 
   // ── First-time-user onboarding — versioned key so we can re-show after major updates ──
   const [showOnboarding, setShowOnboarding] = useState(() => {
-    try { return !localStorage.getItem('nyc_onboarded_v1') }
+    try { return !localStorage.getItem('nyc_onboarded_v2') }
     catch { return false }
   })
   function dismissOnboarding() {
-    try { lsSet('nyc_onboarded_v1', '1') } catch {}
+    try { lsSet('nyc_onboarded_v2', '1') } catch {}
     setShowOnboarding(false)
   }
 
