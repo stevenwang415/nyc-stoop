@@ -1673,7 +1673,7 @@ function MoodCoverArt({ moodId }) {
   }
 }
 
-function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, onOpenSettings = () => {}, onPlanNight = () => {}, userVenues = {}, weather = null }) {
+function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, onOpenSettings = () => {}, onPlanNight = () => {}, userVenues = {}, weather = null, user = null }) {
   const [query, setQuery] = useState('')
   // Live clock for the header chip (Tue · 7:42 PM). Ticks every 30s.
   const [now, setNow] = React.useState(() => new Date())
@@ -1804,14 +1804,27 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
               NYC <span style={{ fontStyle: 'italic', color: 'var(--accent)' }}>Stoop</span>
             </div>
           </div>
-          <button onClick={onOpenSettings} aria-label="Profile and settings" style={{
-            width: 40, height: 40, borderRadius: 999, background: 'var(--accent)',
-            border: 'none', cursor: 'pointer', padding: 0, zIndex: 1,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-            boxShadow: '0 2px 8px rgba(190,77,43,0.35)',
-          }}>
-            <NavIcon name="user" size={18} color="#fff" />
-          </button>
+          {/* Signed in → their profile photo (local avatar overlay wins, then the
+              provider's picture); signed out → the generic icon. Photo failures
+              fall back to the icon rather than a broken circle. */}
+          {(() => {
+            const overlay = user ? getProfileOverlay(user.email) : null
+            const avatarSrc = (overlay && overlay.avatar) || user?.picture_url || null
+            return (
+              <button onClick={onOpenSettings} aria-label="Profile and settings" style={{
+                width: 40, height: 40, borderRadius: 999, background: 'var(--accent)',
+                border: 'none', cursor: 'pointer', padding: 0, zIndex: 1,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                boxShadow: '0 2px 8px rgba(190,77,43,0.35)', overflow: 'hidden',
+              }}>
+                {avatarSrc
+                  ? <img src={avatarSrc} alt="" referrerPolicy="no-referrer"
+                      onError={e => { e.currentTarget.style.display = 'none' }}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                  : <NavIcon name="user" size={18} color="#fff" />}
+              </button>
+            )
+          })()}
         </div>
         <div style={{ padding: '6px 20px 12px', background: 'var(--canvas)' }}>
           {/* Contextual lead — weather × time of day, one line. */}
@@ -14763,10 +14776,14 @@ export default function App() {
   function handleTabPress(tab) {
     if (tab === activeTab) {
       if (tab === 'explore') resetExplore()
-      if (tab === 'map')     setMapSel(null)
+      if (tab === 'map')     { setMapSel(null); _mapSchemCache = null }
       if (tab === 'tonight') { setTonightSel(null); setTonightFull(null) }
       if (tab === 'saved')   setSavedSel(null)
     } else {
+      // Leaving the Map tab resets its view cache: the cache exists ONLY so
+      // "Full details → back" WITHIN the tab restores the neighborhood sheet.
+      // Coming back via the tab bar should always land on the default live map.
+      if (activeTab === 'map' && tab !== 'map') _mapSchemCache = null
       setActiveTab(tab)
     }
   }
@@ -14823,7 +14840,7 @@ export default function App() {
 
   function renderExploreScreen() {
     switch (current.screen) {
-      case 'home':      return <HomeScreen push={push} savedItems={savedItems} toggleSave={toggleSave} onSeeAllTonight={() => setActiveTab('tonight')} onOpenSettings={() => setSettingsOpen(true)} onPlanNight={() => setPlanNightOpen(true)} userVenues={userVenues} weather={weather} />
+      case 'home':      return <HomeScreen push={push} savedItems={savedItems} toggleSave={toggleSave} onSeeAllTonight={() => setActiveTab('tonight')} onOpenSettings={() => setSettingsOpen(true)} onPlanNight={() => setPlanNightOpen(true)} userVenues={userVenues} weather={weather} user={user} />
       case 'domain':    return <DomainScreen domainId={current.domainId} push={push} savedItems={savedItems} />
       case 'topic':     return <TopicScreen topicId={current.topicId} push={push} savedItems={savedItems} />
       case 'venue':     return <VenueScreen venueId={current.venueId} fromTopicId={current.fromTopicId} fromDomainId={current.fromDomainId} push={push} savedItems={savedItems} toggleSave={toggleSave} onViewMap={venueCoords[current.venueId] ? () => { resetExplore(); setMapHighlight(current.venueId); setActiveTab('map') } : null} />
@@ -14834,7 +14851,7 @@ export default function App() {
       case 'sight':     return <SightScreen sightId={current.sightId} push={push} savedItems={savedItems} toggleSave={toggleSave} />
       case 'mood':      return <MoodFlowScreen moodId={current.moodId} initialActivity={current.activityId || null} push={push} savedItems={savedItems} toggleSave={toggleSave} userVenues={userVenues} onAddPlace={() => setAddPlaceOpen(true)} onAddToTrip={addUserVenue} />
       case 'eat':       return <EatScreen push={push} savedItems={savedItems} userVenues={userVenues} toggleSave={toggleSave} onAddToTrip={addUserVenue} initialLoc={userLoc} />
-      default:          return <HomeScreen push={push} savedItems={savedItems} toggleSave={toggleSave} onSeeAllTonight={() => setActiveTab('tonight')} onOpenSettings={() => setSettingsOpen(true)} onPlanNight={() => setPlanNightOpen(true)} userVenues={userVenues} weather={weather} />
+      default:          return <HomeScreen push={push} savedItems={savedItems} toggleSave={toggleSave} onSeeAllTonight={() => setActiveTab('tonight')} onOpenSettings={() => setSettingsOpen(true)} onPlanNight={() => setPlanNightOpen(true)} userVenues={userVenues} weather={weather} user={user} />
     }
   }
 
