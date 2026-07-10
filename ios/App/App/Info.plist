@@ -37,6 +37,10 @@
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>NYC Stoop uses your location to show restaurants, bars, and places to explore near you, and to sort recommendations by distance.</string>
 	<key>UILaunchStoryboardName</key>

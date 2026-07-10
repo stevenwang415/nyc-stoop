@@ -14,6 +14,7 @@ import {
   signup, login, googleAuth, appleAuth, forgotPassword, resetPassword,
   decodeJwtPayload, ApiError,
 } from './api'
+import { t } from '../lib/i18n.js'
 
 // Sign in with Apple is a NATIVE flow (ASAuthorizationController) — only offer
 // it inside the iOS app. On the web build the button simply doesn't render.
@@ -241,9 +242,9 @@ export function AuthModal({ onClose, onSuccess, initialTab = 'signin' }) {
     } finally { setBusy(false) }
   }
 
-  const title = tab === 'signup' ? 'Create your account'
-              : tab === 'forgot' ? 'Reset your password'
-              :                    'Sign in to NYC Stoop'
+  const title = tab === 'signup' ? t('Create your account')
+              : tab === 'forgot' ? t('Reset your password')
+              :                    t('Sign in to NYC Stoop')
 
   return (
     <div onClick={onClose} style={sheetWrap}>
@@ -262,7 +263,7 @@ export function AuthModal({ onClose, onSuccess, initialTab = 'signin' }) {
             <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 4 }}>
               {tab === 'forgot'
                 ? "Enter your email and we'll send you a reset link."
-                : 'Sync your saves and trip plan across devices.'}
+                : t('Sync your saves and trip plan across devices.')}
             </div>
           </div>
           <button onClick={onClose} aria-label="Close" style={{
@@ -276,7 +277,7 @@ export function AuthModal({ onClose, onSuccess, initialTab = 'signin' }) {
         {tab !== 'forgot' && (
           <div style={{ padding: '0 20px 14px' }}>
             <div style={{ display: 'flex', background: 'var(--gray-100)', borderRadius: 12, padding: 4, gap: 4 }}>
-              {[['signin', 'Sign in'], ['signup', 'Create account']].map(([key, label]) => (
+              {[['signin', t('Sign in')], ['signup', t('Create account')]].map(([key, label]) => (
                 <button key={key} onClick={() => { setTab(key); setError(''); setInfo('') }}
                   style={{
                     flex: 1, padding: '8px 10px', border: 'none', cursor: 'pointer',
@@ -313,7 +314,7 @@ export function AuthModal({ onClose, onSuccess, initialTab = 'signin' }) {
                 <svg width="15" height="18" viewBox="0 0 15 18" fill="#fff" aria-hidden="true">
                   <path d="M12.52 9.56c-.02-2.03 1.66-3 1.73-3.05-.94-1.38-2.41-1.57-2.93-1.59-1.25-.13-2.44.73-3.07.73-.63 0-1.61-.71-2.65-.69-1.36.02-2.62.79-3.32 2.01-1.42 2.46-.36 6.1 1.02 8.09.67.98 1.48 2.07 2.53 2.03 1.02-.04 1.4-.66 2.63-.66 1.22 0 1.57.66 2.65.64 1.09-.02 1.78-.99 2.45-1.97.77-1.13 1.09-2.22 1.11-2.28-.02-.01-2.13-.82-2.15-3.26zM10.51 3.6c.56-.68.94-1.62.83-2.56-.81.03-1.79.54-2.37 1.22-.52.6-.97 1.56-.85 2.48.9.07 1.82-.46 2.39-1.14z"/>
                 </svg>
-                Sign in with Apple
+                {t('Sign in with Apple')}
               </button>
             )}
             {IS_IOS_NATIVE ? (
@@ -339,7 +340,7 @@ export function AuthModal({ onClose, onSuccess, initialTab = 'signin' }) {
                     <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
                     <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
                   </svg>
-                  Continue with Google
+                  {t('Continue with Google')}
                 </button>
               ) : null
             ) : (
@@ -354,7 +355,7 @@ export function AuthModal({ onClose, onSuccess, initialTab = 'signin' }) {
             }}>
               <div style={{ flex: 1, height: 1, background: 'var(--gray-200)' }} />
               <span style={{ fontSize: 11, color: 'var(--gray-400)', letterSpacing: '0.07em', textTransform: 'uppercase' }}>
-                or with email
+                {t('or with email')}
               </span>
               <div style={{ flex: 1, height: 1, background: 'var(--gray-200)' }} />
             </div>
@@ -373,7 +374,7 @@ export function AuthModal({ onClose, onSuccess, initialTab = 'signin' }) {
             <input
               type="password"
               autoComplete={tab === 'signup' ? 'new-password' : 'current-password'}
-              placeholder={tab === 'signup' ? 'Choose a password (8+ chars)' : 'Password'}
+              placeholder={tab === 'signup' ? t('Choose a password (8+ chars)') : t('Password')}
               value={password} onChange={e => setPassword(e.target.value)}
               style={inputStyle} required minLength={tab === 'signup' ? 8 : 1}
             />
@@ -381,7 +382,7 @@ export function AuthModal({ onClose, onSuccess, initialTab = 'signin' }) {
 
           {tab === 'signup' && (
             <input
-              type="text" autoComplete="name" placeholder="Display name (optional)"
+              type="text" autoComplete="name" placeholder={t('Display name (optional)')}
               value={displayName} onChange={e => setDisplayName(e.target.value)}
               style={inputStyle}
             />
@@ -404,16 +405,16 @@ export function AuthModal({ onClose, onSuccess, initialTab = 'signin' }) {
             ...primaryBtn, opacity: busy ? 0.6 : 1, marginTop: 4,
           }}>
             {busy ? 'Working…'
-              : tab === 'signup' ? 'Create account'
+              : tab === 'signup' ? t('Create account')
               : tab === 'forgot' ? 'Send reset link'
-              :                    'Sign in'}
+              :                    t('Sign in')}
           </button>
 
           {/* Footer links */}
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0 12px' }}>
             {tab === 'signin' && (
               <button type="button" onClick={() => { setTab('forgot'); setError(''); setInfo('') }} style={subtleBtn}>
-                Forgot password?
+                {t('Forgot password?')}
               </button>
             )}
             {tab === 'forgot' && (

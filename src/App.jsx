@@ -31,6 +31,7 @@ import { venueImages } from './data/venueImages.js'
 // Bulk-imported user places — merged into userVenues on app boot
 // (idempotent by stable `seed_*` ids so re-runs don't duplicate).
 import { seedUserPlaces } from './data/places.js'
+import { t, t2, getLang, setLang, getUnit, setUnit, fmtTemp, unitLabel, dateLocale } from './lib/i18n.js'
 
 // Safe localStorage write — Safari private mode and WKWebView storage pressure
 // can throw on setItem; a failed persist should never crash the app.
@@ -1411,7 +1412,7 @@ function ThisWeekSection() {
   return (
     <div style={{ padding: '26px 0 0' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '0 20px' }}>
-        <h2 style={{ fontFamily: 'var(--serif)', fontWeight: 500, fontSize: 25, margin: 0, letterSpacing: '0.01em', color: 'var(--ink)' }}>This week in NYC</h2>
+        <h2 style={{ fontFamily: 'var(--serif)', fontWeight: 500, fontSize: 25, margin: 0, letterSpacing: '0.01em', color: 'var(--ink)' }}>{t('This week in NYC')}</h2>
       </div>
       <div style={{ fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--field-clay)', fontWeight: 600, padding: '6px 20px 0' }}>Live from NYC Open Data · updates daily</div>
       <div className="hide-scrollbar" style={{ display: 'flex', gap: 14, overflowX: 'auto', padding: '16px 20px 4px', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }}>
@@ -1789,7 +1790,7 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
             {weather && (
               <>
                 <span style={{ fontSize: 20, lineHeight: 1 }} aria-hidden="true">{weatherEmoji(weather.code, weather.isDay)}</span>
-                <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)', lineHeight: 1 }}>{weather.temp}°</span>
+                <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)', lineHeight: 1 }}>{fmtTemp(weather.temp)}°</span>
               </>
             )}
           </div>
@@ -1798,7 +1799,7 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
               half the 40px row), NOT 50% of the box — the box includes the iPhone
               safe-area inset, which made the wordmark ride high on device. */}
           <div style={{ position: 'absolute', left: '50%', top: 'calc(env(safe-area-inset-top, 0px) + 12px + 20px)', transform: 'translate(-50%, -50%)', textAlign: 'center', lineHeight: 1, pointerEvents: 'none' }}>
-            <div style={{ fontSize: 9, letterSpacing: '0.28em', color: 'var(--field-clay)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 3 }}>The City Guide</div>
+            <div style={{ fontSize: 9, letterSpacing: '0.28em', color: 'var(--field-clay)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 3 }}>{t('The City Guide')}</div>
             <div style={{ fontFamily: 'var(--serif)', fontSize: 25, fontWeight: 500, letterSpacing: '0.01em', color: 'var(--ink)' }}>
               NYC <span style={{ fontStyle: 'italic', color: 'var(--accent)' }}>Stoop</span>
             </div>
@@ -1830,7 +1831,7 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
             <span style={{ color: 'var(--gray-400)', flexShrink: 0, display: 'inline-flex' }}><NavIcon name="search" size={17} /></span>
             <input
               type="search"
-              placeholder="Search venues, sights, artists…"
+              placeholder={t('Search venues, sights, artists…')}
               value={query}
               onChange={e => setQuery(e.target.value)}
               style={{
@@ -1955,9 +1956,9 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                     <div style={{ position: 'absolute', right: -28, top: -28, width: 130, height: 130, borderRadius: 999, background: 'rgba(255,255,255,0.07)' }} />
                     <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                       <div>
-                        <div style={{ fontSize: 9.5, letterSpacing: '0.26em', color: 'rgba(255,255,255,0.72)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>Tonight, curated</div>
-                        <div style={{ fontFamily: 'var(--serif)', fontSize: 27, fontWeight: 500, color: '#fff', lineHeight: 1.05 }}>Plan my night</div>
-                        <div style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.82)', marginTop: 6, maxWidth: 220, lineHeight: 1.35 }}>A routed plan with food, in a couple of taps.</div>
+                        <div style={{ fontSize: 9.5, letterSpacing: '0.26em', color: 'rgba(255,255,255,0.72)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>{t('Tonight, curated')}</div>
+                        <div style={{ fontFamily: 'var(--serif)', fontSize: 27, fontWeight: 500, color: '#fff', lineHeight: 1.05 }}>{t('Plan my night')}</div>
+                        <div style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.82)', marginTop: 6, maxWidth: 220, lineHeight: 1.35 }}>{t('A routed plan with food, in a couple of taps.')}</div>
                       </div>
                       <span style={{ flexShrink: 0, width: 44, height: 44, borderRadius: 999, background: 'rgba(255,255,255,0.16)', border: '1px solid rgba(255,255,255,0.28)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M3 9h11M10 4.5L14.5 9 10 13.5" stroke="#fff" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -1979,7 +1980,7 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                 {/* ── What do you feel like? — activity-first cards (same card style) ── */}
                 <div style={{ padding: '24px 0 0' }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', padding: '0 20px' }}>
-                    <h2 style={{ fontFamily: 'var(--serif)', fontWeight: 500, fontSize: 25, margin: 0, letterSpacing: '0.01em', color: 'var(--ink)' }}>What do you feel like?</h2>
+                    <h2 style={{ fontFamily: 'var(--serif)', fontWeight: 500, fontSize: 25, margin: 0, letterSpacing: '0.01em', color: 'var(--ink)' }}>{t('What do you feel like?')}</h2>
                   </div>
                   {(() => {
                     // Activity-first: lead with the six activities. "Eat" opens the
@@ -1988,12 +1989,12 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                     // "anything" mood. Covers are hand-drawn scenes (ActivityCoverArt),
                     // matching the collection cards below — numbered badges retired.
                     const items = [
-                      { key: 'eat',      title: 'Eat',      meta: 'Restaurants',            onClick: () => push({ screen: 'eat' }) },
-                      { key: 'drinks',   title: 'Drinks',   meta: 'Bars, cocktails, wine',  onClick: () => push({ screen: 'mood', moodId: 'anything', activityId: 'drinks' }) },
-                      { key: 'coffee',   title: 'Coffee',   meta: 'Cafés & bakeries',       onClick: () => push({ screen: 'mood', moodId: 'anything', activityId: 'coffee' }) },
-                      { key: 'outdoors', title: 'Outdoors', meta: 'Parks & waterfront',     onClick: () => push({ screen: 'mood', moodId: 'anything', activityId: 'outdoors' }) },
-                      { key: 'culture',  title: 'Culture',  meta: 'Museums & landmarks',    onClick: () => push({ screen: 'mood', moodId: 'anything', activityId: 'culture' }) },
-                      { key: 'live',     title: 'Live',     meta: 'Jazz, theater, music',   onClick: () => push({ screen: 'mood', moodId: 'anything', activityId: 'live' }) },
+                      { key: 'eat',      title: t('Eat'),      meta: t('Restaurants'),            onClick: () => push({ screen: 'eat' }) },
+                      { key: 'drinks',   title: t('Drinks'),   meta: t('Bars, cocktails, wine'),  onClick: () => push({ screen: 'mood', moodId: 'anything', activityId: 'drinks' }) },
+                      { key: 'coffee',   title: t('Coffee'),   meta: t('Cafés & bakeries'),       onClick: () => push({ screen: 'mood', moodId: 'anything', activityId: 'coffee' }) },
+                      { key: 'outdoors', title: t('Outdoors'), meta: t('Parks & waterfront'),     onClick: () => push({ screen: 'mood', moodId: 'anything', activityId: 'outdoors' }) },
+                      { key: 'culture',  title: t('Culture'),  meta: t('Museums & landmarks'),    onClick: () => push({ screen: 'mood', moodId: 'anything', activityId: 'culture' }) },
+                      { key: 'live',     title: t('Live'),     meta: t('Jazz, theater, music'),   onClick: () => push({ screen: 'mood', moodId: 'anything', activityId: 'live' }) },
                     ]
                     return (
                       <div style={{ display: 'flex', gap: 13, overflowX: 'auto', padding: '16px 20px 4px', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }} className="hide-scrollbar">
@@ -2022,7 +2023,7 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                     Covers are hand-drawn SVG scenes (see MoodCoverArt), one per mood. ── */}
                 <div style={{ padding: '22px 0 0' }}>
                   <div style={{ padding: '0 20px' }}>
-                    <h2 style={{ fontFamily: 'var(--serif)', fontWeight: 500, fontSize: 20, margin: 0, letterSpacing: '0.01em', color: 'var(--ink)' }}>Feeling something specific?</h2>
+                    <h2 style={{ fontFamily: 'var(--serif)', fontWeight: 500, fontSize: 20, margin: 0, letterSpacing: '0.01em', color: 'var(--ink)' }}>{t('Feeling something specific?')}</h2>
                   </div>
                   <div style={{ display: 'flex', gap: 11, overflowX: 'auto', padding: '12px 20px 4px', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }} className="hide-scrollbar">
                     {moods.map(m => (
@@ -2035,7 +2036,7 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                           <MoodCoverArt moodId={m.id} />
                           {/* Scrim keeps the serif label legible over any scene */}
                           <span style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0) 45%, rgba(20,14,8,0.42))' }} />
-                          <span style={{ position: 'absolute', left: 12, right: 12, bottom: 9, fontFamily: 'var(--serif)', fontSize: 16.5, fontWeight: 600, color: '#fff', lineHeight: 1.1, textShadow: '0 1px 4px rgba(0,0,0,0.35)' }}>{m.label}</span>
+                          <span style={{ position: 'absolute', left: 12, right: 12, bottom: 9, fontFamily: 'var(--serif)', fontSize: 16.5, fontWeight: 600, color: '#fff', lineHeight: 1.1, textShadow: '0 1px 4px rgba(0,0,0,0.35)' }}>{t(m.label)}</span>
                         </span>
                       </button>
                     ))}
@@ -2046,13 +2047,13 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                 <div style={{ padding: '20px 0 8px' }}>
                   {/* Section header row: small label + toggle pill */}
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', marginBottom: 14, gap: 12 }}>
-                    <h2 style={{ fontFamily: 'var(--serif)', fontWeight: 500, fontSize: 25, margin: 0, letterSpacing: '0.01em', color: 'var(--ink)' }}>Browse by</h2>
+                    <h2 style={{ fontFamily: 'var(--serif)', fontWeight: 500, fontSize: 25, margin: 0, letterSpacing: '0.01em', color: 'var(--ink)' }}>{t('Browse by')}</h2>
                     <div role="tablist" style={{
                       display: 'inline-flex', background: '#EBE0CD', border: '1px solid rgba(33,27,20,0.10)', borderRadius: 999, padding: 3,
                     }}>
                       {[
-                        { id: 'topics',        label: 'Topics' },
-                        { id: 'neighborhoods', label: 'Areas' },
+                        { id: 'topics',        label: t('Topics') },
+                        { id: 'neighborhoods', label: t('Areas') },
                       ].map(opt => {
                         const isActive = browseBy === opt.id
                         return (
@@ -4730,19 +4731,20 @@ function weatherEmoji(code, isDay) {
 function weatherLine(weather, hour) {
   if (!weather) return null
   const { code, temp } = weather
-  const tod = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening'
-  if (code >= 95) return 'Thunder out there — a long-lunch, museum kind of day.'
-  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 'Snow day — coffee first, then somewhere warm.'
-  if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return `Rainy ${tod} — museums, bookstores, a long ramen.`
-  if (code === 45 || code === 48) return 'Foggy — the city’s gone cinematic. Walk the bridge anyway.'
-  if (temp >= 88) return `${temp}° and steamy — shade, iced coffee, waterfront.`
-  if (temp <= 35) return `${temp}° out there — bundle up, keep it indoors and cozy.`
+  const tod = t(hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening')
+  // Thresholds stay in °F (the fetch unit); display converts via fmtTemp.
+  if (code >= 95) return t('Thunder out there — a long-lunch, museum kind of day.')
+  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return t('Snow day — coffee first, then somewhere warm.')
+  if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return t2('Rainy {TOD} — museums, bookstores, a long ramen.', { TOD: tod })
+  if (code === 45 || code === 48) return t('Foggy — the city’s gone cinematic. Walk the bridge anyway.')
+  if (temp >= 88) return t2('{T}° and steamy — shade, iced coffee, waterfront.', { T: fmtTemp(temp) })
+  if (temp <= 35) return t2('{T}° out there — bundle up, keep it indoors and cozy.', { T: fmtTemp(temp) })
   if (code <= 1) {
-    if (tod === 'morning') return 'Clear morning — bagel weather.'
-    if (tod === 'afternoon') return 'Sunny afternoon — the waterfront is calling.'
-    return 'Clear night — rooftop weather.'
+    if (tod === t('morning')) return t('Clear morning — bagel weather.')
+    if (tod === t('afternoon')) return t('Sunny afternoon — the waterfront is calling.')
+    return t('Clear night — rooftop weather.')
   }
-  if (code <= 3) return `Soft gray ${tod} — good wandering weather.`
+  if (code <= 3) return t2('Soft gray {TOD} — good wandering weather.', { TOD: tod })
   return null
 }
 
@@ -5408,7 +5410,7 @@ function MapsButton({ name, area, googleUrl, btnStyle = {} }) {
   const choice = { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '15px', borderRadius: 14, background: 'var(--gray-100)', color: 'var(--ink)', fontWeight: 700, fontSize: 16, cursor: 'pointer', border: 'none', fontFamily: 'inherit', marginBottom: 10 }
   return (
     <>
-      <button onClick={(e) => { e.stopPropagation(); setOpen(true) }} style={trigger}>View on Maps</button>
+      <button onClick={(e) => { e.stopPropagation(); setOpen(true) }} style={trigger}>{t('View on Maps')}</button>
       <BottomSheet open={open} onClose={() => setOpen(false)} fit>
         <div style={{ padding: '2px 20px calc(28px + env(safe-area-inset-bottom, 0px))' }}>
           <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--gray-500)', textAlign: 'center', marginBottom: 16 }}>
@@ -7395,7 +7397,7 @@ function BottomNav({ activeTab, onTabPress, savedCount, onAddPlace }) {
             position: 'relative',
           }}>
             <NavIcon name={icon} size={22} fill={active ? 'solid' : 'none'} />
-            <span style={{ fontSize: 10, fontWeight: active ? 700 : 500, color: labelColor }}>{label}</span>
+            <span style={{ fontSize: 10, fontWeight: active ? 700 : 500, color: labelColor }}>{t(label)}</span>
             {badge && (
               <span style={{
                 position: 'absolute', top: 7, right: '50%', transform: 'translateX(18px)',
@@ -9420,7 +9422,7 @@ ${body}
                         <span style={{ fontSize: 18, marginTop: 1 }}>{isLunch ? '🍴' : '🌙'}</span>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>
-                            {isLunch ? 'Lunch' : 'Dinner'} · {cuisineLabel(item.cuisine)}
+                            {isLunch ? t('Lunch') : t('Dinner')} · {cuisineLabel(item.cuisine)}
                           </div>
                           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-900)' }}>{item.r.name}</div>
                           <div style={{ fontSize: 12, color: 'var(--gray-500)' }}>{item.r.price} · {item.r.neighborhood}</div>
@@ -9535,13 +9537,11 @@ class PlanErrorBoundary extends React.Component {
 
 // ── Plan Screen ──────────────────────────────────────────────────────────────
 function getDayLabel(dayIndex, tripStartDate) {
-  if (!tripStartDate) return 'Day ' + (dayIndex + 1)
-  const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-  // Parse as local date (avoid UTC offset issues)
+  if (!tripStartDate) return t2('Day {N}', { N: dayIndex + 1 })
+  // Parse as local date (avoid UTC offset issues); locale follows the app language.
   const parts = tripStartDate.split('-').map(Number)
   const d = new Date(parts[0], parts[1] - 1, parts[2] + dayIndex)
-  return DAYS[d.getDay()] + ', ' + MONTHS[d.getMonth()] + ' ' + d.getDate()
+  return d.toLocaleDateString(dateLocale(), { weekday: 'long', month: 'short', day: 'numeric' })
 }
 
 // ── Saved events — events the user added to "My Trip" (own localStorage list,
@@ -9613,7 +9613,7 @@ function SavedEventsSection({ hiddenIds = null }) {
   )
 }
 
-function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, setVenueNote = () => {}, userVenues = {}, removeUserVenue = () => {}, addUserVenue = () => null, addPlaceFromHeader = () => {}, weather = null }) {
+function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, setVenueNote = () => {}, userVenues = {}, removeUserVenue = () => {}, addUserVenue = () => null, addPlaceFromHeader = () => {}, weather = null, savedPlacesReq = 0 }) {
   // Per-meal-per-day cuisine. Keyed by `${dayIdx}:${meal}` → cuisineId. Each meal stands alone — no trip-level default.
   const [mealCuisines, setMealCuisines] = React.useState(() => {
     try { return JSON.parse(localStorage.getItem('nyc_meal_cuisines') || '{}') } catch { return {} }
@@ -9657,9 +9657,16 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     try { return !localStorage.getItem('nyc_trip_start_date') } catch { return true }
   })
 
-  // Which below-the-schedule inventory section is unfolded from its chip:
-  // 'events' | 'places' | 'plans' | null (all collapsed).
+  // Which inventory section is unfolded on the saved-places page:
+  // 'places' | 'plans' | null (all collapsed).
   const [invOpen, setInvOpen] = React.useState(null)
+
+  // The "My saved places" page — full-screen archive over My Trip. Openable
+  // from the entry row at the page bottom or from Settings (savedPlacesReq).
+  const [savedPageOpen, setSavedPageOpen] = React.useState(false)
+  React.useEffect(() => {
+    if (savedPlacesReq > 0) setSavedPageOpen(true)
+  }, [savedPlacesReq])
 
   const [collapsedDays, setCollapsedDays] = React.useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem('nyc_collapsed_days') || '[]')) } catch { return new Set() }
@@ -10464,18 +10471,12 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
           {weather && (
             <div aria-label={`Current weather: ${weather.temp} degrees`} style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
               <span style={{ fontSize: 18, lineHeight: 1 }} aria-hidden="true">{weatherEmoji(weather.code, weather.isDay)}</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', lineHeight: 1 }}>{weather.temp}°</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', lineHeight: 1 }}>{fmtTemp(weather.temp)}°</span>
             </div>
           )}
         </div>
-        <div className="home-subtitle">
-          {totalStops === 0
-            ? 'Save venues and we’ll plan your day'
-            : `${totalStops} stop${totalStops !== 1 ? 's' : ''} · ${totalMeals} meal${totalMeals !== 1 ? 's' : ''}${days.length > 1 ? ` · ${days.length} days` : ''}`}
-        </div>
-        <div style={{ fontSize: 11, color: 'var(--gray-400)', marginTop: 6, lineHeight: 1.4 }}>
-          Plan your visit · Built from your saves
-        </div>
+        {/* (Subtitle counts + tagline removed — the trip summary card right below
+            already says the days, and stop/meal counts were inventory numbers.) */}
       </div>
 
       {/* ══ Trip basics — dates are SET ONCE, READ OFTEN: show a one-line
@@ -10484,15 +10485,15 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
       <div style={{ padding: '4px 20px 14px', borderBottom: '1px solid var(--gray-100)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-400)' }}>Your trip</div>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-400)' }}>{t('Your trip')}</div>
             <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {(() => {
-                if (!tripStartDate) return <span style={{ color: 'var(--gray-400)', fontWeight: 500 }}>No dates yet — planning by day</span>
+                if (!tripStartDate) return <span style={{ color: 'var(--gray-400)', fontWeight: 500 }}>{t('No dates yet — planning by day')}</span>
                 const p = tripStartDate.split('-').map(Number)
                 const s = new Date(p[0], p[1] - 1, p[2])
                 const e = new Date(p[0], p[1] - 1, p[2] + Math.max(days.length - 1, 0))
-                const fmt = d => d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-                return <>{days.length > 1 ? `${fmt(s)} – ${fmt(e)}` : fmt(s)} <span style={{ color: 'var(--gray-400)', fontWeight: 500 }}>· {days.length} day{days.length !== 1 ? 's' : ''}</span></>
+                const fmt = d => d.toLocaleDateString(dateLocale(), { weekday: 'short', month: 'short', day: 'numeric' })
+                return <>{days.length > 1 ? `${fmt(s)} – ${fmt(e)}` : fmt(s)} <span style={{ color: 'var(--gray-400)', fontWeight: 500 }}>· {t2(days.length === 1 ? '1 day' : '{N} days', { N: days.length })}</span></>
               })()}
             </div>
           </div>
@@ -10501,11 +10502,11 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
             background: basicsOpen ? 'var(--gray-900)' : 'none',
             color: basicsOpen ? '#fff' : 'var(--accent-text)',
             fontSize: 12.5, fontWeight: 700, padding: '6px 12px', borderRadius: 999,
-          }}>{basicsOpen ? 'Done' : 'Edit'}</button>
+          }}>{basicsOpen ? t('Done') : t('Edit')}</button>
         </div>
         {basicsOpen && (<div style={{ marginTop: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-400)', flexShrink: 0, width: 58 }}>Arriving</span>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-400)', flexShrink: 0, width: 58 }}>{t('Arriving')}</span>
           <input
             type="date"
             value={tripStartDate}
@@ -10525,7 +10526,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
           )}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-400)', flexShrink: 0, width: 58 }}>Days</span>
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-400)', flexShrink: 0, width: 58 }}>{t('Days')}</span>
           <div style={{ display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }} className="hide-scrollbar">
             {[null, 1, 2, 3, 4, 5, 6, 7].map(n => {
               const active = tripDays === n
@@ -10537,7 +10538,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                   color: active ? '#fff' : 'var(--gray-500)',
                   transition: 'all 0.15s ease',
                 }}>
-                  {n === null ? 'Auto' : n}
+                  {n === null ? t('Auto') : n}
                 </button>
               )
             })}
@@ -10556,10 +10557,10 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
         }}>
           <span style={{ fontSize: 16 }}>✓</span>
           <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-600)' }}>
-            Choose stops
+            {t('Choose stops')}
           </span>
           <span style={{ fontSize: 11, color: 'var(--gray-400)', marginLeft: 4 }}>
-            {venueIds.length} of {allVenueIds.length} in plan
+            {t2('{A} of {B} in plan', { A: venueIds.length, B: allVenueIds.length })}
           </span>
           <span style={{ marginLeft: 'auto', fontSize: 16, color: 'var(--gray-400)', transition: 'transform 200ms', transform: settingsOpen ? 'rotate(180deg)' : 'rotate(0)' }}>
             ⌄
@@ -10720,7 +10721,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                         {DOMAIN_ICONS[stop.domain] || '📍'} {stop.name}
                       </div>
                       <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 2 }}>
-                        {periodForClock(stopClock[stop.id] ?? stop.startHour, stop.period)} · {stop.neighborhood}
+                        {t(periodForClock(stopClock[stop.id] ?? stop.startHour, stop.period))} · {stop.neighborhood}
                       </div>
                     </div>
                   </button>
@@ -10798,7 +10799,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                 {dateLabel && <span style={{ display: 'block', fontSize: 10, fontWeight: 600, opacity: active ? 0.75 : 0.6, marginBottom: 1 }}>{dateLabel}</span>}
                 <span style={{ display: 'block', fontSize: 13, fontWeight: 700 }}>
                   {idx !== null && !active && <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: 999, background: dayHue(idx), marginRight: 5, verticalAlign: '1px' }} />}
-                  {idx === null ? 'All days' : `Day ${idx + 1}`}
+                  {idx === null ? t('All days') : t2('Day {N}', { N: idx + 1 })}
                 </span>
               </button>
             )
@@ -10819,13 +10820,13 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
         const dayStops = day.stops
         const summaryBits = []
         if (dayPlan.dayStart != null && dayPlan.dayEnd != null) summaryBits.push(`${fmtHour(dayPlan.dayStart)} – ${fmtHour(dayPlan.dayEnd)}`)
-        summaryBits.push(`${dayStops.length} stop${dayStops.length !== 1 ? 's' : ''}`)
-        const mealLabel = dayPlan.hasDaytime && dayPlan.hasEvening ? 'Lunch + Dinner'
-          : dayPlan.hasEvening ? 'Dinner'
-          : dayPlan.hasDaytime ? 'Lunch' : ''
+        summaryBits.push(t2(dayStops.length === 1 ? '1 stop' : '{N} stops', { N: dayStops.length }))
+        const mealLabel = dayPlan.hasDaytime && dayPlan.hasEvening ? t('Lunch + Dinner')
+          : dayPlan.hasEvening ? t('Dinner')
+          : dayPlan.hasDaytime ? t('Lunch') : ''
         if (mealLabel) summaryBits.push(mealLabel)
         const dayEventCount = (eventsByDay[dayIdx] || []).length
-        if (dayEventCount) summaryBits.push(`${dayEventCount} event${dayEventCount !== 1 ? 's' : ''}`)
+        if (dayEventCount) summaryBits.push(t2(dayEventCount === 1 ? '1 event' : '{N} events', { N: dayEventCount }))
 
         const isCollapsed = dayFilter === null && collapsedDays.has(dayIdx)
         // Highlight this day's container when it's the cross-day drop target.
@@ -10875,7 +10876,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                 return fx ? (
                   <div aria-label={`Forecast: high ${fx.hi}, low ${fx.lo}`} style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                     <span style={{ fontSize: 14, lineHeight: 1 }} aria-hidden="true">{weatherEmoji(fx.code, 1)}</span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-600)', lineHeight: 1 }}>{fx.hi}°<span style={{ fontWeight: 500, color: 'var(--gray-400)' }}>/{fx.lo}°</span></span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--gray-600)', lineHeight: 1 }}>{fmtTemp(fx.hi)}°<span style={{ fontWeight: 500, color: 'var(--gray-400)' }}>/{fmtTemp(fx.lo)}°</span></span>
                   </div>
                 ) : null
               })()}
@@ -10963,7 +10964,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                             <span style={{ fontSize: 15 }}>{isLunch ? '🍴' : '🍷'}</span>
                             <span style={{ fontSize: 12, fontWeight: 700, color: isLunch ? '#A96F22' : '#6B4453', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-                              {isLunch ? 'Lunch' : 'Dinner'}
+                              {isLunch ? t('Lunch') : t('Dinner')}
                             </span>
                             {cuisineOpt ? (
                               <button onClick={() => toggleMealPicker(dayIdx, item.meal)} aria-label="Change cuisine for this meal" style={{
@@ -10992,7 +10993,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                                 border: 'none', cursor: 'pointer', padding: '4px 10px', borderRadius: 999,
                                 display: 'inline-flex', alignItems: 'center', gap: 4,
                               }}>
-                                <span>↻</span><span>Show another</span>
+                                <span>↻</span><span>{t('Show another')}</span>
                               </button>
                             )}
                           </div>
@@ -11051,7 +11052,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                               <a href={restaurant.reservationUrl} target="_blank" rel="noopener noreferrer"
                                 style={{ flex: 1, background: '#15803d', color: '#fff', textAlign: 'center',
                                   fontSize: 12, fontWeight: 700, padding: '7px 8px', borderRadius: 8, textDecoration: 'none' }}>
-                                Reserve a table
+                                {t('Reserve a table')}
                               </a>
                             ) : (
                               <span style={{ flex: 1, background: 'var(--gray-100)', color: 'var(--gray-500)',
@@ -11165,7 +11166,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                         background: pc.dot, display: 'inline-block', flexShrink: 0,
                       }} />
                       <span style={{ fontSize: 11, fontWeight: 700, color: pc.text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                        {shownPeriod}
+                        {t(shownPeriod)}
                       </span>
                       <span style={{ marginLeft: 'auto', fontSize: 11, color: pc.text, opacity: 0.7 }}>
                         ~{stop.duration < 1 ? `${Math.round(stop.duration * 60)} min` : stop.duration % 1 === 0 ? `${stop.duration} hrs` : `${stop.duration.toFixed(1)} hrs`}
@@ -11251,7 +11252,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                       <textarea
                         value={venueNotes[stop.id] || ''}
                         onChange={e => setVenueNote(stop.id, e.target.value)}
-                        placeholder="Add a note…"
+                        placeholder={t('Add a note…')}
                         rows={1}
                         style={{
                           width: '100%', border: 'none', outline: 'none', resize: 'none',
@@ -11287,7 +11288,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                             background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px',
                           }}
                         >
-                          {expandedStopId === stop.id ? '× Close' : '⋯ Options'}
+                          {expandedStopId === stop.id ? '× ' + t('Done') : '⋯ ' + t('Options')}
                         </button>
                       </div>
                     </div>
@@ -11373,7 +11374,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                   <div style={{ background: 'rgba(190,77,43,0.10)', padding: '7px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 12 }}>🎟</span>
                     <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-text)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                      Your event · {time}
+                      {t('Your event')} · {time}
                     </span>
                     <button onClick={() => toggleEventSaved(ev)} aria-label="Remove event from trip" style={{
                       marginLeft: 'auto', border: 'none', background: 'none', cursor: 'pointer',
@@ -11409,7 +11410,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                 }}
               >
                 <span style={{ fontSize: 16, lineHeight: 1 }}>+</span>
-                <span>Add a place to this day</span>
+                <span>{t('Add a place to this day')}</span>
               </button>
             )}
 
@@ -11445,7 +11446,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
               background: 'var(--white)', color: 'var(--gray-700)',
               fontSize: 13, fontWeight: 700, cursor: 'pointer',
             }}>
-              <span>↗</span><span>{shareCopied ? 'Copied' : 'Share'}</span>
+              <span>↗</span><span>{shareCopied ? t('Copied') : t('Share')}</span>
             </button>
             {/* Save plan */}
             <button
@@ -11476,7 +11477,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
               }}
             >
               <span>{planSaved ? '✓' : '💾'}</span>
-              <span>{planSaved ? 'Saved' : 'Save'}</span>
+              <span>{planSaved ? t('Saved') : t('Save')}</span>
             </button>
             {/* Open route in Maps — context-aware: filtered to one day, it routes
                 THAT day (the standing-on-the-sidewalk moment); All days routes
@@ -11491,7 +11492,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                   background: '#111', color: '#fff',
                   fontSize: 13, fontWeight: 700, textDecoration: 'none',
                 }}>
-                  <span>🗺️</span><span>{routeDay !== null ? 'Route day' : days.length > 1 ? 'Route trip' : 'Route'}</span>
+                  <span>🗺️</span><span>{routeDay !== null ? t('Route day') : days.length > 1 ? t('Route trip') : t('Route')}</span>
                 </a>
               ) : null
             })()}
@@ -11606,6 +11607,45 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
       )}
 
 
+      {/* ── My saved places — the archive lives on its own page now; My Trip
+          keeps a single quiet entry row. Also reachable from Settings. ── */}
+      <div style={{ padding: '0 20px 90px' }}>
+        <button onClick={() => setSavedPageOpen(true)} style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          background: 'none', border: 'none', borderTop: '1px solid var(--gray-100)',
+          padding: '15px 2px', cursor: 'pointer', fontFamily: 'inherit',
+          fontSize: 14, fontWeight: 600, color: 'var(--gray-600)',
+        }}>
+          <span>📌 {t('My saved places')}</span>
+          <span style={{ color: 'var(--gray-400)', fontSize: 17 }}>›</span>
+        </button>
+      </div>
+
+      {/* ── The saved-places page — full-screen on phones; constrained to the
+          app column (like BottomNav / MapScreen) on wide viewports so the web
+          build doesn't stretch edge to edge. ── */}
+      {savedPageOpen && (
+        <div style={{
+          position: 'fixed', top: 0, bottom: 0,
+          left: '50%', transform: 'translateX(-50%)',
+          width: '100%', maxWidth: 'var(--max-width, 480px)',
+          zIndex: 400, background: 'var(--canvas)',
+          overflowY: 'auto', WebkitOverflowScrolling: 'touch',
+          boxShadow: '0 0 40px rgba(33,27,20,0.12)',
+        }}>
+          <div style={{
+            position: 'sticky', top: 0, zIndex: 5, background: 'var(--canvas)',
+            padding: 'calc(env(safe-area-inset-top, 0px) + 10px) 16px 10px',
+            display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid var(--gray-100)',
+          }}>
+            <button onClick={() => setSavedPageOpen(false)} aria-label="Back" style={{
+              border: 'none', background: 'var(--card)', borderRadius: 999, width: 34, height: 34,
+              cursor: 'pointer', color: 'var(--ink)', fontSize: 16, lineHeight: 1, flexShrink: 0,
+              boxShadow: 'inset 0 0 0 1px rgba(33,27,20,0.10)',
+            }}>←</button>
+            <div style={{ fontFamily: 'var(--serif)', fontSize: 19, fontWeight: 600, color: 'var(--ink)' }}>{t('My saved places')}</div>
+          </div>
+          <div style={{ paddingBottom: 'calc(40px + env(safe-area-inset-bottom, 0px))' }}>
       {/* ── Saved Places section ── */}
       <div style={{ padding: '0 20px 8px' }}>
         <div style={{
@@ -11613,7 +11653,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
           color: 'var(--gray-400)', padding: '24px 0 12px',
           borderTop: Object.keys(safeItems).length > 0 ? '1px solid var(--gray-100)' : 'none',
         }}>
-          Saved places · {Object.keys(safeItems).length}
+          {t('Saved places')} · {Object.keys(safeItems).length}
         </div>
         {Object.values(safeItems).length === 0 && (
           <div style={{ fontSize: 14, color: 'var(--gray-400)', fontStyle: 'italic' }}>
@@ -11664,7 +11704,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                   const hue = dayHue(dayIdx)
                   return (
                     <button
-                      onClick={e => { e.stopPropagation(); setDayFilter(days.length > 1 ? dayIdx : null); window.scrollTo(0, 0) }}
+                      onClick={e => { e.stopPropagation(); setSavedPageOpen(false); setDayFilter(days.length > 1 ? dayIdx : null); window.scrollTo(0, 0) }}
                       style={{
                         flexShrink: 0, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
                         background: hue + '1A', color: hue,
@@ -11684,7 +11724,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                       border: '1px solid var(--gray-200)',
                       fontSize: 11.5, fontWeight: 700, padding: '4px 10px', borderRadius: 999,
                     }}
-                  >+ Add to plan</button>
+                  >{t('+ Add to plan')}</button>
                 )
               })()}
               {toggleSave && (
@@ -11712,7 +11752,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
           padding: '13px 2px', cursor: 'pointer', fontFamily: 'inherit',
           fontSize: 13, fontWeight: 600, color: 'var(--gray-500)',
         }}>
-          <span>📍 Your added places</span>
+          <span>📍 {t('Your added places')}</span>
           <span style={{ transform: invOpen === 'places' ? 'rotate(180deg)' : 'none', color: 'var(--gray-400)', transition: 'transform 180ms' }}>⌄</span>
         </button>
       </div>
@@ -11894,7 +11934,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
           padding: '13px 2px', cursor: 'pointer', fontFamily: 'inherit',
           fontSize: 13, fontWeight: 600, color: 'var(--gray-500)',
         }}>
-          <span>💾 Saved plans</span>
+          <span>💾 {t('Saved plans')}</span>
           <span style={{ transform: invOpen === 'plans' ? 'rotate(180deg)' : 'none', color: 'var(--gray-400)', transition: 'transform 180ms' }}>⌄</span>
         </button>
       </div>
@@ -12055,7 +12095,9 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
         )}
       </div>
       )}
-      <div style={{ height: 90 }} />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -12257,7 +12299,7 @@ function SavedScreen({ savedItems, onSelect, toggleSave, onPlan, venueNotes = {}
                             <textarea
                               value={note}
                               onChange={e => setVenueNote(item.id, e.target.value)}
-                              placeholder="Add a note…"
+                              placeholder={t('Add a note…')}
                               rows={note ? undefined : 1}
                               style={{
                                 width: '100%', border: 'none', outline: 'none', resize: 'none',
@@ -13842,6 +13884,8 @@ function SettingsModal({
   onSignedOut,  // () — after sign-out
   onUserChange, // (user) — after profile updates (name / picture override)
   onImportTakeout = () => {}, // open the Google Takeout import modal
+  onPrefsChange = () => {},   // language / temperature unit changed — re-render app
+  onOpenSavedPlaces = () => {}, // jump to My Trip with the saved-places page open
 }) {
   const [confirmClear, setConfirmClear] = React.useState(false)
   const [authOpen, setAuthOpen]         = React.useState(false)
@@ -13970,7 +14014,7 @@ function SettingsModal({
         <div style={{ padding: '8px 20px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--gray-900)', lineHeight: 1.2 }}>
-              Settings
+              {t('Settings')}
             </div>
             <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 4 }}>
               NYC Stoop · v{APP_VERSION}
@@ -13981,6 +14025,43 @@ function SettingsModal({
             width: 32, height: 32, cursor: 'pointer',
             fontSize: 16, color: 'var(--gray-500)', lineHeight: 1, flexShrink: 0,
           }}>✕</button>
+        </div>
+
+        {/* ── Temperature unit — one quiet row, house light-segmented style.
+            (Language toggle held for v1.1 — dictionary + t() wiring live in
+            src/lib/i18n.js; re-add a row like this and unforce 'en'.) ── */}
+        <div style={{ padding: '0 20px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ flex: 1, fontSize: 15, color: 'var(--gray-900)' }}>{t('Temperature')}</span>
+          <div role="tablist" style={{ display: 'inline-flex', background: 'var(--gray-100)', borderRadius: 999, padding: 3 }}>
+            {[['f', '°F'], ['c', '°C']].map(([code, label]) => {
+              const on = getUnit() === code
+              return (
+                <button key={code} role="tab" aria-selected={on}
+                  onClick={() => { setUnit(code); onPrefsChange() }}
+                  style={{
+                    border: 'none', cursor: 'pointer', padding: '5px 14px', borderRadius: 999,
+                    fontSize: 13, fontWeight: on ? 700 : 500, fontFamily: 'inherit',
+                    background: on ? 'var(--white)' : 'transparent',
+                    color: on ? 'var(--gray-900)' : 'var(--gray-500)',
+                    boxShadow: on ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                    transition: 'all 0.15s ease',
+                  }}>{label}</button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* ── My saved places — the archive page (also reachable from My Trip) ── */}
+        <div style={{ padding: '0 20px 16px' }}>
+          <button onClick={onOpenSavedPlaces} style={{
+            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            background: 'var(--gray-50)', border: '1px solid var(--gray-200)', borderRadius: 14,
+            padding: '13px 16px', cursor: 'pointer', fontFamily: 'inherit',
+            fontSize: 15, color: 'var(--gray-900)',
+          }}>
+            <span>📌 {t('My saved places')}</span>
+            <span style={{ color: 'var(--gray-400)', fontSize: 17 }}>›</span>
+          </button>
         </div>
 
         {/* ── Account section ─────────────────────────────────────────── */}
@@ -14091,7 +14172,7 @@ function SettingsModal({
               }}
             >
               <span style={{ display: 'inline-flex' }}><NavIcon name="key" size={16} /></span>
-              <span>Sign in / Create account</span>
+              <span>{t('Sign in')} / {t('Create account')}</span>
             </button>
             <div style={{ fontSize: 11, color: 'var(--gray-500)', textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
               Sign in to sync your saves and trip plan across devices.
@@ -14115,7 +14196,7 @@ function SettingsModal({
           {user && (
             <button onClick={handleSignOut} style={rowStyle}>
               <span style={{ display: 'inline-flex', color: 'var(--gray-500)' }}><NavIcon name="logOut" size={18} /></span>
-              <span style={labelStyle}>Sign out</span>
+              <span style={labelStyle}>{t('Sign out')}</span>
               <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>›</span>
             </button>
           )}
@@ -14327,7 +14408,7 @@ function PlanNightSheet({ onClose, onBuild }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <div>
             <div style={{ fontSize: 9.5, letterSpacing: '0.24em', color: 'var(--field-clay)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 3 }}>Tonight, curated</div>
-            <div style={{ fontFamily: 'var(--serif)', fontSize: 26, fontWeight: 500, color: 'var(--ink)', lineHeight: 1.05 }}>Plan my night</div>
+            <div style={{ fontFamily: 'var(--serif)', fontSize: 26, fontWeight: 500, color: 'var(--ink)', lineHeight: 1.05 }}>{t('Plan my night')}</div>
           </div>
           <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--gray-400)', cursor: 'pointer' }}>✕</button>
         </div>
@@ -14527,6 +14608,12 @@ export default function App() {
 
   const [addPlaceOpen, setAddPlaceOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  // Language / temperature-unit live at module level in i18n.js; bumping this
+  // counter re-renders the whole tree so every t()/fmtTemp() re-evaluates.
+  const [, setPrefsVersion] = useState(0)
+  const onPrefsChange = () => setPrefsVersion(v => v + 1)
+  // Settings → "My saved places": land on the My Trip tab with the page open.
+  const [savedPlacesReq, setSavedPlacesReq] = useState(0)
   const [importOpen, setImportOpen]     = useState(false)
   const [planNightOpen, setPlanNightOpen] = useState(false)
 
@@ -14824,6 +14911,7 @@ export default function App() {
               addUserVenue={addUserVenue}
               addPlaceFromHeader={() => setAddPlaceOpen(true)}
               weather={weather}
+              savedPlacesReq={savedPlacesReq}
             />
           </PlanErrorBoundary>
         )
@@ -14897,6 +14985,8 @@ export default function App() {
           onSignedOut={handleSignedOut}
           onUserChange={(u) => setUserState(u)}
           onImportTakeout={() => setImportOpen(true)}
+          onPrefsChange={onPrefsChange}
+          onOpenSavedPlaces={() => { setSettingsOpen(false); setSavedSel(null); setActiveTab('saved'); setSavedPlacesReq(v => v + 1) }}
         />
       )}
     </div>
