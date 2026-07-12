@@ -1572,6 +1572,49 @@ function ActivityCoverArt({ activityId }) {
   }
 }
 
+// ── FlowHero — the shared header for browse/flow screens: hand-drawn scene,
+// warm scrim, serif headline. Born on the Eat screen; used by every activity
+// and mood flow so the whole "what do you feel like?" family reads as one book.
+function FlowHero({ art, eyebrow, title, body, compact = false }) {
+  return (
+    <div style={{ position: 'relative', overflow: 'hidden', color: '#fff', padding: compact ? '24px 20px 18px' : '30px 20px 24px' }}>
+      <div style={{ position: 'absolute', inset: 0 }} aria-hidden="true">{art}</div>
+      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(43,20,10,0.28) 0%, rgba(43,20,10,0.62) 100%)' }} />
+      <div style={{ position: 'relative' }}>
+        {eyebrow && (
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', opacity: 0.85, marginBottom: 6 }}>
+            {eyebrow}
+          </div>
+        )}
+        <div style={{ fontFamily: 'var(--serif)', fontSize: compact ? 24 : 27, fontWeight: 600, lineHeight: 1.15, marginBottom: body ? 7 : 0, textShadow: '0 1px 6px rgba(0,0,0,0.3)' }}>
+          {title}
+        </div>
+        {body && (
+          <div style={{ fontSize: 13.5, lineHeight: 1.55, opacity: 0.92, maxWidth: 320 }}>
+            {body}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Editorial hero copy per activity flow (Eat has its own screen) and per mood.
+const FLOW_HERO_COPY = {
+  drinks:   { title: 'A drink, somewhere good.',  body: 'Cocktail dens, wine bars, and neighborhood taps — pick where, we’ll pour the list.' },
+  coffee:   { title: 'Coffee worth the detour.',  body: 'Cafés and bakeries for slow mornings and fast fixes.' },
+  outdoors: { title: 'Get some air.',             body: 'Parks, piers, and waterfront walks — the city’s free show.' },
+  culture:  { title: 'Feed your curiosity.',      body: 'Museums, galleries, and landmarks worth the line.' },
+  live:     { title: 'Hear it live.',             body: 'Jazz rooms, theaters, and stages lit up tonight.' },
+}
+const MOOD_HERO_TITLES = {
+  just_chilling:  'Take the day slow.',
+  date_night:     'Make it a night.',
+  family_day:     'Bring everyone.',
+  rainy_day:      'Weather for indoors.',
+  first_time_nyc: 'Welcome to New York.',
+}
+
 // ── MoodCoverArt — hand-drawn SVG scenes for the collection cards. Each mood
 // gets a tiny editorial illustration in the app's field palette instead of a
 // flat tint + emoji (which read as machine-generated). 140×96, sliced to fill.
@@ -3982,18 +4025,23 @@ function EatScreen({ push, savedItems = {}, userVenues = {}, toggleSave = () => 
   // "Near me" — geolocated area filter, independent of the chip filters.
   const [nearArea, setNearArea]       = React.useState(null)   // {borough, areaId, label} | null
   const [geoStatus, setGeoStatus]     = React.useState('idle') // idle | locating | denied
-  // If the app already has the user's location (asked on open), default the sort
-  // to "Nearest" so Where-to-eat opens on the 10 closest spots.
-  const [sortBy, setSortBy]           = React.useState(initialLoc ? 'near' : 'reco')  // reco | rating | near
+  // Default sort is context-aware: "Nearest" is a gift when the user is
+  // STANDING IN NYC ("what's good right here"), but nonsense when they're
+  // planning from home/abroad — every restaurant is equally far, so the order
+  // is arbitrary. Outside the city (or with no location), lead with the
+  // curation: Recommended.
+  const _inNYC = (loc) => !!loc && loc.lat > 40.49 && loc.lat < 40.95 && loc.lng > -74.27 && loc.lng < -73.65
+  const [sortBy, setSortBy]           = React.useState(_inNYC(initialLoc) ? 'near' : 'reco')  // reco | rating | near
   const [userLoc, setUserLoc]         = React.useState(initialLoc || null)    // {lat,lng} — powers "Nearest" sort
   // Location may arrive AFTER the screen mounts (the on-open prompt resolves late).
-  // When it does, adopt it and switch to nearest — unless the user already chose a sort.
+  // When it does, adopt it — and switch to nearest only if it's an NYC location
+  // and the user hasn't already chosen a sort.
   const _eatLocApplied = React.useRef(!!initialLoc)
   React.useEffect(() => {
     if (initialLoc && !_eatLocApplied.current) {
       _eatLocApplied.current = true
       setUserLoc(initialLoc)
-      setSortBy(s => (s === 'reco' ? 'near' : s))
+      if (_inNYC(initialLoc)) setSortBy(s => (s === 'reco' ? 'near' : s))
     }
   }, [initialLoc])
   const [openNow, setOpenNow]         = React.useState(false)   // hide places known to be closed right now
@@ -4264,31 +4312,14 @@ function EatScreen({ push, savedItems = {}, userVenues = {}, toggleSave = () => 
           block with emoji-label, big title, blurb, stat row). Avoids
           duplicating the "Where to eat" already shown in the top nav by
           leading with an editorial headline instead. */}
-      <div style={{
-        background: '#dc2626',
-        color: '#fff',
-        padding: '24px 20px 20px',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-          <span style={{ fontSize: 26, lineHeight: 1 }}>🍽</span>
-          <span style={{
-            fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
-            textTransform: 'uppercase', opacity: 0.8,
-          }}>Eat</span>
-        </div>
-        <div style={{ fontSize: 24, fontWeight: 800, lineHeight: 1.2, marginBottom: 6 }}>
-          Where to eat in NYC.
-        </div>
-        <div style={{ fontSize: 13, lineHeight: 1.55, opacity: 0.9 }}>
-          Every restaurant in your guide — filter by cuisine, price, and neighborhood.
-        </div>
-        <div style={{
-          marginTop: 10, fontSize: 11, fontWeight: 700, opacity: 0.75,
-          letterSpacing: '0.06em', textTransform: 'uppercase',
-        }}>
-          {allRestaurants.length} restaurants · {new Set(allRestaurants.map(r => r.cuisine)).size} cuisines
-        </div>
-      </div>
+      {/* Hero — shared FlowHero (hand-drawn scene + scrim + serif). Counts
+          removed: inventory numbers, not invitation. */}
+      <FlowHero
+        art={<ActivityCoverArt activityId="eat" />}
+        eyebrow="Eat"
+        title="Where to eat in New York."
+        body="Every restaurant in your guide — filter by cuisine, price, and neighborhood."
+      />
 
       {/* "Where are you?" — a location-first entry that mirrors the place step of
           the sibling mood cards, but stays skippable: "All NYC" is the default, so
@@ -4475,16 +4506,16 @@ function EatScreen({ push, savedItems = {}, userVenues = {}, toggleSave = () => 
                     onClick={openCard}
                     style={{
                       // Matches the MoodScreen pick-card pattern: 14px radius,
-                      // 3px colored left border, icon-left + body + chevron-right,
-                      // so Eat results visually belong to the same family as
-                      // mood picks, topic venues, and saved items.
-                      width: '100%', background: 'var(--white)',
-                      border: '1px solid var(--gray-200)', borderRadius: 14,
+                      // Warm card surface, no left accent stripe — the 3px
+                      // colored border fought the rounded corners (red crescent
+                      // artifact) and the thumbnails already carry the color.
+                      width: '100%', background: 'var(--card)',
+                      border: '1px solid rgba(33,27,20,0.10)', borderRadius: 14,
                       padding: '12px 14px', cursor: 'pointer',
                       textAlign: 'left',
                       display: 'flex', alignItems: 'flex-start', gap: 12,
                       fontFamily: 'inherit',
-                      borderLeft: `3px solid ${accent}`,
+                      boxShadow: '0 4px 14px rgba(33,27,20,0.05)',
                     }}
                   >
                     <EatCardThumb r={r} emoji={cuisineEmoji} />
@@ -5792,15 +5823,27 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
     } catch (e) { setGeoStatus('denied') }
   }
 
+  // Hero identity — same visual system as the Eat screen. Activity-first
+  // entries wear their activity's scene + editorial line; the curated moods
+  // wear their collection art with the mood's own blurb as the body.
+  const heroCopy = initialActivity
+    ? (FLOW_HERO_COPY[initialActivity] || { title: actLabel, body: '' })
+    : { title: MOOD_HERO_TITLES[moodId] || mood.label, body: mood.blurb || '' }
+  const heroArt = initialActivity
+    ? <ActivityCoverArt activityId={initialActivity} />
+    : <MoodCoverArt moodId={moodId} />
+  const heroEyebrow = initialActivity ? actLabel : mood.label
+
   return (
-    <div style={{ padding: '6px 16px', paddingBottom: 'calc(104px + env(safe-area-inset-bottom, 0px))' }}>
+    <div style={{ paddingBottom: 'calc(104px + env(safe-area-inset-bottom, 0px))' }}>
+      <FlowHero art={heroArt} eyebrow={heroEyebrow} title={heroCopy.title} body={heroCopy.body} compact />
+      <div style={{ padding: '10px 16px 0' }}>
       {step === 'place' && (
         <>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
             <Dots n={initialActivity ? 2 : 1} />
-            <Chip text={initialActivity ? `${actEmoji} ${actLabel}` : `${mood.emoji} ${mood.label}`} tint={(mood.heroColor || '#888') + '22'} color={'var(--ink)'} />
           </div>
-          <h2 style={{ ...heading, margin: '4px 0' }}>Where are you<br />headed?</h2>
+          <h2 style={{ ...heading, margin: '4px 0' }}>Where are you headed?</h2>
           <div style={{ fontSize: 13, color: 'var(--ink-2)', marginBottom: 14 }}>Pick a neighborhood, or let us roam the whole city.</div>
           <div style={{ display: 'flex', gap: 10, marginBottom: 6 }}>
             <button onClick={handleNearMe} disabled={geoStatus === 'denied'} style={{ flex: 1, border: 'none', borderRadius: 999, padding: '13px', background: geoStatus === 'denied' ? 'var(--gray-100)' : 'var(--accent)', color: geoStatus === 'denied' ? 'var(--gray-400)' : '#fff', fontWeight: 700, fontSize: 13.5, cursor: geoStatus === 'denied' ? 'default' : 'pointer', fontFamily: 'inherit', boxShadow: geoStatus === 'denied' ? 'none' : 'var(--shadow-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>📍 {geoStatus === 'locating' ? 'Locating…' : geoStatus === 'denied' ? 'Location off' : 'Near me'}</button>
@@ -5832,11 +5875,11 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
             <Dots n={2} />
           </div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-            <Chip text={`${mood.emoji} ${mood.label}`} tint={(mood.heroColor || '#888') + '22'} color={'var(--ink)'} />
+            {/* Mood chip retired — the hero above already carries the identity. */}
             <Chip text={`📍 ${placeLabel}`} tint={'#d2e6d9'} color={'#2f5d44'} />
           </div>
           {geoNote && <div style={{ fontSize: 11.5, color: '#92400e', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 8, padding: '6px 10px', marginBottom: 10 }}>{geoNote}</div>}
-          <h2 style={{ ...heading, margin: '4px 0 14px' }}>What sounds<br />good?</h2>
+          <h2 style={{ ...heading, margin: '4px 0 14px' }}>What sounds good?</h2>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             {shownActivities.map(aid => {
               const g = mood.groups.find(x => x.activity === aid)
@@ -5941,6 +5984,7 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
             onFull={moodSheet.full ? () => { const f = moodSheet.full; setMoodSheet(null); push(f) } : null} />
         )}
       </BottomSheet>
+      </div>
     </div>
   )
 }
@@ -9094,7 +9138,6 @@ const RESTAURANT_DATA = [
   { id: 'momofuku_noodle', name: 'Momofuku Noodle Bar', cuisines: ['japanese'],   area: 'Downtown Village', price: '$$', neighborhood: 'East Village',      description: 'David Chang\'s original noodle bar — rich tonkotsu ramen, inventive pork buns, and the bowl that started it all.', reservationUrl: 'https://www.momofuku.com/noodle-bar', mapsUrl: 'https://maps.google.com/?q=Momofuku+Noodle+Bar+New+York' },
   { id: 'corner_bistro',   name: 'Corner Bistro',       cuisines: ['burger'],     area: 'Downtown Village', price: '$',   neighborhood: 'West Village',      description: 'NYC dive bar legend since 1961 — the Bistro Burger (8oz, cheese, bacon, fried onion) for under $10.',      reservationUrl: null, mapsUrl: 'https://maps.google.com/?q=Corner+Bistro+New+York' },
   { id: 'employees_only',  name: 'Employees Only',      cuisines: ['bar_tavern'], area: 'Downtown Village', price: '$$$', neighborhood: 'West Village',      description: 'Legendary speakeasy cocktail bar behind a psychic\'s storefront — brilliant pre-Prohibition drinks and late-night food.', reservationUrl: 'https://www.employeesonlynyc.com', mapsUrl: 'https://maps.google.com/?q=Employees+Only+New+York' },
-  { id: 'spotted_pig',     name: 'The Spotted Pig',     cuisines: ['american'],   area: 'Downtown Village', price: '$$$', neighborhood: 'West Village',      description: 'April Bloomfield\'s iconic gastro-pub — gnudi, chargrilled burger with Roquefort, and a convivial crammed room.', reservationUrl: 'https://www.thespottedpig.com', mapsUrl: 'https://maps.google.com/?q=The+Spotted+Pig+New+York' },
   { id: 'artichoke_pizza', name: 'Artichoke Basille\'s', cuisines: ['pizza'],     area: 'Downtown Village', price: '$',   neighborhood: 'East Village',      description: 'Thick square Sicilian slices — the artichoke-cream slice is a NYC late-night institution. Enormous portions.',   reservationUrl: null, walkIn: true, mapsUrl: 'https://maps.google.com/?q=Artichoke+Basille\'s+New+York' },
   { id: 'jeju_noodle',     name: 'Jeju Noodle Bar',     cuisines: ['korean'],     area: 'Downtown Village', price: '$$',  neighborhood: 'Greenwich Village', description: 'Creative Korean noodles rooted in Jeju Island tradition — the signature ramen broth simmers for days.',         reservationUrl: 'https://www.opentable.com/jeju-noodle-bar', mapsUrl: 'https://maps.google.com/?q=Jeju+Noodle+Bar+New+York' },
 
@@ -9144,7 +9187,7 @@ const RESTAURANT_COORDS = {
   carmines_uws: [40.7917, -73.9740], shake_shack_uws: [40.7806, -73.9758], amsterdam_ale: [40.7800, -73.9800],
   kefi_uws: [40.7855, -73.9716], sushi_yasaka: [40.7785, -73.9820], juliana_uws: [40.7850, -73.9750],
   carbone: [40.7281, -74.0003], lupa: [40.7284, -74.0008], momofuku_noodle: [40.7295, -73.9847],
-  corner_bistro: [40.7384, -74.0027], employees_only: [40.7339, -74.0065], spotted_pig: [40.7359, -74.0073],
+  corner_bistro: [40.7384, -74.0027], employees_only: [40.7339, -74.0065],
   artichoke_pizza: [40.7327, -73.9840], jeju_noodle: [40.7345, -74.0075],
   nobu_downtown: [40.7110, -74.0095], adriennes_pizza: [40.7041, -74.0113], dead_rabbit: [40.7028, -74.0113],
   fraunces_tavern: [40.7033, -74.0114], bareburger_fidi: [40.7045, -74.0070], delmonicos: [40.7045, -74.0110],
