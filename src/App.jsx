@@ -19,7 +19,7 @@ import { AuthModal, ResetPasswordScreen } from './auth/components.jsx'
 // Google Places search — used by AddStopToDayModal to let users add places
 // that aren't in our curated catalog. Falls back gracefully if the key is unset.
 import { isGooglePlacesAvailable, searchGooglePlaces, getGooglePlaceDetails, getPlacePhotoByName } from './lib/googlePlaces'
-import { fetchThisWeek, getThisWeekCached, eventMapsUrl, eventSearchUrl, eventTicketSearchUrl, eventOfficialUrl } from './lib/nycEvents'
+import { fetchThisWeek, getThisWeekCached, eventMapsUrl, eventOfficialUrl, eventSearchUrl } from './lib/nycEvents'
 import { fetchTicketmaster } from './lib/ticketmaster'
 import { parseTakeoutFile } from './lib/googleTakeout'
 import { extractShareHash, decodeTrip, buildShareUrl } from './lib/tripShare'
@@ -1294,30 +1294,22 @@ function EventDetail({ event }) {
     } catch (err) {}
   }
   const isTicketed = e.source === 'ticketmaster'
-  // Priority for the primary action's destination:
+  // Web button policy (see events_update.md): ONLY real destinations, never a
+  // search-results page. Priority:
   //   1. Official ticket page  → "Get tickets"
-  //   2. Official website (e.g. a market's organizer page) → "Visit website"
-  //   3. Ticketed without a URL → a "find tickets" search
-  //   4. Otherwise (street events) → a "what's happening" info lookup
-  // So whenever we actually have a real webpage, we link straight to it instead
-  // of a search-results page.
+  //   2. Official website (a market's GrowNYC page, a known free series) → "Visit website"
+  //   3. No real URL → no web button at all. The card already shows everything
+  //      the source data knows; Directions + calendar are the honest actions.
   const hasTicketUrl = isTicketed && !!e.ticketUrl
-  // A real official page for this event (a market's GrowNYC page, a greenmarket
-  // street permit, or a known free series/organizer) — never a web search.
-  // Centralized in eventOfficialUrl so the detail button and the Free-tab filter
-  // agree on what counts as "has a real link."
   const website = !hasTicketUrl ? eventOfficialUrl(e) : ''
-  const primaryUrl = hasTicketUrl ? e.ticketUrl
-    : website ? website
-    : isTicketed ? eventTicketSearchUrl(e)
-    : eventSearchUrl(e)
-  const primaryLabel = hasTicketUrl ? 'Get tickets →'
-    : website ? '🌐 Visit website →'
-    : isTicketed ? '🔎 Find tickets & info →'
-    : '🔎 More info →'
+  // No official URL → a plain Google search, labeled as exactly that. The
+  // label is the contract: "Search the web" can land on results; "More info"
+  // couldn't. (Decision log: events_update.md.)
+  const primaryUrl = hasTicketUrl ? e.ticketUrl : website || eventSearchUrl(e)
+  const primaryLabel = hasTicketUrl ? 'Get tickets →' : website ? '🌐 Visit website →' : '🔎 Search the web →'
   const sourceLine = e.source === 'ticketmaster'
     ? 'Source: Ticketmaster. Theatre tickets may be sold via the venue box office.'
-    : 'From NYC’s public event permits — we list the date and place; tap above to find out more.'
+    : 'From NYC’s public event permits — the city lists the date and place; details live with the organizer.'
   return (
     <div style={{ padding: '0 20px calc(40px + env(safe-area-inset-bottom, 0px))' }}>
       {heroImg ? (
@@ -1332,10 +1324,11 @@ function EventDetail({ event }) {
       <Row icon="📅">{fullWhen}</Row>
       <Row icon="📍">{[e.locationFull || e.location, e.borough].filter(Boolean).join(' · ')}</Row>
       {e.priceText && <Row icon="🎟️">{e.priceText}</Row>}
-      {/* Only show a description when it's a genuinely informative type-blurb
-          (a parade, block party, etc.) — skip the vague "A public event…" filler
-          to keep the card compact. */}
-      {BLURB[e.kindLabel] && e.kindLabel !== 'Event' && e.kindLabel !== 'Plaza event' && (
+      {/* Type blurb: informative kinds (parade, market…) always show it. The
+          generic kinds ('Event', 'Plaza event') show it ONLY when the card has
+          no web link — on a linkless card the one-liner is what keeps it from
+          feeling broken; next to a real website button it's filler. */}
+      {BLURB[e.kindLabel] && ((e.kindLabel !== 'Event' && e.kindLabel !== 'Plaza event') || !(hasTicketUrl || website)) && (
         <div style={{ fontSize: 13.5, color: 'var(--ink-2)', lineHeight: 1.55, margin: '14px 0 0' }}>
           {BLURB[e.kindLabel]}
         </div>
@@ -1344,19 +1337,22 @@ function EventDetail({ event }) {
         style={{ width: '100%', marginTop: 18, border: 'none', borderRadius: 999, padding: '14px', background: evSaved ? 'var(--ink)' : 'var(--accent)', color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', boxShadow: evSaved ? 'none' : 'var(--shadow-accent)' }}>
         {evSaved ? '✓ In My Trip' : '+ Add to My Trip'}
       </button>
-      <button onClick={() => open(primaryUrl)}
-        style={{ width: '100%', border: '1.5px solid var(--gray-200)', borderRadius: 999, padding: '13px', marginTop: 10, background: 'var(--white)', color: 'var(--ink)', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>
-        {primaryLabel}
-      </button>
+      {primaryUrl && (
+        <button onClick={() => open(primaryUrl)}
+          style={{ width: '100%', border: '1.5px solid var(--gray-200)', borderRadius: 999, padding: '13px', marginTop: 10, background: 'var(--white)', color: 'var(--ink)', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>
+          {primaryLabel}
+        </button>
+      )}
       <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
         <button onClick={() => open(eventMapsUrl(e))} style={{ flex: 1, border: '1.5px solid var(--gray-200)', borderRadius: 999, padding: '12px', background: 'var(--white)', color: 'var(--ink)', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>📍 Directions</button>
         {e.source !== 'market' && (
           <button onClick={addToCalendar} style={{ flex: 1, border: '1.5px solid var(--gray-200)', borderRadius: 999, padding: '12px', background: 'var(--white)', color: 'var(--ink)', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>📅 Add to calendar</button>
         )}
       </div>
-      {/* Source note only for ticketed events; permitted/free events end on the
-          action buttons to stay compact. */}
-      {e.source === 'ticketmaster' && (
+      {/* Source note: ticketed events always; free events when we only have a
+          search fallback — it explains WHY (the city's permit feed carries no
+          website field), so the search button reads as helpful, not lazy. */}
+      {(e.source === 'ticketmaster' || (!hasTicketUrl && !website)) && (
         <div style={{ fontSize: 11, color: 'var(--ink-3)', lineHeight: 1.5, marginTop: 16 }}>
           {sourceLine}
         </div>
@@ -7637,7 +7633,7 @@ function AreaPickCard({ pick: p, onBack, onShowMap, onFull = null, savedItems = 
   )
 }
 
-function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, savedItems = {}, toggleSave = () => {} }) {
+function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, savedItems = {}, toggleSave = () => {}, onGoToMyTrip = () => {} }) {
   const mapContainerRef = useRef(null)
   const mapInstanceRef  = useRef(null)
   const markersRef      = useRef([])
@@ -7659,16 +7655,43 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
   const [userLoc, setUserLoc]       = useState(null)   // {lat,lng} | null
   const [geoStatus, setGeoStatus]   = useState('idle') // idle | locating | denied
   const userMarkerRef = useRef(null)
+  const [legendOpen, setLegendOpen] = useState(true)
+  // One-time coach card for first-time Map visitors (dismiss = never again).
+  const [showMapTut, setShowMapTut] = useState(() => {
+    try { return !localStorage.getItem('nyc_map_tut_v1') } catch { return false }
+  })
+  const dismissMapTut = () => { setShowMapTut(false); try { lsSet('nyc_map_tut_v1', '1') } catch {} }
+  const savedVenueCount = Object.keys(savedItems || {}).filter(k => k.startsWith('venue:') && savedItems[k]).length
 
-  // Load Leaflet JS dynamically (CSS already in index.html)
+  // Load Leaflet JS dynamically (CSS already in index.html), then the rotate
+  // plugin (two-finger rotate / Shift+drag / compass reset). The plugin is a
+  // nice-to-have: if its CDN fetch fails we still init a normal, north-up map.
   useEffect(() => {
-    if (window.L) return
-    const script = document.createElement('script')
-    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
-    script.onload = () => { /* triggers re-render via mapReady */ setMapReady(true) }
-    document.head.appendChild(script)
+    // Idempotent script loader: a second mount while the first copy is still
+    // downloading must NOT append a duplicate tag — the rotate plugin runs a
+    // global init hook per evaluation, and two evaluations = two compass
+    // controls on every map. One tag per src, listeners attach to it.
+    const loadOnce = (id, src, done) => {
+      let s = document.getElementById(id)
+      if (s) {
+        if (s.dataset.loaded) return done()
+        s.addEventListener('load', done); s.addEventListener('error', done)
+        return
+      }
+      s = document.createElement('script')
+      s.id = id; s.src = src
+      s.onload = () => { s.dataset.loaded = '1'; done() }
+      s.onerror = done // rotation is optional — never block the map on it
+      document.head.appendChild(s)
+    }
+    const loadRotate = (done) => {
+      if (window.L?.Map?.prototype?.setBearing) return done()
+      loadOnce('leaflet-rotate-js', 'https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate.js', done)
+    }
+    if (window.L) { loadRotate(() => setMapReady(r => r || true)); return }
+    loadOnce('leaflet-js', 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', () => loadRotate(() => setMapReady(true)))
   }, [])
-  const [mapReady, setMapReady] = useState(!!window.L)
+  const [mapReady, setMapReady] = useState(!!window.L?.Map?.prototype?.setBearing)
 
   // Init map — re-runs when Leaflet finishes loading
   useEffect(() => {
@@ -7676,10 +7699,19 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
     if (!window.L) return
     const L = window.L
 
+    // Rotation options only when the leaflet-rotate plugin actually loaded.
+    const canRotate = !!L.Map.prototype.setBearing
     const map = L.map(mapContainerRef.current, {
       center: [40.754, -73.983],
       zoom: 12,
       zoomControl: false,
+      ...(canRotate ? {
+        rotate: true,
+        touchRotate: true,        // two-finger twist on phones
+        shiftKeyRotate: true,     // Shift+drag on desktop
+        rotateControl: { closeOnZeroBearing: false, position: 'bottomright' },
+        attributionControl: true,
+      } : {}),
     })
     // Light Carto Positron basemap — matches the app's pastel UI far better
     // than default OSM raster and makes the category pin colors pop.
@@ -7945,34 +7977,97 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
         )}
       </div>
 
-      {/* Legend — decodes the category pin colors; collapses to the active
-          category when a filter is applied. Hidden while a venue card is open. */}
+      {/* Go to My Trip — the payoff path: once anything is saved, the schedule
+          is one tap away instead of a secret. Hidden while a pin card is open. */}
+      {view === 'real' && !selVenue && savedVenueCount > 0 && (
+        <button onClick={onGoToMyTrip} style={{
+          position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 1000, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+          background: 'var(--gray-900)', color: '#fff', borderRadius: 999,
+          padding: '10px 18px', fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap',
+          boxShadow: '0 6px 18px rgba(29,39,51,0.30)',
+          display: 'inline-flex', alignItems: 'center', gap: 7,
+        }}>
+          <NavIcon name="bookmark" size={14} />
+          <span>Go to My Trip</span>
+        </button>
+      )}
+
+      {/* First-visit tutorial — three beats: tap a pin, filter, finish in My Trip. */}
+      {view === 'real' && showMapTut && (
+        <div onClick={dismissMapTut} style={{
+          position: 'absolute', inset: 0, zIndex: 1100,
+          background: 'rgba(33,27,20,0.45)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: 'var(--card, #FBF6EC)', borderRadius: 18, padding: '22px 20px 18px',
+            maxWidth: 320, width: '100%', boxShadow: '0 18px 50px rgba(0,0,0,0.35)',
+          }}>
+            <div style={{ fontFamily: 'var(--serif)', fontSize: 20, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.2, marginBottom: 14 }}>
+              Your map of the city
+            </div>
+            {[
+              ['📍', <>Tap any pin — a card pops up with <b>+ Add to Trip</b>.</>],
+              ['🎨', <>Filter by category with the chips above the map, or tap a color in the legend.</>],
+              ['🗓️', <>Done exploring? <b>Go to My Trip</b> turns your saves into a routed day plan.</>],
+            ].map(([icon, text], i) => (
+              <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12 }}>
+                <span style={{ fontSize: 17, lineHeight: 1.35, flexShrink: 0 }}>{icon}</span>
+                <span style={{ fontSize: 13.5, color: 'var(--ink)', lineHeight: 1.45 }}>{text}</span>
+              </div>
+            ))}
+            <button onClick={dismissMapTut} style={{
+              width: '100%', marginTop: 4, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+              background: 'var(--gray-900)', color: '#fff', borderRadius: 12,
+              padding: '12px 16px', fontSize: 13.5, fontWeight: 700,
+            }}>Got it</button>
+          </div>
+        </div>
+      )}
+
+      {/* Legend — foldable, and each category row IS the filter (same state as
+          the chips above the map). Hidden while a venue card is open. */}
       {view === 'real' && !selVenue && (
         <div style={{
           position: 'absolute', bottom: 12, left: 12, zIndex: 1000,
           background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(8px)',
           WebkitBackdropFilter: 'blur(8px)',
-          borderRadius: 14, padding: '8px 12px',
+          borderRadius: 14, padding: legendOpen ? '8px 12px' : '7px 12px',
           boxShadow: '0 6px 18px rgba(29,39,51,0.14)',
-          maxWidth: 150,
+          maxWidth: 160,
         }}>
-          <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--ink-3)', marginBottom: 4 }}>
-            Legend
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {Object.entries(MAP_DOMAIN_COLORS)
-              .filter(([d]) => filter === 'all' || filter === d)
-              .map(([d, c]) => (
-                <div key={d} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ width: 9, height: 9, borderRadius: 999, background: c, border: '1.5px solid #fff', boxShadow: '0 0 0 1px rgba(29,39,51,0.12)', flexShrink: 0 }} />
-                  <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--ink)' }}>{MAP_DOMAIN_LEGEND_LABELS[d] || d}</span>
-                </div>
-              ))}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, paddingTop: 4, borderTop: '1px solid var(--gray-100)' }}>
-              <span style={{ width: 9, height: 9, borderRadius: 999, background: '#fff', border: '2px solid var(--love)', flexShrink: 0 }} />
-              <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--ink)' }}>Saved</span>
+          <button onClick={() => setLegendOpen(o => !o)} aria-expanded={legendOpen} style={{
+            display: 'flex', alignItems: 'center', gap: 6, width: '100%',
+            background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit',
+            fontSize: 9, fontWeight: 800, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--ink-3)',
+            marginBottom: legendOpen ? 4 : 0,
+          }}>
+            <span>Legend</span>
+            <span style={{ marginLeft: 'auto', fontSize: 11, display: 'inline-block', transform: legendOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s ease' }}>›</span>
+          </button>
+          {legendOpen && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              {Object.entries(MAP_DOMAIN_COLORS).map(([d, c]) => {
+                const on = filter === d
+                return (
+                  <button key={d} onClick={() => { setFilter(on ? 'all' : d); setSelectedVenueId(null) }} style={{
+                    display: 'flex', alignItems: 'center', gap: 6, width: '100%',
+                    background: on ? 'var(--gray-100)' : 'none', border: 'none',
+                    borderRadius: 7, padding: '3px 5px', margin: '0 -5px', cursor: 'pointer', fontFamily: 'inherit',
+                    opacity: filter === 'all' || on ? 1 : 0.45,
+                  }}>
+                    <span style={{ width: 9, height: 9, borderRadius: 999, background: c, border: '1.5px solid #fff', boxShadow: '0 0 0 1px rgba(29,39,51,0.12)', flexShrink: 0 }} />
+                    <span style={{ fontSize: 10.5, fontWeight: on ? 800 : 600, color: 'var(--ink)' }}>{MAP_DOMAIN_LEGEND_LABELS[d] || d}</span>
+                  </button>
+                )
+              })}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, paddingTop: 4, borderTop: '1px solid var(--gray-100)', padding: '4px 5px 0', margin: '2px -5px 0' }}>
+                <span style={{ width: 9, height: 9, borderRadius: 999, background: '#fff', border: '2px solid var(--love)', flexShrink: 0 }} />
+                <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--ink)' }}>Saved</span>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -8057,6 +8152,15 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
               fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
             }}>Explore ›</button>
           </div>
+          {/* Just saved? Close the loop — show where the schedule lives. */}
+          {!!savedItems[`venue:${selectedVenueId}`] && (
+            <button onClick={onGoToMyTrip} style={{
+              width: '100%', marginTop: 8, background: 'none', border: 'none',
+              cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center',
+              fontSize: 12.5, fontWeight: 700, color: 'var(--accent-text, var(--accent))',
+              padding: '4px 0 0',
+            }}>See it in My Trip ›</button>
+          )}
         </div>
       )}
     </div>
@@ -9364,6 +9468,15 @@ function estimateTravel(fromId, toId) {
   return estimateTravelCoords(venueCoords[fromId], venueCoords[toId])
 }
 
+// Price tiers → rough per-person dollar ranges (NYC reality). Shared by the
+// day-summary estimate and the meal cards, so the two never disagree.
+const MEAL_PRICE_RANGE = { '$': [15, 25], '$$': [25, 50], '$$$': [50, 90], '$$$$': [90, 150] }
+// "$$$$" → "≈$90–150/person"; unknown tiers fall back to the raw symbol.
+function mealPriceApprox(price) {
+  const r = MEAL_PRICE_RANGE[price]
+  return r ? `≈$${r[0]}–${r[1]}${t('/person')}` : price
+}
+
 // Curated RESTAURANT_DATA carries no lat/lng — approximate by neighborhood
 // centroid (imported places have real coords). Neighborhood precision is fine
 // for a "~N min" hint; distances stay honest to within a few minutes.
@@ -9553,7 +9666,7 @@ ${body}
       <div style={{ padding: '16px 20px 14px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--gray-100)' }}>
         <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: 'var(--gray-400)', padding: '0 4px 0 0', lineHeight: 1 }}>←</button>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--gray-900)' }}>Saved plan</div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--gray-900)' }}>{snapshot?.name || 'Saved plan'}</div>
           <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 1 }}>
             {new Date(savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
             {' · '}{venueIds.length} stop{venueIds.length !== 1 ? 's' : ''}
@@ -9797,7 +9910,7 @@ function SavedEventsSection({ hiddenIds = null }) {
   )
 }
 
-function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, setVenueNote = () => {}, userVenues = {}, removeUserVenue = () => {}, addUserVenue = () => null, addPlaceFromHeader = () => {}, weather = null, savedPlacesReq = 0, onBackToSettings = null }) {
+function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, setVenueNote = () => {}, userVenues = {}, removeUserVenue = () => {}, addUserVenue = () => null, addPlaceFromHeader = () => {}, weather = null, savedPlacesReq = 0, onBackToSettings = null, onOpenFeedback = () => {} }) {
   // Per-meal-per-day cuisine. Keyed by `${dayIdx}:${meal}` → cuisineId. Each meal stands alone — no trip-level default.
   const [mealCuisines, setMealCuisines] = React.useState(() => {
     try { return JSON.parse(localStorage.getItem('nyc_meal_cuisines') || '{}') } catch { return {} }
@@ -9823,6 +9936,11 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
   const [planSaved, setPlanSaved] = React.useState(false)
   const [savedPlanView, setSavedPlanView] = React.useState(false)
   const [confirmDelete, setConfirmDelete] = React.useState(false)
+  // Saved-page display mode: 'all' (full archive) or 'plans' (plans only —
+  // what the header's "Saved plans" row opens). Rename state for the snapshot.
+  const [savedPageMode, setSavedPageMode] = React.useState('all')
+  const [renamingPlan, setRenamingPlan] = React.useState(false)
+  const [planNameDraft, setPlanNameDraft] = React.useState('')
   // Settings drawer is collapsed by default so the actual plan leads.
   const [settingsOpen, setSettingsOpen] = React.useState(false)
   // "Your Places" accordion controls — same shape as AddPlaceModal so UX is
@@ -9848,11 +9966,13 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
   // The "My saved places" page — full-screen archive over My Trip. Openable
   // from the entry row at the page bottom or from Settings (savedPlacesReq).
   const [savedPageOpen, setSavedPageOpen] = React.useState(false)
+  // Anchor for the header's "Saved plans" button to scroll to.
+  const plansSectionRef = React.useRef(null)
   // Where the page was opened from — 'settings' sends the back arrow to
   // Settings (the user came from there); 'trip' just closes the overlay.
   const savedPageOriginRef = React.useRef('trip')
   React.useEffect(() => {
-    if (savedPlacesReq > 0) { savedPageOriginRef.current = 'settings'; setSavedPageOpen(true) }
+    if (savedPlacesReq > 0) { savedPageOriginRef.current = 'settings'; setSavedPageMode('all'); setSavedPageOpen(true) }
   }, [savedPlacesReq])
   const closeSavedPage = () => {
     setSavedPageOpen(false)
@@ -10671,6 +10791,27 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
             already says the days, and stop/meal counts were inventory numbers.) */}
       </div>
 
+      {/* ── Saved plans — quiet chip under the header. The snapshots live on
+          the saved-places page, so this OPENS that page with the plans section
+          unfolded and scrolls to it (the old version only toggled a section on
+          a page that wasn't open — a dead tap). ── */}
+      <div style={{ padding: '0 20px' }}>
+        <button onClick={() => {
+          savedPageOriginRef.current = 'trip'
+          setSavedPageMode('plans')
+          setInvOpen('plans')
+          setSavedPageOpen(true)
+        }} style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          background: 'none', border: 'none',
+          padding: '13px 2px', cursor: 'pointer', fontFamily: 'inherit',
+          fontSize: 14, fontWeight: 600, color: 'var(--gray-600)',
+        }}>
+          <span>💾 {t('Saved plans')}</span>
+          <span style={{ color: 'var(--gray-400)', fontSize: 17 }}>›</span>
+        </button>
+      </div>
+
       {/* ══ Trip basics — dates are SET ONCE, READ OFTEN: show a one-line
           summary card; the actual controls only unfold behind Edit. (They used
           to be two always-visible rows pushing the schedule below the fold.) ══ */}
@@ -11020,6 +11161,44 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
         const dayEventCount = (eventsByDay[dayIdx] || []).length
         if (dayEventCount) summaryBits.push(t2(dayEventCount === 1 ? '1 event' : '{N} events', { N: dayEventCount }))
 
+        // ── Day budget & commute estimates (see my_trip_update.md #3) ──
+        // Commute: the same estimator the travel connectors use, summed over
+        // consecutive locatable items — so the total always agrees with the
+        // per-leg hints shown between cards.
+        const _sumCoordsOf = (it) => {
+          if (it.type === 'stop') {
+            const c = venueCoords[it.stop.id]
+            if (c) return c
+            const uv = userVenues[it.stop.id]
+            return (typeof uv?.lat === 'number' && typeof uv?.lng === 'number') ? { lat: uv.lat, lng: uv.lng } : null
+          }
+          return restaurantCoords(it.meal === 'lunch' ? lunchRestaurants[dayIdx] : dinnerRestaurants[dayIdx])
+        }
+        // Per-mode totals — "48 min" was NOT all walking, so don't say 🚶 48.
+        // Each mode gets its own segment: 🚶 walk · 🚇 subway · 🚕 taxi.
+        const _modeMins = { walk: 0, subway: 0, taxi: 0 }
+        {
+          let _prev = null
+          for (const it of dayPlan.reorderedItems) {
+            const c = _sumCoordsOf(it)
+            if (!c) continue
+            if (_prev) { const tr = estimateTravelCoords(_prev, c); if (tr) _modeMins[tr.mode] += tr.mins }
+            _prev = c
+          }
+        }
+        if (_modeMins.walk > 0)   summaryBits.push(`🚶 ~${_modeMins.walk} min`)
+        if (_modeMins.subway > 0) summaryBits.push(`🚇 ~${_modeMins.subway} min`)
+        if (_modeMins.taxi > 0)   summaryBits.push(`🚕 ~${_modeMins.taxi} min`)
+        // Meals: price tiers → one per-person figure (range midpoint, rounded
+        // to $5). "≈" marks it as an estimate, not a quote. Shares
+        // MEAL_PRICE_RANGE with the per-card approximation.
+        let _mealLo = 0, _mealHi = 0
+        ;[dayPlan.hasDaytime ? lunchRestaurants[dayIdx] : null, dayPlan.hasEvening ? dinnerRestaurants[dayIdx] : null].forEach(r => {
+          const rng = r && MEAL_PRICE_RANGE[r.price]
+          if (rng) { _mealLo += rng[0]; _mealHi += rng[1] }
+        })
+        if (_mealHi > 0) summaryBits.push(`≈$${Math.round((_mealLo + _mealHi) / 2 / 5) * 5}${t('/person')}`)
+
         const isCollapsed = dayFilter === null && collapsedDays.has(dayIdx)
         // Highlight this day's container when it's the cross-day drop target.
         // The check is: a drag is in progress (dragId), the cursor is over THIS day,
@@ -11284,11 +11463,28 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                             {restaurant.name}
                           </div>
                           <div style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 8 }}>
-                            {restaurant.price} · {restaurant.neighborhood}
+                            {mealPriceApprox(restaurant.price)} · {restaurant.neighborhood}
                           </div>
-                          <div style={{ fontSize: 13, color: 'var(--gray-600)', lineHeight: 1.55, marginBottom: 12 }}>
+                          <div style={{ fontSize: 13, color: 'var(--gray-600)', lineHeight: 1.55, marginBottom: 4 }}>
                             {restaurant.description}
                           </div>
+                          {/* Meal note — "what do I want to eat here?" Keyed by
+                              restaurant id (same store as stop notes), so a note
+                              written for Marea doesn't stick to its replacement
+                              after "Show another". */}
+                          <textarea
+                            value={venueNotes[`rest:${restaurant.id}`] || ''}
+                            onChange={e => setVenueNote(`rest:${restaurant.id}`, e.target.value)}
+                            placeholder={t('Add a note — what to order?')}
+                            rows={1}
+                            style={{
+                              width: '100%', border: 'none', outline: 'none', resize: 'none',
+                              padding: '2px 0 8px', fontSize: 12, color: 'var(--gray-600)',
+                              background: 'transparent', fontFamily: 'inherit', lineHeight: 1.5,
+                              boxSizing: 'border-box',
+                            }}
+                            onClick={e => e.stopPropagation()}
+                          />
                           <div style={{ display: 'flex', gap: 8 }}>
                             {restaurant.walkIn ? (
                               <span style={{ flex: 1, background: 'var(--gray-100)', color: 'var(--gray-600)',
@@ -11841,13 +12037,24 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
       {/* ── My saved places — the archive lives on its own page now; My Trip
           keeps a single quiet entry row. Also reachable from Settings. ── */}
       <div style={{ padding: '0 20px 90px' }}>
-        <button onClick={() => { savedPageOriginRef.current = 'trip'; setSavedPageOpen(true) }} style={{
+        <button onClick={() => { savedPageOriginRef.current = 'trip'; setSavedPageMode('all'); setSavedPageOpen(true) }} style={{
           width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           background: 'none', border: 'none', borderTop: '1px solid var(--gray-100)',
           padding: '15px 2px', cursor: 'pointer', fontFamily: 'inherit',
           fontSize: 14, fontWeight: 600, color: 'var(--gray-600)',
         }}>
           <span>📌 {t('My saved places')}</span>
+          <span style={{ color: 'var(--gray-400)', fontSize: 17 }}>›</span>
+        </button>
+        {/* Feedback entry — same page Settings opens; recommendations from the
+            people actually using the plan are the dataset's best source. */}
+        <button onClick={onOpenFeedback} style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          background: 'none', border: 'none', borderTop: '1px solid var(--gray-100)',
+          padding: '15px 2px', cursor: 'pointer', fontFamily: 'inherit',
+          fontSize: 14, fontWeight: 600, color: 'var(--gray-600)',
+        }}>
+          <span>✉️ {t('Send feedback')}</span>
           <span style={{ color: 'var(--gray-400)', fontSize: 17 }}>›</span>
         </button>
       </div>
@@ -11874,10 +12081,11 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
               cursor: 'pointer', color: 'var(--ink)', fontSize: 16, lineHeight: 1, flexShrink: 0,
               boxShadow: 'inset 0 0 0 1px rgba(33,27,20,0.10)',
             }}>←</button>
-            <div style={{ fontFamily: 'var(--serif)', fontSize: 19, fontWeight: 600, color: 'var(--ink)' }}>{t('My saved places')}</div>
+            <div style={{ fontFamily: 'var(--serif)', fontSize: 19, fontWeight: 600, color: 'var(--ink)' }}>{savedPageMode === 'plans' ? t('Saved plans') : t('My saved places')}</div>
           </div>
           <div style={{ paddingBottom: 'calc(40px + env(safe-area-inset-bottom, 0px))' }}>
-      {/* ── Saved Places section ── */}
+      {/* ── Saved Places section (hidden in plans-only mode) ── */}
+      {savedPageMode !== 'plans' && (<>
       <div style={{ padding: '0 20px 8px' }}>
         <div style={{
           fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase',
@@ -11987,6 +12195,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
           <span style={{ transform: invOpen === 'places' ? 'rotate(180deg)' : 'none', color: 'var(--gray-400)', transition: 'transform 180ms' }}>⌄</span>
         </button>
       </div>
+      </>)}
       {/* ══ Your Places — user-added venues. They auto-flow into the itinerary below.
           Split into manual (inline) and imported (foldable) so a 62-entry Google
           Maps import doesn't dominate the My Trip screen.
@@ -12158,7 +12367,8 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
           </div>
         )
       })()}
-      <div style={{ padding: '0 20px' }}>
+      {savedPageMode !== 'plans' && (
+      <div ref={plansSectionRef} style={{ padding: '0 20px', scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}>
         <button onClick={() => setInvOpen(invOpen === 'plans' ? null : 'plans')} style={{
           width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           background: 'none', border: 'none', borderTop: '1px solid var(--gray-100)',
@@ -12169,6 +12379,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
           <span style={{ transform: invOpen === 'plans' ? 'rotate(180deg)' : 'none', color: 'var(--gray-400)', transition: 'transform 180ms' }}>⌄</span>
         </button>
       </div>
+      )}
       {/* ══ Saved Plans — snapshots; unfolds from its chip ══ */}
       {invOpen === 'plans' && (
       <div style={{ padding: '16px 20px 18px', borderBottom: '1px solid var(--gray-100)' }}>
@@ -12299,13 +12510,44 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
               }}
             >
               <span style={{ fontSize: 22 }}>🗓️</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-900)' }}>
-                    {new Date(_snap.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                  </span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '2px 8px', borderRadius: 20 }}>✓ Saved</span>
-                </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {renamingPlan ? (
+                  /* Inline rename — saves onto the snapshot; empty resets to the date */
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }} onClick={e => e.stopPropagation()}>
+                    <input
+                      autoFocus value={planNameDraft}
+                      onChange={e => setPlanNameDraft(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.nextSibling?.click() }}
+                      placeholder={new Date(_snap.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      maxLength={40}
+                      style={{
+                        flex: 1, minWidth: 0, padding: '5px 10px', fontSize: 13.5, fontWeight: 600,
+                        border: '1px solid var(--gray-300)', borderRadius: 8,
+                        outline: 'none', fontFamily: 'inherit', background: 'var(--white)',
+                      }}
+                    />
+                    <button onClick={() => {
+                      try { lsSet('nyc_plan_snapshot', JSON.stringify({ ..._snap, name: planNameDraft.trim() || undefined })) } catch {}
+                      setRenamingPlan(false)
+                    }} style={{
+                      padding: '5px 10px', fontSize: 12, fontWeight: 700, flexShrink: 0,
+                      background: 'var(--gray-900)', color: '#fff', border: 'none',
+                      borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit',
+                    }}>{t('Save')}</button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, minWidth: 0 }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-900)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {_snap.name || new Date(_snap.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </span>
+                    <button
+                      onClick={e => { e.stopPropagation(); setPlanNameDraft(_snap.name || ''); setRenamingPlan(true) }}
+                      aria-label="Rename plan"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', fontSize: 13, color: 'var(--gray-400)', lineHeight: 1, flexShrink: 0 }}
+                    >✎</button>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '2px 8px', borderRadius: 20, flexShrink: 0 }}>✓ Saved</span>
+                  </div>
+                )}
                 <div style={{ fontSize: 12, color: 'var(--gray-500)', lineHeight: 1.5 }}>
                   {_snap.venueIds?.length} stop{_snap.venueIds?.length !== 1 ? 's' : ''}
                   {_snap.tripDays ? ` · ${_snap.tripDays} day${_snap.tripDays !== 1 ? 's' : ''}` : ''}
@@ -12319,6 +12561,37 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                 <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 3, lineHeight: 1.4 }}>
                   {(_snap.venueIds || []).map(id => venues[id]?.name).filter(Boolean).join(' · ')}
                 </div>
+                {/* Trip-level estimates — same estimators as the day headers:
+                    per-mode travel mins (legs between consecutive stops of each
+                    snapshotted day) + meals per person across the whole trip. */}
+                {(() => {
+                  const modeMins = { walk: 0, subway: 0, taxi: 0 }
+                  ;(_snap.days || []).forEach(d => {
+                    let prev = null
+                    ;(d.stops || []).forEach(s => {
+                      const c = venueCoords[s.id]
+                      if (!c) return
+                      if (prev) { const tr = estimateTravelCoords(prev, c); if (tr) modeMins[tr.mode] += tr.mins }
+                      prev = c
+                    })
+                  })
+                  let lo = 0, hi = 0
+                  const collect = (obj) => obj && Object.values(obj).forEach(r => {
+                    const rng = r && MEAL_PRICE_RANGE[r.price]
+                    if (rng) { lo += rng[0]; hi += rng[1] }
+                  })
+                  collect(_snap.lunchRestaurants); collect(_snap.dinnerRestaurants)
+                  const bits = []
+                  if (modeMins.walk)   bits.push(`🚶 ~${modeMins.walk} min`)
+                  if (modeMins.subway) bits.push(`🚇 ~${modeMins.subway} min`)
+                  if (modeMins.taxi)   bits.push(`🚕 ~${modeMins.taxi} min`)
+                  if (hi > 0) bits.push(`≈$${Math.round((lo + hi) / 2 / 5) * 5}${t('/person')}`)
+                  return bits.length ? (
+                    <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 4, lineHeight: 1.5 }}>
+                      {bits.join(' · ')}
+                    </div>
+                  ) : null
+                })()}
               </div>
               <span style={{ fontSize: 20, color: 'var(--gray-300)', flexShrink: 0 }}>›</span>
             </div>
@@ -14165,6 +14438,73 @@ const APP_VERSION = '1.0.0'
 const FEEDBACK_EMAIL = 'hsichunw@gmail.com'
 const PRIVACY_URL = 'https://stevenwang415.github.io/nyc-stoop/privacy.html'
 
+// ── Send Feedback — one shared page, reachable from My Trip's footer and
+// Settings (both routes land here; see my_trip_update.md). The user writes in
+// the app; Send opens their mail composer with the message prefilled, so
+// feedback works with zero backend.
+function FeedbackPage({ onClose, user = null }) {
+  const [msg, setMsg] = React.useState('')
+  const [sent, setSent] = React.useState(false)
+  const send = () => {
+    const body = msg.trim()
+    if (!body) return
+    const meta = `\n\n—\nNYC Stoop v${APP_VERSION}${user?.email ? ` · ${user.email}` : ''}`
+    window.location.href = `mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent(`NYC Stoop feedback (v${APP_VERSION})`)}&body=${encodeURIComponent(body + meta)}`
+    setSent(true)
+  }
+  return (
+    <div style={{
+      position: 'fixed', top: 0, bottom: 0,
+      left: '50%', transform: 'translateX(-50%)',
+      width: '100%', maxWidth: 'var(--max-width, 480px)',
+      zIndex: 600, background: 'var(--canvas)',
+      overflowY: 'auto', WebkitOverflowScrolling: 'touch',
+    }}>
+      <div style={{
+        position: 'sticky', top: 0, zIndex: 5, background: 'var(--canvas)',
+        padding: 'calc(env(safe-area-inset-top, 0px) + 10px) 16px 10px',
+        display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid var(--gray-100)',
+      }}>
+        <button onClick={onClose} aria-label="Back" style={{
+          border: 'none', background: 'var(--card)', borderRadius: 999, width: 34, height: 34,
+          cursor: 'pointer', color: 'var(--ink)', fontSize: 16, lineHeight: 1, flexShrink: 0,
+          boxShadow: 'inset 0 0 0 1px rgba(33,27,20,0.10)',
+        }}>←</button>
+        <div style={{ fontFamily: 'var(--serif)', fontSize: 19, fontWeight: 600, color: 'var(--ink)' }}>{t('Send feedback')}</div>
+      </div>
+      <div style={{ padding: '20px 20px calc(40px + env(safe-area-inset-bottom, 0px))' }}>
+        <div style={{ fontSize: 13.5, color: 'var(--gray-500)', lineHeight: 1.55, marginBottom: 14 }}>
+          {t('A place we should add? Something that felt off? We read every note — this app is built from recommendations like yours.')}
+        </div>
+        <textarea
+          value={msg}
+          onChange={e => { setMsg(e.target.value); setSent(false) }}
+          placeholder={t('Tell us what you think…')}
+          rows={7}
+          style={{
+            width: '100%', boxSizing: 'border-box', resize: 'vertical',
+            background: 'var(--card, #FBF6EC)', border: '1px solid var(--gray-200)',
+            borderRadius: 14, padding: '14px 16px', fontSize: 15, lineHeight: 1.5,
+            color: 'var(--ink)', fontFamily: 'inherit', outline: 'none', minHeight: 150,
+          }}
+        />
+        <button onClick={send} disabled={!msg.trim()} style={{
+          width: '100%', marginTop: 14, border: 'none', borderRadius: 999, padding: '14px',
+          background: msg.trim() ? 'var(--accent)' : 'var(--gray-200)',
+          color: msg.trim() ? '#fff' : 'var(--gray-400)',
+          fontWeight: 800, fontSize: 14, cursor: msg.trim() ? 'pointer' : 'default',
+          fontFamily: 'inherit', boxShadow: msg.trim() ? 'var(--shadow-accent)' : 'none',
+        }}>{t('Send')}</button>
+        <div style={{ fontSize: 11.5, color: 'var(--gray-400)', textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
+          {sent
+            ? t('Your mail app should have opened with the message ready — just hit send there. Thank you!')
+            : t('Sending opens your mail app with the message filled in.')}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /** SettingsModal — Account + app settings.
  *
  *  When signed out: the account section is a single "Sign in / Create account"
@@ -14183,6 +14523,7 @@ function SettingsModal({
   onImportTakeout = () => {}, // open the Google Takeout import modal
   onPrefsChange = () => {},   // language / temperature unit changed — re-render app
   onOpenSavedPlaces = () => {}, // jump to My Trip with the saved-places page open
+  onOpenFeedback = () => {},    // open the shared Send Feedback page
 }) {
   const [confirmClear, setConfirmClear] = React.useState(false)
   const [authOpen, setAuthOpen]         = React.useState(false)
@@ -14501,12 +14842,11 @@ function SettingsModal({
             <span style={labelStyle}>Privacy policy</span>
             <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>↗</span>
           </a>
-          <a href={`mailto:${FEEDBACK_EMAIL}?subject=NYC%20Stoop%20feedback%20(v${APP_VERSION})`}
-             style={{ ...rowStyle, textDecoration: 'none' }}>
+          <button onClick={() => onOpenFeedback?.()} style={rowStyle}>
             <span style={{ display: 'inline-flex', color: 'var(--gray-500)' }}><NavIcon name="mail" size={18} /></span>
-            <span style={labelStyle}>Send feedback</span>
-            <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>↗</span>
-          </a>
+            <span style={labelStyle}>{t('Send feedback')}</span>
+            <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>›</span>
+          </button>
           <a href="https://github.com/stevenwang415/nyc-stoop" target="_blank" rel="noopener noreferrer"
              style={{ ...rowStyle, textDecoration: 'none' }}>
             <span style={{ display: 'inline-flex', color: 'var(--gray-500)' }}><NavIcon name="code" size={18} /></span>
@@ -14935,6 +15275,7 @@ export default function App() {
   // Settings → "My saved places": land on the My Trip tab with the page open.
   const [savedPlacesReq, setSavedPlacesReq] = useState(0)
   const [importOpen, setImportOpen]     = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [planNightOpen, setPlanNightOpen] = useState(false)
 
   // One-tap "Plan my night": seed a few editorial attractions for the chosen
@@ -15170,7 +15511,7 @@ export default function App() {
 
       case 'map':
         if (mapSel) return <VenueScreen venueId={mapSel} fromTopicId={null} fromDomainId={venueCoords[mapSel]?.domain} push={pushToExplore} savedItems={savedItems} toggleSave={toggleSave} />
-        return <MapScreen onSelectVenue={setMapSel} highlight={mapHighlight} onClearHighlight={() => setMapHighlight(null)} savedItems={savedItems} toggleSave={toggleSave} />
+        return <MapScreen onSelectVenue={setMapSel} highlight={mapHighlight} onClearHighlight={() => setMapHighlight(null)} savedItems={savedItems} toggleSave={toggleSave} onGoToMyTrip={() => { setSavedSel(null); setActiveTab('saved') }} />
 
       case 'eat':
         return <EatScreen push={pushToExplore} savedItems={savedItems} userVenues={userVenues} toggleSave={toggleSave} onAddToTrip={addUserVenue} initialLoc={userLoc} />
@@ -15237,6 +15578,7 @@ export default function App() {
               weather={weather}
               savedPlacesReq={savedPlacesReq}
               onBackToSettings={() => setSettingsOpen(true)}
+              onOpenFeedback={() => setFeedbackOpen(true)}
             />
           </PlanErrorBoundary>
         )
@@ -15312,8 +15654,10 @@ export default function App() {
           onImportTakeout={() => setImportOpen(true)}
           onPrefsChange={onPrefsChange}
           onOpenSavedPlaces={() => { setSettingsOpen(false); setSavedSel(null); setActiveTab('saved'); setSavedPlacesReq(v => v + 1) }}
+          onOpenFeedback={() => { setSettingsOpen(false); setFeedbackOpen(true) }}
         />
       )}
+      {feedbackOpen && <FeedbackPage onClose={() => setFeedbackOpen(false)} user={user} />}
     </div>
   )
 }

@@ -249,17 +249,15 @@ export function eventTicketSearchUrl(e) {
   return 'https://www.google.com/search?q=' + encodeURIComponent(q)
 }
 
-// "What's happening" link → jumps STRAIGHT to the event's likely official page
-// (the organizer's site, where the real description/hours live) rather than a
-// search-results list. Permitted street events have no URL in the city's data,
-// so we use DuckDuckGo's "go to first result" redirect (a leading "\"): for a
-// named event the top result is its own page. The event TYPE is included so the
-// query has enough context to resolve the right page.
+// Web-search fallback for events with no official URL. A plain Google search
+// (familiar, no redirect tricks — the old DuckDuckGo "go to first result"
+// redirect read as the app hijacking the browser). The button that uses this
+// is labeled "Search the web →" so it promises exactly what it delivers.
 export function eventSearchUrl(e) {
   const kind = e.source === 'market' ? 'greenmarket' : (e.kindLabel || 'event')
   const q = [e.title, kind, e.borough, 'New York', e.date instanceof Date && !isNaN(e.date) ? e.date.getFullYear() : '']
     .filter(Boolean).join(' ')
-  return 'https://duckduckgo.com/?q=' + encodeURIComponent('\\' + q)
+  return 'https://www.google.com/search?q=' + encodeURIComponent(q)
 }
 
 // ── Official-link resolver for free events (see "Free links rule.md") ─────────
