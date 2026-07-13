@@ -167,7 +167,18 @@ async function fetchTMRange(key, start, end, scope = { dmaId: '345' }) {
 // NYC has 100+ ticketed shows TONIGHT, so a single date-asc page never reaches
 // later dates — we fetch in DATE BUCKETS and merge, which is what actually makes
 // the wider window reach the weekend and beyond.
-export async function fetchTicketmaster(daysAhead = 10) {
+// Session cache: the Events tab and home search both call this — share one
+// network round-trip per (daysAhead) window instead of hammering the API.
+// Failed fetches aren't cached so a retry can succeed.
+const _tmCache = new Map()
+export function fetchTicketmaster(daysAhead = 10) {
+  if (_tmCache.has(daysAhead)) return _tmCache.get(daysAhead)
+  const p = _fetchTicketmaster(daysAhead).catch(err => { _tmCache.delete(daysAhead); throw err })
+  _tmCache.set(daysAhead, p)
+  return p
+}
+
+async function _fetchTicketmaster(daysAhead = 10) {
   const key = import.meta.env.VITE_TICKETMASTER_API_KEY
   if (!key) return []
   const today = new Date(); today.setHours(0, 0, 0, 0)

@@ -1719,6 +1719,18 @@ function MoodCoverArt({ moodId }) {
 
 function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, onOpenSettings = () => {}, onPlanNight = () => {}, userVenues = {}, weather = null, user = null }) {
   const [query, setQuery] = useState('')
+  // Live events join search results lazily: fetched on the first real keystroke
+  // (never on mount), served from the ticketmaster module's session cache — so
+  // if the user already visited Events, this costs zero network.
+  const [liveEvents, setLiveEvents] = React.useState(null) // null = not loaded yet
+  const [eventSheet, setEventSheet] = React.useState(null)
+  React.useEffect(() => {
+    if (query.trim().length < 2 || liveEvents !== null) return
+    let alive = true
+    setLiveEvents([]) // mark as loading so we fetch once
+    fetchTicketmaster().then(evs => { if (alive) setLiveEvents(Array.isArray(evs) ? evs : []) }).catch(() => {})
+    return () => { alive = false }
+  }, [query, liveEvents])
   // Live clock for the header chip (Tue · 7:42 PM). Ticks every 30s.
   const [now, setNow] = React.useState(() => new Date())
   React.useEffect(() => { const t = setInterval(() => setNow(new Date()), 30000); return () => clearInterval(t) }, [])
@@ -1770,9 +1782,19 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
         results.push({ type: 'work', id: w.id, name: w.title, sub: fig?.name || '' })
       }
     })
-    Object.values(userVenues || {}).forEach(uv => {
-      if ((uv.name || '').toLowerCase().includes(q))
-        results.push({ type: 'user_venue', id: uv.id, name: uv.name, seed: typeof uv.id === 'string' && uv.id.startsWith('seed_'), sub: `${typeof uv.id === 'string' && uv.id.startsWith('seed_') ? 'Place' : 'Your place'} · ${uv.neighborhood || ''}` })
+    // user_venues (dataset seeds + the user's own adds) are deliberately NOT
+    // searched: they have no detail screen, so their rows would be dead taps.
+    // The zero-result state hands off to Google Maps instead. If they ever get
+    // a sheet (v1.1), restore the loop that was here.
+    // Live events this week — "ariana" should find the concert, not dead-end.
+    // Matches on title or venue name; shows date so same-title runs read apart.
+    const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    ;(liveEvents || []).forEach(ev => {
+      if (!((ev.title || '').toLowerCase().includes(q) || (ev.location || '').toLowerCase().includes(q))) return
+      const d = ev.date
+      const when = d instanceof Date ? `${WD[d.getDay()]} ${MO[d.getMonth()]} ${d.getDate()}` : ''
+      results.push({ type: 'event', id: ev.id, name: ev.title, sub: [ev.location, when].filter(Boolean).join(' · '), event: ev })
     })
     // Boost exact-prefix matches to the top.
     results.sort((a, b) => {
@@ -1781,7 +1803,7 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
       return ap - bp
     })
     return results.slice(0, 25)
-  }, [query])
+  }, [query, liveEvents])
 
   // BottomNav is 60px + iPhone home-indicator inset; no TopNav on home —
   // so available height = 100dvh - 60px - safe-area-inset-bottom.
@@ -1949,6 +1971,7 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                   figure:     { label: 'Artist', color: '#7c3aed' },
                   work:       { label: 'Work',   color: '#059669' },
                   user_venue: { label: 'Place',  color: '#b45309' },
+                  event:      { label: 'Event',  color: '#a3408c' },
                 }
                 const meta = typeMeta[r.type] || { label: r.type, color: '#666' }
                 // Seed imports aren't the user's own places — badge them honestly.
@@ -1958,6 +1981,7 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                   else if (r.type === 'sight')   push({ screen: 'sight', sightId: r.id })
                   else if (r.type === 'figure')  push({ screen: 'figure', figureId: r.id })
                   else if (r.type === 'work')    push({ screen: 'work', workId: r.id })
+                  else if (r.type === 'event')   setEventSheet(r.event)
                   // user_venue has no detail screen — tapping does nothing for now
                 }
                 return (
@@ -2196,6 +2220,11 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
         </>
       )}
       </div>{/* end scrollable content */}
+
+      {/* Event detail — same sheet the Events tab uses, opened from search. */}
+      <BottomSheet open={!!eventSheet} onClose={() => setEventSheet(null)} fit>
+        {eventSheet && <EventDetail event={eventSheet} />}
+      </BottomSheet>
     </div>
   )
 }
@@ -5388,7 +5417,25 @@ function recoBaseName(n) {
   s = s.replace(/\s+[-–—]\s+.*$/, '')    // drop " - Murray Hill" / " – NoMad"
   s = s.replace(/&/g, 'and').replace(/[^a-z0-9 ]+/g, ' ')
   s = s.replace(RECO_LOC_RE, ' ').replace(/\s+/g, ' ').trim()
+  s = RECO_ALIASES[s] || s
   return s || (n || '').toLowerCase().trim()
+}
+// Same-place aliases across datasets: the curated guide says "The Met" while the
+// places DB says "The Metropolitan Museum of Art" — different names, one museum.
+// Keys/values are post-normalization (lowercase, & → and, punctuation stripped).
+const RECO_ALIASES = {
+  'the metropolitan museum of art': 'the met',
+  'metropolitan museum of art': 'the met',
+  'the museum of modern art': 'moma',
+  'museum of modern art': 'moma',
+  'grand central terminal': 'grand central',
+  'the solomon r guggenheim museum': 'guggenheim',
+  'solomon r guggenheim museum': 'guggenheim',
+  'whitney museum of american art': 'whitney',
+  'the whitney': 'whitney',
+  'american museum of natural history': 'natural history museum',
+  'the cloisters': 'met cloisters',
+  'the met cloisters': 'met cloisters',
 }
 
 // Category → fallback emoji + tile color for the no-photo state, so a card
@@ -5900,7 +5947,7 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
                 >
                   <div style={{ fontSize: 26, lineHeight: 1, marginBottom: 8 }}>{(g && g.emoji) || meta.emoji}</div>
                   <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--ink)', lineHeight: 1.2 }}>{(g && g.label) || meta.label}</div>
-                  <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 3 }}>{ready ? `${n} ${n === 1 ? 'pick' : 'picks'}` : 'Coming soon'}</div>
+                  {!ready && <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 3 }}>Coming soon</div>}
                 </button>
               )
             })}
@@ -7401,6 +7448,7 @@ const NAV_ICON_PATHS = {
   code:     <><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></>,
   trash:    <><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></>,
   key:      <><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></>,
+  heart:    <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>,
 }
 // Icons that read correctly when solid-filled. Multi-part icons (compass,
 // map-pin, utensils) turn into blobs when filled — those signal "active" with
@@ -9749,7 +9797,7 @@ function SavedEventsSection({ hiddenIds = null }) {
   )
 }
 
-function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, setVenueNote = () => {}, userVenues = {}, removeUserVenue = () => {}, addUserVenue = () => null, addPlaceFromHeader = () => {}, weather = null, savedPlacesReq = 0 }) {
+function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, setVenueNote = () => {}, userVenues = {}, removeUserVenue = () => {}, addUserVenue = () => null, addPlaceFromHeader = () => {}, weather = null, savedPlacesReq = 0, onBackToSettings = null }) {
   // Per-meal-per-day cuisine. Keyed by `${dayIdx}:${meal}` → cuisineId. Each meal stands alone — no trip-level default.
   const [mealCuisines, setMealCuisines] = React.useState(() => {
     try { return JSON.parse(localStorage.getItem('nyc_meal_cuisines') || '{}') } catch { return {} }
@@ -9800,9 +9848,17 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
   // The "My saved places" page — full-screen archive over My Trip. Openable
   // from the entry row at the page bottom or from Settings (savedPlacesReq).
   const [savedPageOpen, setSavedPageOpen] = React.useState(false)
+  // Where the page was opened from — 'settings' sends the back arrow to
+  // Settings (the user came from there); 'trip' just closes the overlay.
+  const savedPageOriginRef = React.useRef('trip')
   React.useEffect(() => {
-    if (savedPlacesReq > 0) setSavedPageOpen(true)
+    if (savedPlacesReq > 0) { savedPageOriginRef.current = 'settings'; setSavedPageOpen(true) }
   }, [savedPlacesReq])
+  const closeSavedPage = () => {
+    setSavedPageOpen(false)
+    if (savedPageOriginRef.current === 'settings') onBackToSettings?.()
+    savedPageOriginRef.current = 'trip'
+  }
 
   const [collapsedDays, setCollapsedDays] = React.useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem('nyc_collapsed_days') || '[]')) } catch { return new Set() }
@@ -11785,7 +11841,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
       {/* ── My saved places — the archive lives on its own page now; My Trip
           keeps a single quiet entry row. Also reachable from Settings. ── */}
       <div style={{ padding: '0 20px 90px' }}>
-        <button onClick={() => setSavedPageOpen(true)} style={{
+        <button onClick={() => { savedPageOriginRef.current = 'trip'; setSavedPageOpen(true) }} style={{
           width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           background: 'none', border: 'none', borderTop: '1px solid var(--gray-100)',
           padding: '15px 2px', cursor: 'pointer', fontFamily: 'inherit',
@@ -11813,7 +11869,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
             padding: 'calc(env(safe-area-inset-top, 0px) + 10px) 16px 10px',
             display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid var(--gray-100)',
           }}>
-            <button onClick={() => setSavedPageOpen(false)} aria-label="Back" style={{
+            <button onClick={closeSavedPage} aria-label="Back" style={{
               border: 'none', background: 'var(--card)', borderRadius: 999, width: 34, height: 34,
               cursor: 'pointer', color: 'var(--ink)', fontSize: 16, lineHeight: 1, flexShrink: 0,
               boxShadow: 'inset 0 0 0 1px rgba(33,27,20,0.10)',
@@ -11879,7 +11935,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                   const hue = dayHue(dayIdx)
                   return (
                     <button
-                      onClick={e => { e.stopPropagation(); setSavedPageOpen(false); setDayFilter(days.length > 1 ? dayIdx : null); window.scrollTo(0, 0) }}
+                      onClick={e => { e.stopPropagation(); savedPageOriginRef.current = 'trip'; setSavedPageOpen(false); setDayFilter(days.length > 1 ? dayIdx : null); window.scrollTo(0, 0) }}
                       style={{
                         flexShrink: 0, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
                         background: hue + '1A', color: hue,
@@ -14105,7 +14161,7 @@ function OnboardingModal({ onDismiss }) {
 // Bottom-sheet modal reachable from the gear icon in the home-header.
 // Houses About / version, Privacy policy link, Send feedback (mailto), and a
 // destructive "Clear all data" with a two-tap confirmation.
-const APP_VERSION = '0.1.0'
+const APP_VERSION = '1.0.0'
 const FEEDBACK_EMAIL = 'hsichunw@gmail.com'
 const PRIVACY_URL = 'https://stevenwang415.github.io/nyc-stoop/privacy.html'
 
@@ -14301,51 +14357,12 @@ function SettingsModal({
             padding: '13px 16px', cursor: 'pointer', fontFamily: 'inherit',
             fontSize: 15, color: 'var(--gray-900)',
           }}>
-            <span>📌 {t('My saved places')}</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ display: 'inline-flex', color: 'var(--gray-500)' }}><NavIcon name="bookmark" size={18} /></span>
+              {t('My saved places')}
+            </span>
             <span style={{ color: 'var(--gray-400)', fontSize: 17 }}>›</span>
           </button>
-        </div>
-
-        {/* ── Thanks — credits to the friends behind the dataset & ideas ── */}
-        <div style={{ padding: '0 20px 16px' }}>
-          <button onClick={() => setThanksOpen(o => !o)} aria-expanded={thanksOpen} style={{
-            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            background: 'var(--gray-50)', border: '1px solid var(--gray-200)', borderRadius: 14,
-            padding: '13px 16px', cursor: 'pointer', fontFamily: 'inherit',
-            fontSize: 15, color: 'var(--gray-900)',
-          }}>
-            <span>🧡 {t('Thanks')}</span>
-            <span style={{
-              color: 'var(--gray-400)', fontSize: 17, display: 'inline-block',
-              transform: thanksOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s ease',
-            }}>›</span>
-          </button>
-          {thanksOpen && (
-            <div style={{
-              marginTop: 8, background: 'var(--card, #FBF6EC)', border: '1px solid var(--gray-200)',
-              borderRadius: 14, padding: '18px 16px 16px', textAlign: 'center',
-            }}>
-              <div style={{
-                fontFamily: 'var(--serif)', fontSize: 16, fontWeight: 600,
-                color: 'var(--ink, var(--gray-900))', marginBottom: 6,
-              }}>
-                {t('Built with friends')}
-              </div>
-              <div style={{ fontSize: 12.5, color: 'var(--gray-500)', lineHeight: 1.5, marginBottom: 14 }}>
-                {t('This guide exists because these friends shared their favorite corners of New York — places, tips, and ideas.')}
-              </div>
-              <div style={{
-                display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '7px 12px',
-                fontSize: 13.5, color: 'var(--gray-700, var(--gray-900))',
-              }}>
-                {[
-                  'Eva Chan', 'Cliff Chen', 'Ray Chen', 'Shih-Chieh Chien',
-                  'Willow Liu', 'Cindy Ou', 'Mateo Solorzano', 'Apple Tsai',
-                  'Peter Wang', 'Ian Wei', 'Suzie Wu',
-                ].map(name => <div key={name}>{name}</div>)}
-              </div>
-            </div>
-          )}
         </div>
 
         {/* ── Account section ─────────────────────────────────────────── */}
@@ -14464,17 +14481,6 @@ function SettingsModal({
           </div>
         )}
 
-        {/* About */}
-        <div style={{ padding: '0 20px 18px' }}>
-          <div style={{
-            fontSize: 13, color: 'var(--gray-600)', lineHeight: 1.6,
-            background: 'var(--gray-50)', padding: '14px 16px', borderRadius: 12,
-          }}>
-            A curated guide to New York City — venues, neighborhoods, nightlife,
-            sights, and a day-by-day trip planner.
-          </div>
-        </div>
-
         {/* Action rows */}
         <div style={{ borderTop: '1px solid var(--gray-100)' }}>
           {user && (
@@ -14507,6 +14513,36 @@ function SettingsModal({
             <span style={labelStyle}>Source on GitHub</span>
             <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>↗</span>
           </a>
+
+          {/* Thanks — the friends whose places, tips, and ideas seeded the guide */}
+          <button onClick={() => setThanksOpen(o => !o)} aria-expanded={thanksOpen} style={rowStyle}>
+            <span style={{ display: 'inline-flex', color: 'var(--gray-500)' }}><NavIcon name="heart" size={18} /></span>
+            <span style={labelStyle}>{t('Thanks')}</span>
+            <span style={{
+              fontSize: 14, color: 'var(--gray-400)', display: 'inline-block',
+              transform: thanksOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s ease',
+            }}>›</span>
+          </button>
+          {thanksOpen && (
+            <div style={{
+              padding: '14px 20px 18px', background: 'var(--gray-50)',
+              borderBottom: '1px solid var(--gray-100)',
+            }}>
+              <div style={{ fontSize: 12, color: 'var(--gray-500)', lineHeight: 1.5, marginBottom: 12 }}>
+                {t('For the friends who shared their favorite corners of New York — places, tips, and ideas.')}
+              </div>
+              <div style={{
+                display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px',
+                fontSize: 13, color: 'var(--gray-900)',
+              }}>
+                {[
+                  'Eva Chan', 'Cliff Chen', 'Ray Chen', 'Shih-Chieh Chien',
+                  'Willow Liu', 'Cindy Ou', 'Mateo Solorzano', 'Apple Tsai',
+                  'Peter Wang', 'Ian Wei', 'Suzie Wu',
+                ].map(name => <div key={name}>{name}</div>)}
+              </div>
+            </div>
+          )}
 
           {/* Clear local data — destructive, two-tap confirmation */}
           {!confirmClear ? (
@@ -15200,6 +15236,7 @@ export default function App() {
               addPlaceFromHeader={() => setAddPlaceOpen(true)}
               weather={weather}
               savedPlacesReq={savedPlacesReq}
+              onBackToSettings={() => setSettingsOpen(true)}
             />
           </PlanErrorBoundary>
         )

@@ -3091,8 +3091,6 @@ export const works = {
     venueId: 'met',
     medium: 'Enamel on canvas',
     dimensions: '105 × 207 in',
-    imageCredit: 'Wikimedia Commons / Fair Use',
-    imageUrl: 'https://upload.wikimedia.org/wikipedia/en/thumb/f/fa/Autumn_Rhythm.jpg/330px-Autumn_Rhythm.jpg',
     whatToLookFor: [
       'The scale. 17 feet wide. You can\'t see the whole thing in your peripheral vision. Pollock intended this — the painting surrounds you, not the other way around.',
       'The layers. Pollock worked the canvas for weeks, building depth. Dark lines lie under lighter ones; the gestures intersect and create what he called "a maze." Follow one thread and it disappears behind another.',
@@ -3109,7 +3107,7 @@ export const works = {
     venueId: 'moma',
     medium: 'Oil and enamel on canvas',
     dimensions: '106 × 209⅝ in',
-    imageCredit: 'Wikimedia Commons / Public Domain',
+    imageCredit: 'Photo: Ned Hartley / CC BY-SA 4.0 (gallery view)',
     imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Regarding_One.jpg/330px-Regarding_One.jpg',
     whatToLookFor: [
       'This painting and Autumn Rhythm at the Met were made the same year in the same barn. Walk between them in the same visit and compare: both enormous, both dripped, but the color palette shifts — this one is cooler, more silver and white.',
@@ -3126,8 +3124,6 @@ export const works = {
     venueId: 'moma',
     medium: 'Oil on canvas',
     dimensions: '85¼ × 65 in',
-    imageCredit: 'Wikimedia Commons / Fair Use',
-    imageUrl: 'https://upload.wikimedia.org/wikipedia/en/0/0c/%27Magenta%2C_Black%2C_Green_on_Orange%27%2C_oil_on_canvas_painting_by_Mark_Rothko%2C_1947%2C_Museum_of_Modern_Art.jpg',
     whatToLookFor: [
       'Stand close — three feet away — and stay. Rothko said his paintings were not about color relationships. They were about "basic human emotions — tragedy, ecstasy, doom." The experience requires patience.',
       'The edges of each rectangle. They\'re not hard lines; they breathe. The colors bleed into each other at the borders. This soft edge is what creates the vibration — the sense that the colors are luminous, not painted.',
@@ -3143,8 +3139,6 @@ export const works = {
     venueId: 'moma',
     medium: 'Oil on canvas',
     dimensions: '75⅞ × 58 in',
-    imageCredit: 'Wikimedia Commons / Fair Use',
-    imageUrl: 'https://upload.wikimedia.org/wikipedia/en/2/2a/Woman_I-Willem_de_Kooning.jpg',
     whatToLookFor: [
       'The attack. De Kooning worked on this painting for almost two years, scraping it back repeatedly, repainting, destroying. The surface holds all that violence — impasto built up in competing directions, forms half-emerging and half-dissolving.',
       'The smile. It came from a cigarette ad, cut from a magazine and collaged onto the canvas during one of the early studies. The grin is frozen, slightly manic — glamour become grotesque.',
@@ -3160,8 +3154,6 @@ export const works = {
     venueId: 'moma',
     medium: 'Oil on canvas',
     dimensions: '58¼ × 73½ in',
-    imageCredit: 'Wikimedia Commons / Fair Use',
-    imageUrl: 'https://upload.wikimedia.org/wikipedia/en/thumb/e/e8/Franz_Kline_Chief_1950.jpg/330px-Franz_Kline_Chief_1950.jpg',
     whatToLookFor: [
       "The weight of the black. Kline's blacks are not voids — they push forward. The white isn't background; it's equally aggressive, carving into the black. The relationship is combative.",
       'The scale and speed. These strokes were made fast — a loaded brush, a big gesture, confident and committed. But look at the edges: the paint bleeds, feathers, speaks.',
@@ -3177,8 +3169,6 @@ export const works = {
     venueId: 'moma',
     medium: 'Oil on canvas',
     dimensions: '95¼ × 213¼ in',
-    imageCredit: 'Wikimedia Commons / Fair Use',
-    imageUrl: 'https://upload.wikimedia.org/wikipedia/en/0/06/Vir_Heroicus_Sublimis.jpg',
     whatToLookFor: [
       'The "zips" — vertical lines cutting through the red field. Newman invented this device: a thin stripe of contrasting color that divides the picture plane without perspective, without narration. Just pure division.',
       'Stand very close (as Newman instructed — he posted a note saying viewers should stand 18 inches away). At that distance, the red field becomes environmental. You are inside a color.',
@@ -3196,7 +3186,6 @@ export const works = {
     venueId: 'moma',
     medium: 'Oil on canvas',
     dimensions: '96 × 92 in',
-    imageCredit: 'Wikimedia Commons / Fair Use',
     imageUrl: "https://upload.wikimedia.org/wikipedia/en/thumb/4/4c/Les_Demoiselles_d%27Avignon.jpg/330px-Les_Demoiselles_d%27Avignon.jpg",
     whatToLookFor: [
       "The inconsistency — and how it's not an error. The two figures on the left have Iberian faces; the two on the right have African mask-like features. He repainted those two after visiting the ethnographic museum at the Trocadéro. The painting contains two different stylistic moments, and he kept both.",
@@ -3281,8 +3270,6 @@ export const works = {
     venueId: 'moma',
     medium: 'Oil on canvas',
     dimensions: '57⅞ × 35⅛ in',
-    imageCredit: 'Wikimedia Commons / Fair Use',
-    imageUrl: 'https://upload.wikimedia.org/wikipedia/en/thumb/c/c0/Duchamp_-_Nude_Descending_a_Staircase.jpg/330px-Duchamp_-_Nude_Descending_a_Staircase.jpg',
     whatToLookFor: [
       'The motion lines. Duchamp layers multiple positions of the body across the same picture plane — like a film strip collapsed into a single image. He was influenced by stop-motion photography.',
       'The figures within figures. Count the overlapping phases of the descending body — some historians find five, some seven.',
@@ -3334,8 +3321,6 @@ export const works = {
     venueId: 'moma',
     medium: 'Casein tempera on hardboard',
     dimensions: '18 × 12 in',
-    imageCredit: 'Wikimedia Commons / Fair Use',
-    imageUrl: 'https://upload.wikimedia.org/wikipedia/en/thumb/0/02/Migration_Series_Panel_1.jpg/330px-Migration_Series_Panel_1.jpg',
     whatToLookFor: [
       'The flatness of the figures — Lawrence worked in a Cubist-influenced flat style, bold colors, hard edges. The figures are types as much as individuals: the people rather than specific people.',
       'The train tracks, the turnstiles, the station halls: the infrastructure of migration. Lawrence chose architecture and systems, not portraits, to tell the story.',
@@ -6193,8 +6178,6 @@ He moved to East Hampton, Long Island, in 1963 and spent the rest of his life th
     name: `Franz Kline`,
     years: `1910–1962`,
     nationality: 'American',
-    imageCredit: 'Wikimedia Commons / Fair Use',
-    imageUrl: 'https://upload.wikimedia.org/wikipedia/en/1/17/Franz_Kline_headshot.png',
     tagline: `Black and white and nothing else — and everything.`,
     primer: `Franz Kline grew up in Wilkes-Barre, Pennsylvania, coal country, surrounded by railroad bridges, mining equipment, the black-steel skeleton of extraction industry. When he finally found his signature style, it looked exactly like that landscape.
 
@@ -6279,8 +6262,6 @@ The Guggenheim holds key works from the Cubist period; the Met and MoMA hold oth
     name: `Juan Gris`,
     years: `1887–1927`,
     nationality: 'Spanish',
-    imageCredit: 'Wikimedia Commons / Fair Use',
-    imageUrl: 'https://upload.wikimedia.org/wikipedia/en/thumb/4/4f/Juan_Gris%2C_1922%2C_photograph_by_Man_Ray%2C_Paris._Gelatin_silver_print.jpg/330px-Juan_Gris%2C_1922%2C_photograph_by_Man_Ray%2C_Paris._Gelatin_silver_print.jpg',
     tagline: `The Cubist who turned rigor into beauty.`,
     primer: `Juan Gris arrived in Paris from Madrid in 1906, moved into the same Montmartre building as Picasso (the Bateau-Lavoir), and watched Cubism being invented from the inside. He began making his own Cubist paintings in 1911, three years after Picasso and Braque — and by most accounts, he systematized it more thoroughly than either of them.
 
@@ -6300,8 +6281,6 @@ The Met holds Guitar and Flowers from his formative period.`,
     name: `Fernand Léger`,
     years: `1881–1955`,
     nationality: 'French',
-    imageCredit: 'Wikimedia Commons / Fair Use',
-    imageUrl: 'https://upload.wikimedia.org/wikipedia/en/d/db/Fernand_L%C3%A9ger%2C_c._1916.jpg',
     tagline: `The Cubist who fell in love with machines — and ordinary people.`,
     primer: `Léger came to Cubism from a different direction than Picasso and Braque. Where they fragmented the bourgeois studio — guitars, newspapers, bottles of wine — Léger was interested in the industrial world: factories, construction, the human body as a kind of machine.
 
@@ -6319,8 +6298,6 @@ He spent the war years 1940–1945 in New York, teaching at Yale, and the city a
     name: `Marcel Duchamp`,
     years: `1887–1968`,
     nationality: 'French-American',
-    imageCredit: 'Wikimedia Commons / Fair Use',
-    imageUrl: 'https://upload.wikimedia.org/wikipedia/en/thumb/3/34/Man_Ray%2C_1920-21%2C_Portrait_of_Marcel_Duchamp%2C_gelatin_silver_print%2C_Yale_University_Art_Gallery.jpg/330px-Man_Ray%2C_1920-21%2C_Portrait_of_Marcel_Duchamp%2C_gelatin_silver_print%2C_Yale_University_Art_Gallery.jpg',
     tagline: `The artist who asked: what if art is just an idea?`,
     primer: `Duchamp is the most consequential figure in 20th-century art for one reason: he asked a question nobody had thought to ask, and nobody has been able to stop arguing about it since. The question: if an artist selects an ordinary object and declares it art, is it art?
 
