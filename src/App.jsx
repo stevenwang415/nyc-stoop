@@ -14135,6 +14135,7 @@ function SettingsModal({
   const [savingName, setSavingName]     = React.useState(false)
   const [avatarBusy, setAvatarBusy]     = React.useState(false)
   const [avatarError, setAvatarError]   = React.useState('')
+  const [thanksOpen, setThanksOpen]     = React.useState(false)
   const fileInputRef = React.useRef(null)
 
   // Pull the per-email avatar/nickname overlay; falls back to server picture_url + display_name.
@@ -14303,6 +14304,48 @@ function SettingsModal({
             <span>📌 {t('My saved places')}</span>
             <span style={{ color: 'var(--gray-400)', fontSize: 17 }}>›</span>
           </button>
+        </div>
+
+        {/* ── Thanks — credits to the friends behind the dataset & ideas ── */}
+        <div style={{ padding: '0 20px 16px' }}>
+          <button onClick={() => setThanksOpen(o => !o)} aria-expanded={thanksOpen} style={{
+            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            background: 'var(--gray-50)', border: '1px solid var(--gray-200)', borderRadius: 14,
+            padding: '13px 16px', cursor: 'pointer', fontFamily: 'inherit',
+            fontSize: 15, color: 'var(--gray-900)',
+          }}>
+            <span>🧡 {t('Thanks')}</span>
+            <span style={{
+              color: 'var(--gray-400)', fontSize: 17, display: 'inline-block',
+              transform: thanksOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s ease',
+            }}>›</span>
+          </button>
+          {thanksOpen && (
+            <div style={{
+              marginTop: 8, background: 'var(--card, #FBF6EC)', border: '1px solid var(--gray-200)',
+              borderRadius: 14, padding: '18px 16px 16px', textAlign: 'center',
+            }}>
+              <div style={{
+                fontFamily: 'var(--serif)', fontSize: 16, fontWeight: 600,
+                color: 'var(--ink, var(--gray-900))', marginBottom: 6,
+              }}>
+                {t('Built with friends')}
+              </div>
+              <div style={{ fontSize: 12.5, color: 'var(--gray-500)', lineHeight: 1.5, marginBottom: 14 }}>
+                {t('This guide exists because these friends shared their favorite corners of New York — places, tips, and ideas.')}
+              </div>
+              <div style={{
+                display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '7px 12px',
+                fontSize: 13.5, color: 'var(--gray-700, var(--gray-900))',
+              }}>
+                {[
+                  'Eva Chan', 'Cliff Chen', 'Ray Chen', 'Shih-Chieh Chien',
+                  'Willow Liu', 'Cindy Ou', 'Mateo Solorzano', 'Apple Tsai',
+                  'Peter Wang', 'Ian Wei', 'Suzie Wu',
+                ].map(name => <div key={name}>{name}</div>)}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── Account section ─────────────────────────────────────────── */}

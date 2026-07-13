@@ -89,6 +89,48 @@ is already open).
   recommendations with editorial descriptions, live event listings, and an
   auto-routed day planner. Location is used only to sort nearby places."
 
+## Final App Store Connect metadata (as submitted, 2026-07-12)
+
+- **Description:**
+
+  > NYC Stoop is a curated guide to New York — a few hundred places worth your
+  > time, chosen and described like a friend who lives there would, not a
+  > database of everything with a star rating.
+  >
+  > EXPLORE — Browse by what you feel like doing: eat, drink, see art, hear live
+  > music, walk a neighborhood. Every place has an editorial description and an
+  > insider tip — what to order, when to go, which entrance to use.
+  >
+  > EAT & DRINK — Restaurants, cafés, and bars across Manhattan and Brooklyn,
+  > sorted by what's near you when you're in the city and by our recommendations
+  > when you're planning from home.
+  >
+  > EVENTS — Live listings — concerts, shows, games — that you can pin straight
+  > into your trip days.
+  >
+  > MY TRIP — Tap + on anything that catches your eye, and NYC Stoop turns your
+  > saves into a routed day: morning to evening, grouped by neighborhood, with
+  > walking times and subway directions between stops — including which line to
+  > take, which direction, and where to get off.
+  >
+  > Plus: neighborhood maps for Manhattan and Brooklyn, weather-aware
+  > suggestions, and a design that feels like a beautiful field guide, not an
+  > app full of ads.
+  >
+  > NYC Stoop is free, with no ads. Made for travelers who want one great trip,
+  > planned in minutes.
+
+- **Keywords (97 chars):**
+  `nyc,new york,travel guide,itinerary,trip planner,manhattan,brooklyn,subway,restaurants,events,map`
+- **Support URL:** https://nyc-stoop.vercel.app
+  (TODO: add "Support: hsichunw@gmail.com" footer line to the site)
+- **Marketing URL:** https://nyc-stoop.vercel.app (optional)
+- **Copyright:** © 2026 Hsi-Chun Wang
+- **Routing App Coverage File:** none (navigation apps only)
+- **Screenshots:** appstore-01…05 (1290×2796) → iPhone 6.9" slot in Media
+  Manager; Apple reuses for smaller sizes.
+- **Icon:** appicon-1024.png (book + shoe prints, cream)
+
 ## Ship sequence
 
 1. Device QA → fix what bleeds.
