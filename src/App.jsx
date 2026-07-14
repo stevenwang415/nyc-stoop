@@ -9596,7 +9596,20 @@ const SUBWAY_LINE_COLORS = {
   N: '#FCCC0A', Q: '#FCCC0A', R: '#FCCC0A', W: '#FCCC0A',
   S: '#808183',
 }
+// The colored circle-with-numeral IS the MTA's registered route symbol.
+// Product decision 2026-07-14: v1.0 SHIPS WITH the symbols, and the App Store
+// submission waits until MTA's license is granted (application in progress,
+// questionnaire answered). If the license is denied, flip to false — the text
+// fallback ("the 1 train", bold) is fully wired below.
+const MTA_BULLETS_LICENSED = true
 function SubwayBullet({ line }) {
+  if (!MTA_BULLETS_LICENSED) {
+    return (
+      <span aria-label={`${line} train`} style={{ fontWeight: 800, color: 'var(--gray-700)' }}>
+        {line}
+      </span>
+    )
+  }
   const bg = SUBWAY_LINE_COLORS[line] || '#808183'
   const dark = bg === '#FCCC0A' // yellow lines take black text, like the real signs
   return (
