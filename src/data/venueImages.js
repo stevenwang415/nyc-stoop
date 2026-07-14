@@ -88,6 +88,8 @@ export const venueImages = {
   // ── The Bronx (added 2026-07-14; both files API-verified, CC BY-SA 3.0) ──
   bronx_zoo:              wm('Entrance to Bronx Zoo 2008.jpg'),
   ny_botanical_garden:    wm('New York Botanical Garden April 2015 010.jpg'),
+  // ── Queens (added 2026-07-14; API-verified, CC BY-SA 3.0) ──
+  louis_armstrong_house:  wm('Louis Armstrong House 02.jpg'),
 
   // ── Food / markets ──
   katzs:                  wm('KatzGentrificationLES.JPG'),

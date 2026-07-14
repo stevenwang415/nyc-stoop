@@ -33,6 +33,7 @@ export const venueColors = {
   yankee_stadium:      { bg: '#0c1a2e', text: '#ffffff' },
   bronx_zoo:           { bg: '#2d5a3d', text: '#ffffff' },
   ny_botanical_garden: { bg: '#3d6b35', text: '#ffffff' },
+  louis_armstrong_house: { bg: '#8a5a2b', text: '#ffffff' },
   msg:                 { bg: '#1a1a1a', text: '#f59e0b' },
   citi_field:          { bg: '#003087', text: '#ffffff' },
   arthur_ashe_stadium: { bg: '#003580', text: '#ffffff' },
@@ -150,6 +151,7 @@ export const venueCoords = {
   // outdoor/landmark places (Central Park and the High Line use it too).
   bronx_zoo:           { lat: 40.8506, lng: -73.8770, domain: 'architecture',    address: '2300 Southern Blvd, The Bronx' },
   ny_botanical_garden: { lat: 40.8623, lng: -73.8802, domain: 'architecture',    address: '2900 Southern Blvd, The Bronx' },
+  louis_armstrong_house: { lat: 40.7547, lng: -73.8618, domain: 'jazz',          address: '34-56 107th St, Corona, Queens' },
   msg:                 { lat: 40.7505, lng: -73.9934, domain: 'sports',          address: '4 Pennsylvania Plaza, Midtown' },
   citi_field:          { lat: 40.7571, lng: -73.8458, domain: 'sports',          address: '41 Seaver Way, Flushing, Queens' },
   arthur_ashe_stadium: { lat: 40.7502, lng: -73.8472, domain: 'sports',          address: '124-02 Roosevelt Ave, Flushing' },

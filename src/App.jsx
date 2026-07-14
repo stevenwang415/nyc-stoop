@@ -11,7 +11,7 @@ import {
 // Auth: localStorage helpers, API client, and UI components.
 import {
   getToken, getUser, setToken as authSetToken, setUser as authSetUser,
-  signOut as authSignOut, fetchMe, updateDisplayName,
+  signOut as authSignOut, fetchMe, updateDisplayName, deleteAccount,
   getProfileOverlay, setAvatar as authSetAvatar, setNickname as authSetNickname,
   resizeImageFile,
 } from './auth/api'
@@ -100,8 +100,9 @@ const NEIGHBORHOOD_GROUPS = [
   { key: 'harlem',          label: 'Harlem',            emoji: '🎶', match: n => /harlem/i.test(n) },
   // ── Outer boroughs, by venue density ──
   { key: 'brooklyn',        label: 'Brooklyn',          emoji: '🌉', match: n => /brooklyn|dumbo|greenpoint|williamsburg|bushwick|fort greene|clinton hill|prospect heights|park slope|crown heights/i.test(n) },
-  { key: 'queens',          label: 'Queens',            emoji: '🎺', match: n => /queens/i.test(n),    comingSoon: true,
-    tease: 'Long Island City, Astoria, Flushing, and the Rockaways. Coming soon.' },
+  // Queens went live 2026-07-14 (Citi Field, Arthur Ashe, Louis Armstrong
+  // House); LIC/Astoria/Rockaways depth still to come.
+  { key: 'queens',          label: 'Queens',            emoji: '🎺', match: n => /queens|corona|flushing|astoria|long island city/i.test(n) },
   // The Bronx went live 2026-07-14 with its big three (Yankee Stadium, the
   // Zoo, the Botanical Garden); Arthur Avenue et al. still to come.
   { key: 'bronx',           label: 'The Bronx',         emoji: '⚾', match: n => /bronx/i.test(n) },
@@ -7596,6 +7597,7 @@ const NAV_ICON_PATHS = {
   trash:    <><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></>,
   key:      <><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></>,
   heart:    <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>,
+  image:    <><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></>,
 }
 // Icons that read correctly when solid-filled. Multi-part icons (compass,
 // map-pin, utensils) turn into blobs when filled — those signal "active" with
@@ -7806,13 +7808,16 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
   const [userLoc, setUserLoc]       = useState(null)   // {lat,lng} | null
   const [geoStatus, setGeoStatus]   = useState('idle') // idle | locating | denied
   const userMarkerRef = useRef(null)
-  const [legendOpen, setLegendOpen] = useState(true)
+  const savedVenueCount = Object.keys(savedItems || {}).filter(k => k.startsWith('venue:') && savedItems[k]).length
+  // Legend defaults open only while the Go-to-My-Trip pill is absent — once
+  // anything is saved the pill occupies bottom-center, and an expanded legend
+  // collides with it on ≤375pt screens (review S-1). Users can still expand.
+  const [legendOpen, setLegendOpen] = useState(savedVenueCount === 0)
   // One-time coach card for first-time Map visitors (dismiss = never again).
   const [showMapTut, setShowMapTut] = useState(() => {
     try { return !localStorage.getItem('nyc_map_tut_v1') } catch { return false }
   })
   const dismissMapTut = () => { setShowMapTut(false); try { lsSet('nyc_map_tut_v1', '1') } catch {} }
-  const savedVenueCount = Object.keys(savedItems || {}).filter(k => k.startsWith('venue:') && savedItems[k]).length
 
   // Load Leaflet JS dynamically (CSS already in index.html), then the rotate
   // plugin (two-finger rotate / Shift+drag / compass reset). The plugin is a
@@ -14771,6 +14776,61 @@ const APP_VERSION = '1.0.0'
 const FEEDBACK_EMAIL = 'stevenwang.nycstoop@gmail.com'
 const PRIVACY_URL = 'https://stevenwang415.github.io/nyc-stoop/privacy.html'
 
+// ── Image credits — CC BY / BY-SA attribution for the Wikimedia Commons
+// photography (license terms ask for attribution WITH the work; a credits
+// page reachable from Settings is the standard app-scale answer). Each row
+// links to the file's Commons page, which carries author + license.
+function ImageCreditsPage({ onClose }) {
+  const rows = Object.entries(venueImages).map(([vid, url]) => {
+    let file = ''
+    try { file = decodeURIComponent(String(url).split('Special:FilePath/')[1].split('?')[0]) } catch {}
+    return { vid, name: venues[vid]?.name || vid, file }
+  }).filter(r => r.file).sort((a, b) => a.name.localeCompare(b.name))
+  return (
+    <div style={{
+      position: 'fixed', top: 0, bottom: 0,
+      left: '50%', transform: 'translateX(-50%)',
+      width: '100%', maxWidth: 'var(--max-width, 480px)',
+      zIndex: 600, background: 'var(--canvas)',
+      overflowY: 'auto', WebkitOverflowScrolling: 'touch',
+    }}>
+      <div style={{
+        position: 'sticky', top: 0, zIndex: 5, background: 'var(--canvas)',
+        padding: 'calc(env(safe-area-inset-top, 0px) + 10px) 16px 10px',
+        display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid var(--gray-100)',
+      }}>
+        <button onClick={onClose} aria-label="Back" style={{
+          border: 'none', background: 'var(--card)', borderRadius: 999, width: 34, height: 34,
+          cursor: 'pointer', color: 'var(--ink)', fontSize: 16, lineHeight: 1, flexShrink: 0,
+          boxShadow: 'inset 0 0 0 1px rgba(33,27,20,0.10)',
+        }}>←</button>
+        <div style={{ fontFamily: 'var(--serif)', fontSize: 19, fontWeight: 600, color: 'var(--ink)' }}>{t('Image credits')}</div>
+      </div>
+      <div style={{ padding: '18px 20px calc(40px + env(safe-area-inset-bottom, 0px))' }}>
+        <div style={{ fontSize: 12.5, color: 'var(--gray-500)', lineHeight: 1.6, marginBottom: 16 }}>
+          Venue photography comes from Wikimedia Commons contributors under CC BY,
+          CC BY-SA, and public-domain licenses — tap any row for the photographer
+          and exact license. Artwork images are public domain or credited on the
+          work's page. Restaurant photos from Google are credited where shown.
+        </div>
+        {rows.map(r => (
+          <a key={r.vid}
+            href={`https://commons.wikimedia.org/wiki/File:${encodeURIComponent(r.file)}`}
+            target="_blank" rel="noopener noreferrer"
+            style={{
+              display: 'flex', alignItems: 'baseline', gap: 8, padding: '8px 0',
+              borderBottom: '1px solid var(--gray-100)', textDecoration: 'none',
+            }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)', flexShrink: 0 }}>{r.name}</span>
+            <span style={{ fontSize: 11, color: 'var(--gray-400)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{r.file}</span>
+            <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--gray-400)', flexShrink: 0 }}>↗</span>
+          </a>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Send Feedback — one shared page, reachable from My Trip's footer,
 // Settings, and coming-soon neighborhoods. Sends IN-APP via POST /feedback
 // (stored in the app database — no mail composer). If the API is unreachable,
@@ -14873,6 +14933,7 @@ function SettingsModal({
   onPrefsChange = () => {},   // language / temperature unit changed — re-render app
   onOpenSavedPlaces = () => {}, // jump to My Trip with the saved-places page open
   onOpenFeedback = () => {},    // open the shared Send Feedback page
+  onOpenCredits = () => {},     // open the Image credits page (CC attribution)
 }) {
   const [confirmClear, setConfirmClear] = React.useState(false)
   const [authOpen, setAuthOpen]         = React.useState(false)
@@ -14936,6 +14997,28 @@ function SettingsModal({
   function handleSignOut() {
     authSignOut()
     onSignedOut?.()
+  }
+
+  // Account deletion — required in-app by App Review 5.1.1(v). Two-tap
+  // confirm; on success the server row is gone, so we just sign out locally.
+  // Local trip data is deliberately kept — it belongs to the device, and
+  // deleting an account shouldn't eat someone's plan.
+  const [confirmDeleteAccount, setConfirmDeleteAccount] = React.useState(false)
+  const [deletingAccount, setDeletingAccount] = React.useState(false)
+  const [deleteAccountError, setDeleteAccountError] = React.useState('')
+  async function handleDeleteAccount() {
+    setDeletingAccount(true)
+    setDeleteAccountError('')
+    try {
+      await deleteAccount()
+      authSignOut()
+      onSignedOut?.()
+      setConfirmDeleteAccount(false)
+    } catch (e) {
+      setDeleteAccountError(e?.message || 'Could not delete the account — try again.')
+    } finally {
+      setDeletingAccount(false)
+    }
   }
 
   function handleClearLocalData() {
@@ -15180,6 +15263,41 @@ function SettingsModal({
               <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>›</span>
             </button>
           )}
+          {/* Delete account — in-app deletion is required by App Review
+              5.1.1(v). Two-tap confirm; local trip data is kept. */}
+          {user && !confirmDeleteAccount && (
+            <button onClick={() => setConfirmDeleteAccount(true)} style={{ ...rowStyle, color: '#b91c1c' }}>
+              <span style={{ display: 'inline-flex' }}><NavIcon name="trash" size={18} /></span>
+              <span style={labelStyle}>{t('Delete account')}</span>
+              <span style={{ fontSize: 14, color: '#fca5a5' }}>›</span>
+            </button>
+          )}
+          {user && confirmDeleteAccount && (
+            <div style={{ padding: '16px 20px 18px', background: '#fef2f2', borderTop: '1px solid #fecaca' }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#7f1d1d', marginBottom: 4 }}>
+                {t('Delete your account?')}
+              </div>
+              <div style={{ fontSize: 12, color: '#991b1b', lineHeight: 1.5, marginBottom: 14 }}>
+                {t('This permanently deletes your account and sign-in from our servers. It cannot be undone. Your saves and trip plan stay on this device.')}
+              </div>
+              {deleteAccountError && (
+                <div style={{ fontSize: 12, color: '#7f1d1d', background: '#fee2e2', padding: '8px 12px', borderRadius: 10, marginBottom: 10 }}>{deleteAccountError}</div>
+              )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => { setConfirmDeleteAccount(false); setDeleteAccountError('') }} style={{
+                  flex: 1, padding: '10px 14px', background: 'var(--white)',
+                  border: '1px solid var(--gray-300)', borderRadius: 10,
+                  fontSize: 14, fontWeight: 600, color: 'var(--gray-700)', cursor: 'pointer', fontFamily: 'inherit',
+                }}>{t('Cancel')}</button>
+                <button onClick={handleDeleteAccount} disabled={deletingAccount} style={{
+                  flex: 1, padding: '10px 14px', background: '#dc2626',
+                  border: 'none', borderRadius: 10, color: '#fff',
+                  fontSize: 14, fontWeight: 700, cursor: deletingAccount ? 'default' : 'pointer', fontFamily: 'inherit',
+                  opacity: deletingAccount ? 0.7 : 1,
+                }}>{deletingAccount ? t('Deleting…') : t('Yes, delete it')}</button>
+              </div>
+            </div>
+          )}
           {/* One-time bulk import for places already saved in Google Maps */}
           <button onClick={() => { onClose?.(); onImportTakeout?.() }} style={rowStyle}>
             <span style={{ display: 'inline-flex', color: 'var(--gray-500)' }}><NavIcon name="download" size={18} /></span>
@@ -15191,6 +15309,11 @@ function SettingsModal({
             <span style={labelStyle}>Privacy policy</span>
             <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>↗</span>
           </a>
+          <button onClick={() => onOpenCredits?.()} style={rowStyle}>
+            <span style={{ display: 'inline-flex', color: 'var(--gray-500)' }}><NavIcon name="image" size={18} /></span>
+            <span style={labelStyle}>{t('Image credits')}</span>
+            <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>›</span>
+          </button>
           <button onClick={() => onOpenFeedback?.()} style={rowStyle}>
             <span style={{ display: 'inline-flex', color: 'var(--gray-500)' }}><NavIcon name="mail" size={18} /></span>
             <span style={labelStyle}>{t('Send feedback')}</span>
@@ -15625,6 +15748,7 @@ export default function App() {
   const [savedPlacesReq, setSavedPlacesReq] = useState(0)
   const [importOpen, setImportOpen]     = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const [creditsOpen, setCreditsOpen]   = useState(false)
   const [planNightOpen, setPlanNightOpen] = useState(false)
 
   // One-tap "Plan my night": seed a few editorial attractions for the chosen
@@ -16004,9 +16128,11 @@ export default function App() {
           onPrefsChange={onPrefsChange}
           onOpenSavedPlaces={() => { setSettingsOpen(false); setSavedSel(null); setActiveTab('saved'); setSavedPlacesReq(v => v + 1) }}
           onOpenFeedback={() => { setSettingsOpen(false); setFeedbackOpen(true) }}
+          onOpenCredits={() => { setSettingsOpen(false); setCreditsOpen(true) }}
         />
       )}
       {feedbackOpen && <FeedbackPage onClose={() => setFeedbackOpen(false)} user={user} />}
+      {creditsOpen && <ImageCreditsPage onClose={() => setCreditsOpen(false)} />}
     </div>
   )
 }

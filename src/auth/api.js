@@ -171,6 +171,12 @@ export async function updateDisplayName(displayName) {
   return request(`/auth/me?${qs.toString()}`, { method: 'PATCH', auth: true })
 }
 
+/** Permanently delete the signed-in account (App Review 5.1.1(v)).
+ *  Caller is responsible for signOut() + local-state cleanup afterwards. */
+export async function deleteAccount() {
+  return request('/auth/me', { method: 'DELETE', auth: true })
+}
+
 
 // ── Avatar resize helper (canvas + FileReader) ────────────────────────────
 /** Resize a File to a max 256x256 JPEG data URL at 85% quality.

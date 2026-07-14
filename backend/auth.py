@@ -331,3 +331,23 @@ def update_me(
     db.commit()
     db.refresh(current_user)
     return _to_public(current_user)
+
+
+@router.delete("/me")
+def delete_me(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Permanently delete the authenticated account (App Review 5.1.1(v)).
+
+    Hard delete: the user row goes away (password-reset tokens cascade via FK
+    or are orphan-safe). Trip data lives client-side in localStorage, so there
+    is nothing else server-side to scrub. Idempotent from the client's view —
+    the JWT stops resolving the moment the row is gone.
+    """
+    db.query(PasswordResetToken).filter(
+        PasswordResetToken.user_id == current_user.id
+    ).delete(synchronize_session=False)
+    db.delete(current_user)
+    db.commit()
+    return {"ok": True, "deleted": True}
