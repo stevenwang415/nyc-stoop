@@ -11737,7 +11737,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                                 border: 'none', cursor: 'pointer', padding: '4px 10px', borderRadius: 999,
                                 display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
                               }}>
-                                <span>↻</span><span>{t('Show another')}</span>
+                                <span>↻</span><span>{t('Change')}</span>
                               </button>
                             )}
                             {/* Remove this meal from the day — restorable via the
@@ -11758,7 +11758,9 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                                 // ✕ drifted off the right edge.
                                 width: 40, height: 40,
                                 marginLeft: canRefresh && !isPickerOpen ? 2 : 'auto',
-                                marginRight: -15, marginTop: -8, marginBottom: -8,
+                                // -9 keeps the glyph near the other ✕s' column but
+                                // safely INSIDE the card on 375pt phones (-15 poked out).
+                                marginRight: -9, marginTop: -8, marginBottom: -8,
                                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                                 background: 'none', border: 'none', cursor: 'pointer',
                                 color: 'var(--gray-400)', fontSize: 14, lineHeight: 1,
