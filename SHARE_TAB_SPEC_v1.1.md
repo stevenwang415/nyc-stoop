@@ -147,3 +147,39 @@ captions (photos-only v1). Never cut: anything in §4.
 Follower graphs, likes/comments, DMs, algorithmic feeds, videos, photo editing.
 Each one multiplies moderation burden and dilutes place-first identity. Revisit
 only with evidence users want it.
+
+---
+
+## 8. Tips as first-class content (added 2026-07-13 — the strategic point)
+
+**The content-audit finding:** of the 695-place dataset, only ~155 have real
+descriptions and only 23 have insider tips. Hand-writing 672 tips isn't just
+slow — tips we don't actually know would be invented intimacy. **Share is the
+honest fix**: the community supplies what editorial can't scale.
+
+**This is the app's core idea, stated plainly: combine each person's favorite
+places — and what they order there — into everyone's guide.**
+
+What this changes about the build:
+
+1. **Capture asks the tip question, not just for a photo.** The post flow's
+   caption field becomes a structured prompt: *"What should we order / know?"*
+   Same 80–120 chars, but aimed at the one sentence that makes a tip.
+2. **Tips can exist without photos.** A text-only tip post (place + sentence)
+   is valid — lower friction than requiring a camera moment. Data model: add
+   `kind: 'photo' | 'tip'` to the photos table (or a parallel `tips` table);
+   same moderation pipeline (§4 applies to text too — filter, report, block).
+3. **The promotion pipeline (community → editorial).** Place cards show recent
+   user tips under "From visitors." Periodically, the best/most-repeated tip is
+   *promoted* into the place's `insiderTip` field — edited for voice, credited
+   ("via Suzie W."). Promotion is a curation act, not an algorithm: the app
+   stays a guide with taste, fed by its users.
+4. **Cold start is a real risk — plan it.** Community content needs a
+   community; day one has none. Seed strategy: the Thanks-page friends become
+   founding contributors (each supplies tips for their 5–10 favorite places
+   before v1.1 ships), and the feedback page already invites recommendations
+   today. Success metric to add to §6: **% of top-100-exposure places with ≥1
+   community tip after 90 days (target: 50%)**.
+5. **Interim (v1.0.x):** enrich the ~100 highest-exposure dataset places with
+   researched descriptions (facts, not fabricated tips) so the gap narrows
+   while the flywheel spins up.

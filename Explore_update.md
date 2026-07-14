@@ -25,6 +25,9 @@ Why filling loses:
 | # | Item | Status | Notes |
 |---|------|--------|-------|
 | 1 | Topic-card treatment decision | ✅ decided 07-13 | Keep cream + dot + serif. No fills. |
+| 3 | Eat: price coverage for all food seeds | ✅ done 07-14 | 77 food entries had `price: null` → bare cards under Nearest. Filled all: keyword tiers (bakery/bagel/pizza/taco → $, steakhouse/omakase/hotel → $$$, default $$) + 20 hand-set famous rooms (Musaafer/Café Carmellini/Aman $$$$, Laser Wolf/Oiji Mi/Gage & Tollner $$$…). Tiers render as ranges ("$20–40") so nothing reads as a precise quote. Stars now only show under "Top rated" sort (consistency). |
+| 4 | Eat: "Show all" now toggles to "Show less ↑" | ✅ done 07-14 | Eat's list already collapsed to 10 with "Show all recommendations ↓" — but expansion was one-way. The button now flips to "Show less ↑" at full depth, collapsing back to the top 10. Same toggle pattern as the mood picks. |
+| 2 | "Show more" on NYC Stoop picks | ✅ done 07-14 | Default stays a 6-pick curated shortlist (decided > comprehensive); a dashed "Show more" reveals +6 at a time, hard-capped at 15. Resets when the area or activity changes. Button only appears when more picks actually exist. Rationale: rejecting the shortlist shouldn't dead-end, but deep cuts into the pool surface voice-less dataset entries — Eat/Explore remain the browsers. |
 
 ## Backlog / later
 

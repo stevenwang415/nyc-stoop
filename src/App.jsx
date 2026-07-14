@@ -1376,9 +1376,20 @@ function ThisWeekSection() {
         if (!alive) return
         // Editorially-ranked strip (high-signal first, greenmarkets capped).
         // Fall back to the old blend only if ranking somehow came back empty.
-        const items = (ranked && ranked.length)
+        const pool = (ranked && ranked.length)
           ? ranked
           : [...events.slice(0, 8), ...markets.slice(0, 6)].slice(0, 12)
+        // One card per organizer/venue: a multi-date series (BrownstoneJAZZ
+        // Fri + Sun) was eating two of the strip's ~12 slots with near-identical
+        // cards. Keep the first (rank order ≈ best); the Events tab still lists
+        // every date.
+        const seenLoc = new Set()
+        const items = pool.filter(e => {
+          const k = ((e.location || e.organizer || e.title || '') + '').toLowerCase().trim()
+          if (!k) return true
+          if (seenLoc.has(k)) return false
+          seenLoc.add(k); return true
+        })
         setState({ loading: false, items })
       })
       .catch(() => { if (alive) setState({ loading: false, items: [] }) })
@@ -4328,6 +4339,7 @@ function EatScreen({ push, savedItems = {}, userVenues = {}, toggleSave = () => 
   // is overwhelming. Filters narrow naturally, so we show everything when
   // the user has expressed any intent. Reset when filter state changes.
   const [showAllResults, setShowAllResults] = React.useState(false)
+  const eatResultsRef = React.useRef(null)
   const [eatSheet, setEatSheet] = React.useState(null)   // non-editorial restaurant detail sheet
   React.useEffect(() => { setShowAllResults(false) }, [cuisines, prices, neighborhoods, vibes, meals, dietary, nearArea, walkInOnly, openNow, sortBy])
 
@@ -4491,7 +4503,7 @@ function EatScreen({ push, savedItems = {}, userVenues = {}, toggleSave = () => 
       )}
 
       {/* Results list */}
-      <div style={{ padding: '16px 20px 40px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div ref={eatResultsRef} style={{ padding: '16px 20px 40px', display: 'flex', flexDirection: 'column', gap: 10, scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 8px)' }}>
         {sortedFiltered.length === 0 ? (
           <div style={{
             textAlign: 'center', padding: '40px 20px', color: 'var(--gray-500)',
@@ -4561,7 +4573,11 @@ function EatScreen({ push, savedItems = {}, userVenues = {}, toggleSave = () => 
                         {[
                           r.cuisine && `__C__${r.cuisine}`,
                           r.price ? `__C__${priceRange(r.price)}` : null,
-                          r.rating ? `★ ${r.rating}` : null,
+                          // Stars only under "Top rated" — there they're the sort
+                          // key the user asked for. Elsewhere curated picks carry
+                          // no rating, so showing ★ on some cards made the list
+                          // look inconsistent (and rating isn't our currency).
+                          sortBy === 'rating' && r.rating ? `★ ${r.rating}` : null,
                           r.neighborhood,
                         ].filter(Boolean).map((seg, i, arr) => {
                           const bold = typeof seg === 'string' && seg.startsWith('__C__')
@@ -4596,9 +4612,18 @@ function EatScreen({ push, savedItems = {}, userVenues = {}, toggleSave = () => 
                   </button>
                 )
               })}
-              {hidden > 0 && (
+              {/* Same toggle pattern as the mood picks: expand ↓, then the
+                  button flips to collapse ↑ back to the top 10. */}
+              {(hidden > 0 || (showAllResults && capped.length > 10)) && (
                 <button
-                  onClick={() => setShowAllResults(true)}
+                  onClick={() => {
+                    const collapsing = hidden === 0
+                    setShowAllResults(v => !v)
+                    // Collapsing while scrolled deep would strand the viewport in
+                    // the empty space below the shorter list (reads as a "blank
+                    // page" in the iOS webview) — snap back to the list top.
+                    if (collapsing) setTimeout(() => eatResultsRef.current?.scrollIntoView({ block: 'start' }), 30)
+                  }}
                   style={{
                     width: '100%', background: 'var(--white)',
                     border: '1px solid var(--gray-200)', borderRadius: 14,
@@ -4608,8 +4633,8 @@ function EatScreen({ push, savedItems = {}, userVenues = {}, toggleSave = () => 
                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                   }}
                 >
-                  <span>Show all recommendations</span>
-                  <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>↓</span>
+                  <span>{hidden > 0 ? t('Show all recommendations') : t('Show less')}</span>
+                  <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>{hidden > 0 ? '↓' : '↑'}</span>
                 </button>
               )}
             </>
@@ -5622,6 +5647,9 @@ function MoodPlaceSheet({ place = {}, onFull = null, savedItems = {}, toggleSave
   )
 }
 
+// How many NYC Stoop picks show before "Show more" — the curated shortlist size.
+const STOOP_SHORTLIST = 6
+
 // ── MoodFlowScreen — guided "Unhurried" flow ────────────────────────────────
 // Replaces the old all-at-once MoodScreen with one decision per step:
 //   place (neighborhood)  →  activity (the mood's own groups)  →  top 5.
@@ -5639,6 +5667,12 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
   const [mapBorough, setMapBorough] = React.useState('manhattan')
   const [place, setPlace]         = React.useState(null)      // null | {scope:'anywhere'} | {scope:'area',borough,areaId,label}
   const [activityId, setActivityId] = React.useState(initialActivity || null)
+  // "Show more" reveal for NYC Stoop picks: first impression stays a curated
+  // shortlist (6); rejecting it never dead-ends. Hard cap 15 — beyond that the
+  // pool is mostly voice-less dataset entries, and Eat/Explore are the browsers.
+  // (Declared AFTER place/activityId — the effect deps read them at render.)
+  const [stoopLimit, setStoopLimit] = React.useState(STOOP_SHORTLIST)
+  React.useEffect(() => { setStoopLimit(STOOP_SHORTLIST) }, [activityId, place && place.scope === 'area' ? place.areaId : 'any'])
   const [geoStatus, setGeoStatus] = React.useState('idle')   // idle | locating | denied
   const [geoNote, setGeoNote]     = React.useState('')
   const [userLoc, setUserLoc]     = React.useState(null)     // {lat,lng} from "Near me" → sorts picks nearest-first
@@ -5803,7 +5837,7 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
     ? byRating(Object.values(userVenues || {}).filter(v => CAT_TO_ACT[v.category] === activityId && isImportedV(v) && matchesArea(v) && openOk(v) && !isFastFood(v.name))).slice(0, 5)
     : []
 
-  const TARGET = 6
+  const TARGET = 15 // hard build cap; display slices to stoopLimit (Show more)
   // ── "Near me" proximity sort ──────────────────────────────────────────────
   // When the user located themselves (userLoc set), every pool is ordered
   // nearest-first so a Williamsburg local sees their block before a canonical
@@ -6001,13 +6035,33 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
             </button>
           )}
 
-          {/* NYC Stoop picks — editorial + curated + your imports */}
+          {/* NYC Stoop picks — editorial + curated + your imports. Built to 15,
+              shown 6 at a time behind "Show more". */}
           {stoopRendered.length > 0 && (
             <>
               <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--ink)', marginBottom: 8 }}>NYC Stoop picks</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {stoopRendered}
+                {stoopRendered.slice(0, stoopLimit)}
               </div>
+              {/* One toggle, two moods: more to reveal → "Show more" (+6, cap 15);
+                  everything visible → "Show less" (back to the 6-pick shortlist). */}
+              {stoopRendered.length > STOOP_SHORTLIST && (
+                <button
+                  onClick={() =>
+                    stoopRendered.length > stoopLimit
+                      ? setStoopLimit(l => Math.min(l + 6, 15))
+                      : setStoopLimit(STOOP_SHORTLIST)
+                  }
+                  style={{
+                    width: '100%', marginTop: 14, padding: '12px 14px',
+                    background: 'none', border: '1px dashed var(--gray-300)', borderRadius: 12,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                    fontSize: 13, fontWeight: 600, color: 'var(--gray-600)',
+                  }}
+                >
+                  {stoopRendered.length > stoopLimit ? t('Show more') : t('Show less')}
+                </button>
+              )}
             </>
           )}
         </>
@@ -9468,6 +9522,91 @@ function estimateTravel(fromId, toId) {
   return estimateTravelCoords(venueCoords[fromId], venueCoords[toId])
 }
 
+// ── Trip route mini-map — non-interactive Leaflet overview at the bottom of
+// My Trip. Numbered pins in visit order + a dashed "approximate route" line,
+// colored per day. All gestures are OFF so it can never fight the page scroll;
+// it's a reference picture, not a second map screen (that's the Map tab).
+// Google-TOS: google-sourced user venues are excluded upstream (never plotted
+// on Leaflet), same rule as MapScreen.
+function TripRouteMap({ groups }) {
+  const boxRef = React.useRef(null)
+  const mapRef = React.useRef(null)
+  const layersRef = React.useRef([])
+  const [ready, setReady] = React.useState(!!window.L)
+  // Same id-deduped loader contract as MapScreen — one script tag ever.
+  React.useEffect(() => {
+    if (window.L) { setReady(true); return }
+    let s = document.getElementById('leaflet-js')
+    const done = () => setReady(true)
+    if (s) {
+      if (s.dataset.loaded) return done()
+      s.addEventListener('load', done)
+      return () => s.removeEventListener('load', done)
+    }
+    s = document.createElement('script')
+    s.id = 'leaflet-js'
+    s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
+    s.onload = () => { s.dataset.loaded = '1'; done() }
+    document.head.appendChild(s)
+  }, [])
+  React.useEffect(() => {
+    const L = window.L
+    if (!ready || !L || !boxRef.current) return
+    if (!mapRef.current) {
+      mapRef.current = L.map(boxRef.current, {
+        zoomControl: false, dragging: false, scrollWheelZoom: false,
+        touchZoom: false, doubleClickZoom: false, boxZoom: false,
+        keyboard: false, tap: false, attributionControl: true,
+      })
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd', maxZoom: 19,
+      }).addTo(mapRef.current)
+    }
+    const map = mapRef.current
+    layersRef.current.forEach(l => l.remove())
+    layersRef.current = []
+    const allPts = []
+    groups.forEach(g => {
+      const latlngs = g.pts.map(p => [p.lat, p.lng])
+      latlngs.forEach(ll => allPts.push(ll))
+      const line = window.L.polyline(latlngs, { color: g.hue, weight: 3, dashArray: '6 7', opacity: 0.85 })
+      line.addTo(map); layersRef.current.push(line)
+      // Stops at identical coords (neighborhood centroids!) would stack and
+      // hide each other — fan duplicates out in a tiny ring so every number
+      // stays visible. The route line keeps the true coords.
+      const seenAt = {}
+      g.pts.forEach((p, i) => {
+        const key = p.lat.toFixed(5) + ',' + p.lng.toFixed(5)
+        const dup = seenAt[key] || 0
+        seenAt[key] = dup + 1
+        const ang = dup * (Math.PI / 3)
+        const lat = p.lat + (dup ? 0.00042 * Math.sin(ang) : 0)
+        const lng = p.lng + (dup ? 0.00055 * Math.cos(ang) : 0)
+        const icon = window.L.divIcon({
+          className: '',
+          html: `<div style="width:22px;height:22px;border-radius:999px;background:${g.hue};color:#fff;font:700 11px/22px system-ui;text-align:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.35)">${i + 1}</div>`,
+          iconSize: [22, 22], iconAnchor: [11, 11],
+        })
+        const m = window.L.marker([lat, lng], { icon, interactive: false })
+        m.addTo(map); layersRef.current.push(m)
+      })
+    })
+    if (allPts.length) {
+      map.invalidateSize()
+      map.fitBounds(allPts, { padding: [26, 26], maxZoom: 15 })
+    }
+  }, [ready, JSON.stringify(groups)])
+  React.useEffect(() => () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null } }, [])
+  return <div ref={boxRef} style={{ height: 210, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--gray-200)' }} />
+}
+
+// Hotel detection for user-added stops (Google adds arrive with no category).
+// Name-based: catches "Hotel"/"Hostel"/"Motel" plus the big chains. A hotel
+// stop isn't an activity — its band reads HOTEL with no invented duration.
+const HOTEL_NAME_RE = /\b(hotel|hostel|motel|marriott|hilton|hyatt|sheraton|westin|ritz[- ]?carlton|four seasons|doubletree|intercontinental|kimpton|moxy|aloft|yotel|citizenm|holiday inn|hampton inn|embassy suites|crowne plaza|radisson|wyndham|best western|st\.? regis|residence inn|courtyard by marriott|the plaza|carlyle|peninsula new york)\b/i
+const isHotelStop = (stop) => !!(stop?.isCustom && HOTEL_NAME_RE.test(stop.name || ''))
+
 // Price tiers → rough per-person dollar ranges (NYC reality). Shared by the
 // day-summary estimate and the meal cards, so the two never disagree.
 const MEAL_PRICE_RANGE = { '$': [15, 25], '$$': [25, 50], '$$$': [50, 90], '$$$$': [90, 150] }
@@ -10321,8 +10460,10 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     if (item.type === 'venue') {
       if (!savedItems[`venue:${item.id}`]) toggleSave('venue', item.id)
       moveStopToDay(item.id, addStopToDayIdx)
+      setNewlyAddedStopId(item.id)
     } else if (item.type === 'user_venue') {
       moveStopToDay(item.id, addStopToDayIdx)
+      setNewlyAddedStopId(item.id)
     } else if (item.type === 'google_place') {
       // Persist Google-sourced place as a user_venue. addUserVenue returns the
       // generated id; we use it to assign the day. lat/lng is stored on the
@@ -10341,10 +10482,14 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
         source: 'google',
         googlePlaceId: item.placeId,
       })
-      if (newId) moveStopToDay(newId, addStopToDayIdx)
+      if (newId) { moveStopToDay(newId, addStopToDayIdx); setNewlyAddedStopId(newId) }
     }
     setAddStopToDayIdx(null)
   }
+  // "NEW" badge on the just-added stop — plain component state, deliberately
+  // NOT persisted: it dies when the user leaves My Trip (unmount), which is
+  // exactly the requested lifetime.
+  const [newlyAddedStopId, setNewlyAddedStopId] = React.useState(null)
   const [checkedStops, setCheckedStops] = React.useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem('nyc_checked_stops') || '[]')) } catch { return new Set() }
   })
@@ -10807,7 +10952,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
           padding: '13px 2px', cursor: 'pointer', fontFamily: 'inherit',
           fontSize: 14, fontWeight: 600, color: 'var(--gray-600)',
         }}>
-          <span>💾 {t('Saved plans')}</span>
+          <span>💾 {t('My Plans')}</span>
           <span style={{ color: 'var(--gray-400)', fontSize: 17 }}>›</span>
         </button>
       </div>
@@ -11189,6 +11334,37 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
         if (_modeMins.walk > 0)   summaryBits.push(`🚶 ~${_modeMins.walk} min`)
         if (_modeMins.subway > 0) summaryBits.push(`🚇 ~${_modeMins.subway} min`)
         if (_modeMins.taxi > 0)   summaryBits.push(`🚕 ~${_modeMins.taxi} min`)
+
+        // ── Route numbers — cards carry the SAME numbers as the trip map's
+        // pins, so "which pin is which" answers itself. Must replicate the
+        // map's plottable rule exactly (google-sourced adds are unplotted →
+        // unnumbered), or card 3 would point at pin 2. ──
+        const _routeNum = {}
+        {
+          let _n = 0
+          for (const it of computeDayPlan(day, dayIdx).reorderedItems) {
+            let c = null
+            if (it.type === 'stop') {
+              c = venueCoords[it.stop.id]
+              if (!c) {
+                const uv = userVenues[it.stop.id]
+                const googleSourced = ((uv?.source || '') + '').startsWith('google')
+                if (uv && !googleSourced && typeof uv.lat === 'number' && typeof uv.lng === 'number') c = { lat: uv.lat, lng: uv.lng }
+              }
+              if (c) { _n += 1; _routeNum['stop:' + it.stop.id] = _n }
+            } else {
+              c = restaurantCoords(it.meal === 'lunch' ? lunchRestaurants[dayIdx] : dinnerRestaurants[dayIdx])
+              if (c) { _n += 1; _routeNum['meal:' + it.meal] = _n }
+            }
+          }
+        }
+        const routeNumBadge = (n) => n ? (
+          <span style={{
+            width: 18, height: 18, borderRadius: 999, background: dayHue(dayIdx),
+            color: '#fff', fontSize: 10.5, fontWeight: 700, lineHeight: '18px',
+            textAlign: 'center', flexShrink: 0, display: 'inline-block',
+          }}>{n}</span>
+        ) : null
         // Meals: price tiers → one per-person figure (range midpoint, rounded
         // to $5). "≈" marks it as an estimate, not a quote. Shares
         // MEAL_PRICE_RANGE with the per-card approximation.
@@ -11388,6 +11564,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                         const canRefresh = optionsCount > 1
                         return (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            {routeNumBadge(_routeNum['meal:' + item.meal])}
                             <span style={{ fontSize: 15 }}>{isLunch ? '🍴' : '🍷'}</span>
                             <span style={{ fontSize: 12, fontWeight: 700, color: isLunch ? '#A96F22' : '#6B4453', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
                               {isLunch ? t('Lunch') : t('Dinner')}
@@ -11588,16 +11765,20 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                       padding: '7px 14px',
                       display: 'flex', alignItems: 'center', gap: 8,
                     }}>
+                      {routeNumBadge(_routeNum['stop:' + stop.id])}
                       <span style={{
                         width: 7, height: 7, borderRadius: '50%',
                         background: pc.dot, display: 'inline-block', flexShrink: 0,
                       }} />
                       <span style={{ fontSize: 11, fontWeight: 700, color: pc.text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                        {t(shownPeriod)}
+                        {isHotelStop(stop) ? t('Hotel') : t(shownPeriod)}
                       </span>
-                      <span style={{ marginLeft: 'auto', fontSize: 11, color: pc.text, opacity: 0.7 }}>
-                        ~{stop.duration < 1 ? `${Math.round(stop.duration * 60)} min` : stop.duration % 1 === 0 ? `${stop.duration} hrs` : `${stop.duration.toFixed(1)} hrs`}
-                      </span>
+                      {/* Hotels get no duration — "~1.5 hrs at your hotel" was an invented number. */}
+                      {!isHotelStop(stop) && (
+                        <span style={{ marginLeft: 'auto', fontSize: 11, color: pc.text, opacity: 0.7 }}>
+                          ~{stop.duration < 1 ? `${Math.round(stop.duration * 60)} min` : stop.duration % 1 === 0 ? `${stop.duration} hrs` : `${stop.duration.toFixed(1)} hrs`}
+                        </span>
+                      )}
                       <button
                         onClick={(e) => { e.stopPropagation(); toggleVenueInPlan(stop.id) }}
                         onMouseDown={(e) => e.stopPropagation()}
@@ -11605,7 +11786,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                         aria-label="Remove from trip"
                         title="Remove from trip"
                         style={{
-                          marginLeft: 10, flexShrink: 0, background: 'none', border: 'none',
+                          marginLeft: isHotelStop(stop) ? 'auto' : 10, flexShrink: 0, background: 'none', border: 'none',
                           cursor: 'pointer', color: pc.text, opacity: 0.5, fontSize: 14,
                           lineHeight: 1, padding: '0 2px', fontFamily: 'inherit',
                         }}
@@ -11624,10 +11805,17 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                             display: 'flex', alignItems: 'flex-start', gap: 10,
                           }}
                         >
-                          <span style={{ fontSize: 20, flexShrink: 0, marginTop: 1 }}>{DOMAIN_ICONS[stop.domain] || '📍'}</span>
+                          <span style={{ fontSize: 20, flexShrink: 0, marginTop: 1 }}>{isHotelStop(stop) ? '🏨' : (DOMAIN_ICONS[stop.domain] || '📍')}</span>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                               <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gray-900)', lineHeight: 1.25 }}>{stop.name}</div>
+                              {stop.id === newlyAddedStopId && (
+                                <span style={{
+                                  fontSize: 9, fontWeight: 800, letterSpacing: '0.06em',
+                                  color: '#fff', background: 'var(--accent)',
+                                  padding: '2px 7px', borderRadius: 999,
+                                }}>{t('NEW')}</span>
+                              )}
                               <span style={{
                                 fontSize: 9, fontWeight: 700, letterSpacing: '0.05em',
                                 textTransform: 'uppercase', color: 'var(--gray-500)',
@@ -11659,7 +11847,16 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                         >
                           <span style={{ fontSize: 20, flexShrink: 0, marginTop: 1 }}>{DOMAIN_ICONS[stop.domain] || '📍'}</span>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gray-900)', lineHeight: 1.25 }}>{stop.name}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gray-900)', lineHeight: 1.25 }}>{stop.name}</div>
+                              {stop.id === newlyAddedStopId && (
+                                <span style={{
+                                  fontSize: 9, fontWeight: 800, letterSpacing: '0.06em',
+                                  color: '#fff', background: 'var(--accent)',
+                                  padding: '2px 7px', borderRadius: 999,
+                                }}>{t('NEW')}</span>
+                              )}
+                            </div>
                             <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 3 }}>{stop.neighborhood}</div>
                             {stop.nowPlaying?.title && (
                               <div style={{
@@ -11860,6 +12057,45 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
           dayLabel={getDayLabel(addStopToDayIdx, tripStartDate)}
         />
       )}
+
+      {/* ── Trip map — where the day goes, at a glance (my_trip_update.md #10).
+          Approximate straight-line route between plottable stops; respects the
+          day filter; google-sourced adds are skipped (Google TOS: their coords
+          never render on Leaflet). ── */}
+      {!todayMode && days.length > 0 && (() => {
+        const routeGroups = days.map((day, di) => {
+          if (dayFilter !== null && dayFilter < days.length && di !== dayFilter) return null
+          const dp = computeDayPlan(day, di)
+          const pts = []
+          dp.reorderedItems.forEach(it => {
+            let c = null
+            if (it.type === 'stop') {
+              c = venueCoords[it.stop.id]
+              if (!c) {
+                const uv = userVenues[it.stop.id]
+                const googleSourced = ((uv?.source || '') + '').startsWith('google')
+                if (uv && !googleSourced && typeof uv.lat === 'number' && typeof uv.lng === 'number') c = { lat: uv.lat, lng: uv.lng }
+              }
+            } else {
+              c = restaurantCoords(it.meal === 'lunch' ? lunchRestaurants[di] : dinnerRestaurants[di])
+            }
+            if (c) pts.push({ lat: c.lat, lng: c.lng })
+          })
+          return pts.length >= 2 ? { hue: dayHue(di), pts } : null
+        }).filter(Boolean)
+        if (!routeGroups.length) return null
+        return (
+          <div style={{ padding: '4px 20px 6px' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-400)' }}>
+                {t('Trip map')}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>{t('approximate route')}</div>
+            </div>
+            <TripRouteMap groups={routeGroups} />
+          </div>
+        )
+      })()}
 
       {/* Inline action bar + bookkeeping at the bottom of the scroll (no fixed/sticky to preserve screen space). */}
       <div style={{ padding: '8px 20px 28px', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -12081,7 +12317,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
               cursor: 'pointer', color: 'var(--ink)', fontSize: 16, lineHeight: 1, flexShrink: 0,
               boxShadow: 'inset 0 0 0 1px rgba(33,27,20,0.10)',
             }}>←</button>
-            <div style={{ fontFamily: 'var(--serif)', fontSize: 19, fontWeight: 600, color: 'var(--ink)' }}>{savedPageMode === 'plans' ? t('Saved plans') : t('My saved places')}</div>
+            <div style={{ fontFamily: 'var(--serif)', fontSize: 19, fontWeight: 600, color: 'var(--ink)' }}>{savedPageMode === 'plans' ? t('My Plans') : t('My saved places')}</div>
           </div>
           <div style={{ paddingBottom: 'calc(40px + env(safe-area-inset-bottom, 0px))' }}>
       {/* ── Saved Places section (hidden in plans-only mode) ── */}
@@ -12375,7 +12611,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
           padding: '13px 2px', cursor: 'pointer', fontFamily: 'inherit',
           fontSize: 13, fontWeight: 600, color: 'var(--gray-500)',
         }}>
-          <span>💾 {t('Saved plans')}</span>
+          <span>💾 {t('My Plans')}</span>
           <span style={{ transform: invOpen === 'plans' ? 'rotate(180deg)' : 'none', color: 'var(--gray-400)', transition: 'transform 180ms' }}>⌄</span>
         </button>
       </div>

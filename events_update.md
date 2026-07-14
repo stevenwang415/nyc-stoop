@@ -31,6 +31,8 @@ live with the organizer."
 | 1 | Kill search-engine redirects on free events | ✅ done 07-13 | No web button when no official URL. |
 | 2 | Linkless cards explain themselves | ✅ done 07-13 | When there's no web link: the type blurb always shows (even generic kinds), and a small source note appears — "From NYC's public event permits — the city lists the date and place; details live with the organizer." Answers "why is there nothing to tap?" before it's asked. |
 
+| 3 | Home "This week in NYC" strip: one card per organizer/venue | ✅ done 07-14 | A multi-date series (BrownstoneJAZZ Fri + Sun) took two near-identical slots in a ~12-card strip. Now deduped by location/organizer, keeping the highest-ranked date. The Events tab still lists every date — the strip is a teaser, not the listing. |
+
 ## Backlog / later
 
 - Grow the `eventOfficialUrl` recognizer (more recurring series/organizers →
