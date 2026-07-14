@@ -23,6 +23,12 @@
 
 | 11 | Route numbers on cards (Wanderlog-style) | ✅ done 07-13 | Every stop and meal card carries a numbered badge in its day's hue — the SAME numbers as the trip map's pins, computed from one shared plottable rule (google-sourced adds are unplotted, so they're unnumbered — otherwise card 3 would point at pin 2). Stop cards: badge leads the period band; meal cards: badge leads the LUNCH/DINNER label. Numbers restart per day, matching the per-day map groups. |
 
+| 12 | Meal cards removable (✕) + restore chips | ✅ done 07-14 | Small ✕ on each LUNCH/DINNER header removes that meal from that day (persisted in `nyc_skipped_meals`; day summary/commute recompute). Never a one-way door: a dashed "🍴 Add lunch back / 🍷 Add dinner back" chip appears under the day. |
+| 13 | User-added eateries labeled RESTAURANT | ✅ done 07-14 | Custom stops detected as food (Add-Place category `food`/`coffee`, else name keywords: restaurant/café/sushi/pizzeria/bbq/bakery…) get a RESTAURANT band + 🍽️ icon instead of MORNING/EVENING — same pattern as HOTEL. Curated stops keep their period bands. |
+
+| 14 | Trip map interactive | ✅ done 07-14 | Pinch-zoom, drag, double-tap zoom + zoom buttons enabled (was fully static). scrollWheelZoom stays off for desktop page-scroll; on phones one-finger drag pans the map — accepted tradeoff, requested. |
+| 15 | Kefi removed (permanently closed) | ✅ done 07-14 | Third closed restaurant found by hand (Class on 38th, Spotted Pig, now Kefi). The v1.1 automated liveness sweep (Google `businessStatus`) keeps earning its priority. |
+
 ## Design notes
 
 - Feedback works offline-of-backend: the app never stores the message; the

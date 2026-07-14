@@ -9436,7 +9436,6 @@ const RESTAURANT_DATA = [
   // ── UPPER WEST SIDE ──
   { id: 'carmines_uws',    name: 'Carmine\'s',          cuisines: ['italian'],    area: 'Upper West Side', price: '$$', neighborhood: 'Upper West Side', description: 'Legendary family-style Italian — enormous platters of linguine alle vongole and chicken parmigiana built for sharing.', reservationUrl: 'https://www.carminesnyc.com', mapsUrl: 'https://maps.google.com/?q=Carmine\'s+Upper+West+Side+New+York' },
   { id: 'amsterdam_ale',   name: 'Amsterdam Ale House', cuisines: ['bar_tavern'], area: 'Upper West Side', price: '$$', neighborhood: 'Upper West Side', description: '60 taps of craft and import beer in a classic neighborhood tavern — excellent wings and a relaxed vibe.', reservationUrl: null, mapsUrl: 'https://maps.google.com/?q=Amsterdam+Ale+House+New+York' },
-  { id: 'kefi_uws',        name: 'Kefi',                cuisines: ['american'],   area: 'Upper West Side', price: '$$', neighborhood: 'Upper West Side', description: 'Michael Psilakis\'s beloved Greek-American taverna — roasted lamb, spreads, and casual neighborhood warmth.', reservationUrl: 'https://www.opentable.com/kefi', mapsUrl: 'https://maps.google.com/?q=Kefi+Restaurant+New+York' },
   { id: 'sushi_yasaka',    name: 'Sushi Yasaka',        cuisines: ['japanese'],   area: 'Upper West Side', price: '$$', neighborhood: 'Upper West Side', description: 'Quiet neighborhood sushi bar known for generous omakase value and pristine fish sourced daily.',           reservationUrl: 'https://www.opentable.com/sushi-yasaka', mapsUrl: 'https://maps.google.com/?q=Sushi+Yasaka+New+York' },
   { id: 'juliana_uws',     name: 'Juliana\'s (UWS)',    cuisines: ['pizza'],      area: 'Upper West Side', price: '$$', neighborhood: 'Upper West Side', description: 'Coal-fired Neapolitan pizza — charred blistered crust, San Marzano tomatoes, fresh mozzarella.',         reservationUrl: null, mapsUrl: 'https://maps.google.com/?q=Juliana\'s+Pizza+New+York' },
 
@@ -9493,7 +9492,7 @@ const RESTAURANT_COORDS = {
   sushi_of_gari: [40.7714, -73.9526], caravaggio: [40.7726, -73.9655], jg_melon: [40.7706, -73.9580],
   burnside_ues: [40.7765, -73.9520], mezzaluna: [40.7707, -73.9579], mono_mono: [40.7736, -73.9566],
   carmines_uws: [40.7917, -73.9740], shake_shack_uws: [40.7806, -73.9758], amsterdam_ale: [40.7800, -73.9800],
-  kefi_uws: [40.7855, -73.9716], sushi_yasaka: [40.7785, -73.9820], juliana_uws: [40.7850, -73.9750],
+  sushi_yasaka: [40.7785, -73.9820], juliana_uws: [40.7850, -73.9750],
   carbone: [40.7281, -74.0003], lupa: [40.7284, -74.0008], momofuku_noodle: [40.7295, -73.9847],
   corner_bistro: [40.7384, -74.0027], employees_only: [40.7339, -74.0065],
   artichoke_pizza: [40.7327, -73.9840], jeju_noodle: [40.7345, -74.0075],
@@ -9655,10 +9654,13 @@ function TripRouteMap({ groups }) {
     const L = window.L
     if (!ready || !L || !boxRef.current) return
     if (!mapRef.current) {
+      // Interactive since 07-14 (user request): pinch-zoom + drag enabled.
+      // scrollWheelZoom stays off so desktop page-scroll over the map doesn't
+      // hijack; on phones a one-finger drag pans the map (accepted tradeoff).
       mapRef.current = L.map(boxRef.current, {
-        zoomControl: false, dragging: false, scrollWheelZoom: false,
-        touchZoom: false, doubleClickZoom: false, boxZoom: false,
-        keyboard: false, tap: false, attributionControl: true,
+        zoomControl: true, dragging: true, scrollWheelZoom: false,
+        touchZoom: true, doubleClickZoom: true, boxZoom: false,
+        keyboard: false, attributionControl: true,
       })
       L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
@@ -9708,6 +9710,13 @@ function TripRouteMap({ groups }) {
 // stop isn't an activity — its band reads HOTEL with no invented duration.
 const HOTEL_NAME_RE = /\b(hotel|hostel|motel|marriott|hilton|hyatt|sheraton|westin|ritz[- ]?carlton|four seasons|doubletree|intercontinental|kimpton|moxy|aloft|yotel|citizenm|holiday inn|hampton inn|embassy suites|crowne plaza|radisson|wyndham|best western|st\.? regis|residence inn|courtyard by marriott|the plaza|carlyle|peninsula new york)\b/i
 const isHotelStop = (stop) => !!(stop?.isCustom && HOTEL_NAME_RE.test(stop.name || ''))
+// Same idea for user-added eateries: their band reads RESTAURANT, not
+// MORNING/EVENING (a scheduling label is weird on a place that IS a meal).
+// Detection: the Add-Place category when set, else name keywords.
+const RESTAURANT_NAME_RE = /\b(restaurant|ristorante|trattoria|osteria|brasserie|bistro|caf[eé]|coffee|diner|deli|grill|steakhouse|chophouse|sushi|omakase|izakaya|ramen|noodle|pho|dumpling|taqueria|taco|pizz(a|eria)|bbq|barbecue|bakery|patisserie|eatery|kitchen|oyster|burger|bagel)\b/i
+const isRestaurantStop = (stop) => !!(stop?.isCustom && !HOTEL_NAME_RE.test(stop.name || '') && (
+  stop.category === 'food' || stop.category === 'coffee' || RESTAURANT_NAME_RE.test(stop.name || '')
+))
 
 // Price tiers → rough per-person dollar ranges (NYC reality). Shared by the
 // day-summary estimate and the meal cards, so the two never disagree.
@@ -9986,12 +9995,9 @@ ${body}
                   const pc = PERIOD_COLORS[stop.period] || PERIOD_COLORS.Afternoon
                   return (
                     <div key={stop.id} style={{ background: 'var(--card)', border: '1px solid var(--gray-200)', borderRadius: 12, overflow: 'hidden' }}>
-                      <div style={{ background: pc.bg, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ width: 6, height: 6, borderRadius: '50%', background: pc.dot, display: 'inline-block' }} />
-                        <span style={{ fontSize: 11, fontWeight: 700, color: pc.text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                          {stop.period} · {fmtHour(stop.startHour)}
-                        </span>
-                        <span style={{ marginLeft: 'auto', fontSize: 11, color: pc.text, opacity: 0.7 }}>
+                      {/* Neutral strip — period labels removed app-wide 2026-07-14. */}
+                      <div style={{ background: 'var(--gray-50)', borderBottom: '1px solid var(--gray-100)', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--gray-500)' }}>
                           ~{stop.duration < 1 ? `${Math.round(stop.duration * 60)} min` : stop.duration % 1 === 0 ? `${stop.duration} hrs` : `${stop.duration.toFixed(1)} hrs`}
                         </span>
                       </div>
@@ -10848,6 +10854,22 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
   // the Checklist rendered each stop's raw buildItinerary startHour, which drifted
   // from the Full plan's travel-aware clock and ignored drag/meal reordering — so
   // the two views showed different times for the same stop.)
+  // Meals a user has ✕-removed, per day: { [dayIdx]: { lunch: true, dinner: true } }.
+  // Persisted; the restore chips under each day undo it.
+  const [skippedMeals, setSkippedMeals] = React.useState(() => {
+    try { return JSON.parse(localStorage.getItem('nyc_skipped_meals') || '{}') } catch { return {} }
+  })
+  function setMealSkipped(dayIdx, meal, on) {
+    setSkippedMeals(prev => {
+      const day = { ...(prev[dayIdx] || {}) }
+      if (on) day[meal] = true; else delete day[meal]
+      const next = { ...prev, [dayIdx]: day }
+      if (!Object.keys(day).length) delete next[dayIdx]
+      try { lsSet('nyc_skipped_meals', JSON.stringify(next)) } catch {}
+      return next
+    })
+  }
+
   function computeDayPlan(day, dayIdx) {
     const sortedDayStops = orderedStops(day.stops)
     const hasEvening2 = sortedDayStops.some(s => s.period === 'Evening')
@@ -10868,6 +10890,16 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     })
     if (hasDaytime2 && !li2) defaultItemIds.push('__lunch__')
     if (!di2 && hasEvening2) defaultItemIds.push('__dinner__')
+    // ✕-removed meals: filter ONCE here, after every insertion path (meals get
+    // pushed both inline-between-stops and as fallbacks above — guarding only
+    // one path left ghost cards on days with saved orders).
+    for (const meal of ['lunch', 'dinner']) {
+      if (skippedMeals[dayIdx]?.[meal]) {
+        const id = `__${meal}__`
+        const i = defaultItemIds.indexOf(id)
+        if (i !== -1) defaultItemIds.splice(i, 1)
+      }
+    }
     const isDraggingThisDay = dragId !== null && dragDayIdx === dayIdx
     let activeItemIds
     if (isDraggingThisDay) {
@@ -11327,22 +11359,24 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
           <button
             onClick={() => { setSettingsOpen(true); setTimeout(() => schedulingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60) }}
             style={{
-              width: '100%', background: '#fef3c7',
-              border: '1px solid #fcd34d', borderRadius: 12,
+              // House-quiet prompt (was amber alert — S5: weight ≠ importance;
+              // a gentle nudge shouldn't dress like a warning).
+              width: '100%', background: 'var(--card)',
+              border: '1px solid var(--gray-200)', borderRadius: 12,
               padding: '10px 14px', cursor: 'pointer', textAlign: 'left',
               display: 'flex', alignItems: 'center', gap: 10, fontFamily: 'inherit',
             }}
           >
             <span style={{ fontSize: 18 }}>📅</span>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#78350f' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink)' }}>
                 When are you visiting?
               </div>
-              <div style={{ fontSize: 11, color: '#92400e', marginTop: 1, lineHeight: 1.35 }}>
+              <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 1, lineHeight: 1.35 }}>
                 Set your arrival date to see real day labels (Thursday, Apr 4) and match theater + restaurant hours.
               </div>
             </div>
-            <span style={{ fontSize: 13, color: '#78350f', flexShrink: 0 }}>›</span>
+            <span style={{ fontSize: 13, color: 'var(--gray-400)', flexShrink: 0 }}>›</span>
           </button>
         </div>
       )}
@@ -11401,9 +11435,12 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
         const summaryBits = []
         if (dayPlan.dayStart != null && dayPlan.dayEnd != null) summaryBits.push(`${fmtHour(dayPlan.dayStart)} – ${fmtHour(dayPlan.dayEnd)}`)
         summaryBits.push(t2(dayStops.length === 1 ? '1 stop' : '{N} stops', { N: dayStops.length }))
-        const mealLabel = dayPlan.hasDaytime && dayPlan.hasEvening ? t('Lunch + Dinner')
-          : dayPlan.hasEvening ? t('Dinner')
-          : dayPlan.hasDaytime ? t('Lunch') : ''
+        // Meal label reflects the meals ACTUALLY in the plan (✕-removed ones out).
+        const _hasLunchItem = dayPlan.reorderedItems.some(it => it.type === 'restaurant' && it.meal === 'lunch')
+        const _hasDinnerItem = dayPlan.reorderedItems.some(it => it.type === 'restaurant' && it.meal === 'dinner')
+        const mealLabel = _hasLunchItem && _hasDinnerItem ? t('Lunch + Dinner')
+          : _hasDinnerItem ? t('Dinner')
+          : _hasLunchItem ? t('Lunch') : ''
         if (mealLabel) summaryBits.push(mealLabel)
         const dayEventCount = (eventsByDay[dayIdx] || []).length
         if (dayEventCount) summaryBits.push(t2(dayEventCount === 1 ? '1 event' : '{N} events', { N: dayEventCount }))
@@ -11471,7 +11508,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
         // to $5). "≈" marks it as an estimate, not a quote. Shares
         // MEAL_PRICE_RANGE with the per-card approximation.
         let _mealLo = 0, _mealHi = 0
-        ;[dayPlan.hasDaytime ? lunchRestaurants[dayIdx] : null, dayPlan.hasEvening ? dinnerRestaurants[dayIdx] : null].forEach(r => {
+        ;[_hasLunchItem ? lunchRestaurants[dayIdx] : null, _hasDinnerItem ? dinnerRestaurants[dayIdx] : null].forEach(r => {
           const rng = r && MEAL_PRICE_RANGE[r.price]
           if (rng) { _mealLo += rng[0]; _mealHi += rng[1] }
         })
@@ -11664,11 +11701,13 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                       {(() => {
                         const optionsCount = countRestaurantOptions(day.area, cuisine)
                         const canRefresh = optionsCount > 1
+                        // One line, left-tucked: badge · LUNCH/DINNER · cuisine ·
+                        // Show another · ✕. Emoji dropped, indent pulled back
+                        // (the rail below doesn't need this row to clear it).
                         return (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'nowrap', marginLeft: -20, minWidth: 0 }}>
                             {routeNumBadge(_routeNum['meal:' + item.meal])}
-                            <span style={{ fontSize: 15 }}>{isLunch ? '🍴' : '🍷'}</span>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: isLunch ? '#A96F22' : '#6B4453', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: isLunch ? '#A96F22' : '#6B4453', textTransform: 'uppercase', letterSpacing: '0.07em', flexShrink: 0 }}>
                               {isLunch ? t('Lunch') : t('Dinner')}
                             </span>
                             {cuisineOpt ? (
@@ -11676,7 +11715,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                                 fontSize: 11, fontWeight: 600,
                                 color: cuisineOpt.color, background: cuisineOpt.color + '18',
                                 padding: '2px 8px', borderRadius: 999, border: 'none', cursor: 'pointer',
-                                display: 'inline-flex', alignItems: 'center', gap: 3,
+                                display: 'inline-flex', alignItems: 'center', gap: 3, whiteSpace: 'nowrap',
                               }}>
                                 <span>{cuisineOpt.emoji}</span><span>{cuisineOpt.label}</span>
                                 <span style={{ opacity: 0.6, marginLeft: 2, transition: 'transform 180ms', display: 'inline-block', transform: isPickerOpen ? 'rotate(90deg)' : 'rotate(0)' }}>›</span>
@@ -11686,7 +11725,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                                 fontSize: 11, fontWeight: 600,
                                 color: 'var(--gray-500)', background: 'var(--gray-100)',
                                 padding: '2px 8px', borderRadius: 999, border: 'none', cursor: 'pointer',
-                                display: 'inline-flex', alignItems: 'center', gap: 3,
+                                display: 'inline-flex', alignItems: 'center', gap: 3, whiteSpace: 'nowrap',
                               }}>
                                 + Choose cuisine
                               </button>
@@ -11696,11 +11735,36 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                                 marginLeft: 'auto', fontSize: 11, fontWeight: 600,
                                 color: 'var(--gray-600)', background: 'var(--gray-100)',
                                 border: 'none', cursor: 'pointer', padding: '4px 10px', borderRadius: 999,
-                                display: 'inline-flex', alignItems: 'center', gap: 4,
+                                display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
                               }}>
                                 <span>↻</span><span>{t('Show another')}</span>
                               </button>
                             )}
+                            {/* Remove this meal from the day — restorable via the
+                                "+ Lunch/Dinner" chip below the day. */}
+                            <button
+                              type="button"
+                              onClick={() => setMealSkipped(dayIdx, item.meal, true)}
+                              // WKWebView belt-and-braces: if the synthesized
+                              // click is swallowed on-device, pointerup still
+                              // fires. Idempotent action → double-fire is fine.
+                              onPointerUp={() => setMealSkipped(dayIdx, item.meal, true)}
+                              aria-label={`Remove ${item.meal} from this day`}
+                              style={{
+                                // Plain ✕ glyph (matches the band ✕s on place
+                                // cards) inside an invisible 40px hit area.
+                                // Sides set individually — a `margin` shorthand
+                                // here silently killed marginLeft:'auto' and the
+                                // ✕ drifted off the right edge.
+                                width: 40, height: 40,
+                                marginLeft: canRefresh && !isPickerOpen ? 2 : 'auto',
+                                marginRight: -15, marginTop: -8, marginBottom: -8,
+                                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                background: 'none', border: 'none', cursor: 'pointer',
+                                color: 'var(--gray-400)', fontSize: 14, lineHeight: 1,
+                                padding: 0, fontFamily: 'inherit', flexShrink: 0,
+                              }}
+                            >✕</button>
                           </div>
                         )
                       })()}
@@ -11738,7 +11802,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                           background: 'var(--canvas)', border: '1px solid rgba(33,27,20,0.08)',
                           borderRadius: 12, padding: '14px 15px',
                         }}>
-                          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gray-900)', marginBottom: 3, lineHeight: 1.3 }}>
+                          <div style={{ fontFamily: 'var(--serif)', fontSize: 17, fontWeight: 600, color: 'var(--ink)', marginBottom: 3, lineHeight: 1.3 }}>
                             {restaurant.name}
                           </div>
                           <div style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 8 }}>
@@ -11861,23 +11925,26 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                         fontSize: 10, color: 'var(--gray-400)', lineHeight: 1,
                       }}>▼</button>
                     </div>
-                    {/* Period + time bar */}
+                    {/* Top bar — period labels removed 2026-07-14 (users go
+                        wherever, whenever). Neutral strip now carries: route
+                        number · type label (Hotel/Restaurant only) · duration · ✕.
+                        Periods still order the day internally; they're just no
+                        longer preached on every card. */}
                     <div style={{
-                      background: pc.bg,
+                      background: 'var(--gray-50)',
+                      borderBottom: '1px solid var(--gray-100)',
                       padding: '7px 14px',
                       display: 'flex', alignItems: 'center', gap: 8,
                     }}>
                       {routeNumBadge(_routeNum['stop:' + stop.id])}
-                      <span style={{
-                        width: 7, height: 7, borderRadius: '50%',
-                        background: pc.dot, display: 'inline-block', flexShrink: 0,
-                      }} />
-                      <span style={{ fontSize: 11, fontWeight: 700, color: pc.text, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                        {isHotelStop(stop) ? t('Hotel') : t(shownPeriod)}
-                      </span>
+                      {(isHotelStop(stop) || isRestaurantStop(stop)) && (
+                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                          {isHotelStop(stop) ? t('Hotel') : t('Restaurant')}
+                        </span>
+                      )}
                       {/* Hotels get no duration — "~1.5 hrs at your hotel" was an invented number. */}
                       {!isHotelStop(stop) && (
-                        <span style={{ marginLeft: 'auto', fontSize: 11, color: pc.text, opacity: 0.7 }}>
+                        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--gray-500)' }}>
                           ~{stop.duration < 1 ? `${Math.round(stop.duration * 60)} min` : stop.duration % 1 === 0 ? `${stop.duration} hrs` : `${stop.duration.toFixed(1)} hrs`}
                         </span>
                       )}
@@ -11889,7 +11956,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                         title="Remove from trip"
                         style={{
                           marginLeft: isHotelStop(stop) ? 'auto' : 10, flexShrink: 0, background: 'none', border: 'none',
-                          cursor: 'pointer', color: pc.text, opacity: 0.5, fontSize: 14,
+                          cursor: 'pointer', color: 'var(--gray-400)', fontSize: 14,
                           lineHeight: 1, padding: '0 2px', fontFamily: 'inherit',
                         }}
                       >✕</button>
@@ -11907,10 +11974,10 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                             display: 'flex', alignItems: 'flex-start', gap: 10,
                           }}
                         >
-                          <span style={{ fontSize: 20, flexShrink: 0, marginTop: 1 }}>{isHotelStop(stop) ? '🏨' : (DOMAIN_ICONS[stop.domain] || '📍')}</span>
+                          <span style={{ fontSize: 20, flexShrink: 0, marginTop: 1 }}>{isHotelStop(stop) ? '🏨' : isRestaurantStop(stop) ? '🍽️' : (DOMAIN_ICONS[stop.domain] || '📍')}</span>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gray-900)', lineHeight: 1.25 }}>{stop.name}</div>
+                              <div style={{ fontFamily: 'var(--serif)', fontSize: 17, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.25 }}>{stop.name}</div>
                               {stop.id === newlyAddedStopId && (
                                 <span style={{
                                   fontSize: 9, fontWeight: 800, letterSpacing: '0.06em',
@@ -11950,7 +12017,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                           <span style={{ fontSize: 20, flexShrink: 0, marginTop: 1 }}>{DOMAIN_ICONS[stop.domain] || '📍'}</span>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gray-900)', lineHeight: 1.25 }}>{stop.name}</div>
+                              <div style={{ fontFamily: 'var(--serif)', fontSize: 17, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.25 }}>{stop.name}</div>
                               {stop.id === newlyAddedStopId && (
                                 <span style={{
                                   fontSize: 9, fontWeight: 800, letterSpacing: '0.06em',
@@ -12139,6 +12206,10 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                 <span>{t('Add a place to this day')}</span>
               </button>
             )}
+
+            {/* (Restore chips removed 2026-07-14 per product call: ✕ on a meal
+                just removes it, same as every other card. Meals for NEW days
+                still auto-fill; a removed meal stays removed for that day.) */}
 
             {/* (Next-day divider removed — the sticky day tabs + each day's own
                 header make it redundant, and it doubled up as "DAY 2 · DAY 2"
@@ -14774,6 +14845,50 @@ function OnboardingModal({ onDismiss }) {
 // destructive "Clear all data" with a two-tap confirmation.
 const APP_VERSION = '1.0.0'
 const FEEDBACK_EMAIL = 'stevenwang.nycstoop@gmail.com'
+
+// ── Per-account data workspaces (2026-07-14) ────────────────────────────────
+// Saves/trip data are device-local, but they belong to an IDENTITY: a fresh
+// account starts empty, and each account's data returns when it signs back in.
+// Mechanism: on every sign-in/out, snapshot the outgoing identity's data keys
+// into `nyc_profile_<id>`, restore the incoming identity's bundle (or blank),
+// then reload so all localStorage-seeded React state re-initializes cleanly.
+// Device-level prefs (onboarding, tutorials, units, language) stay shared.
+const PROFILE_GLOBAL_KEYS = new Set([
+  'nyc_token', 'nyc_user', 'nyc_active_profile',
+  'nyc_onboarded_v2', 'nyc_map_tut_v1', 'nyc_temp_unit', 'nyc_lang',
+  'nyc_last_visit', 'nyc_whats_new_dismissed_for', 'nyc_profile_overlays',
+])
+function _profileDataKeys() {
+  const out = []
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (k && k.startsWith('nyc_') && !k.startsWith('nyc_profile_') && !PROFILE_GLOBAL_KEYS.has(k)) out.push(k)
+    }
+  } catch {}
+  return out
+}
+function switchDataProfile(nextId) {
+  try {
+    const prevId = localStorage.getItem('nyc_active_profile') || 'guest'
+    if (prevId === nextId) { window.location.reload(); return }
+    // 1) Park the outgoing identity's data.
+    const bundle = {}
+    _profileDataKeys().forEach(k => { bundle[k] = localStorage.getItem(k) })
+    lsSet(`nyc_profile_${prevId}`, JSON.stringify(bundle))
+    // 2) Clear the live keys → a new account genuinely starts at zero.
+    _profileDataKeys().forEach(k => localStorage.removeItem(k))
+    // 3) Restore the incoming identity's bundle, if it has one.
+    const stored = localStorage.getItem(`nyc_profile_${nextId}`)
+    if (stored) {
+      const data = JSON.parse(stored)
+      Object.entries(data).forEach(([k, v]) => { try { localStorage.setItem(k, v) } catch {} })
+    }
+    lsSet('nyc_active_profile', nextId)
+  } catch {}
+  // 4) Hard re-init — dozens of states seed from localStorage at mount.
+  window.location.reload()
+}
 const PRIVACY_URL = 'https://stevenwang415.github.io/nyc-stoop/privacy.html'
 
 // ── Image credits — CC BY / BY-SA attribution for the Wikimedia Commons
@@ -15122,22 +15237,6 @@ function SettingsModal({
           </div>
         </div>
 
-        {/* ── My saved places — the archive page (also reachable from My Trip) ── */}
-        <div style={{ padding: '0 20px 16px' }}>
-          <button onClick={onOpenSavedPlaces} style={{
-            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            background: 'var(--gray-50)', border: '1px solid var(--gray-200)', borderRadius: 14,
-            padding: '13px 16px', cursor: 'pointer', fontFamily: 'inherit',
-            fontSize: 15, color: 'var(--gray-900)',
-          }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ display: 'inline-flex', color: 'var(--gray-500)' }}><NavIcon name="bookmark" size={18} /></span>
-              {t('My saved places')}
-            </span>
-            <span style={{ color: 'var(--gray-400)', fontSize: 17 }}>›</span>
-          </button>
-        </div>
-
         {/* ── Account section ─────────────────────────────────────────── */}
         {user ? (
           <div style={{ padding: '0 20px 18px' }}>
@@ -15249,7 +15348,10 @@ function SettingsModal({
               <span>{t('Sign in')} / {t('Create account')}</span>
             </button>
             <div style={{ fontSize: 11, color: 'var(--gray-500)', textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
-              Sign in to sync your saves and trip plan across devices.
+              {/* Honest copy: saves/plans live on this device in v1; the
+                  account is your identity — sync ships with a later update. */}
+              Your saves and plan live on this device. An account saves your
+              identity — and gets you ready for sync and sharing, coming soon.
             </div>
           </div>
         )}
@@ -15298,6 +15400,13 @@ function SettingsModal({
               </div>
             </div>
           )}
+          {/* My saved places — first row: it's the one item here that's the
+              user's own content (also reachable from My Trip's footer). */}
+          <button onClick={onOpenSavedPlaces} style={rowStyle}>
+            <span style={{ display: 'inline-flex', color: 'var(--gray-500)' }}><NavIcon name="bookmark" size={18} /></span>
+            <span style={labelStyle}>{t('My saved places')}</span>
+            <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>›</span>
+          </button>
           {/* One-time bulk import for places already saved in Google Maps */}
           <button onClick={() => { onClose?.(); onImportTakeout?.() }} style={rowStyle}>
             <span style={{ display: 'inline-flex', color: 'var(--gray-500)' }}><NavIcon name="download" size={18} /></span>
@@ -15319,12 +15428,7 @@ function SettingsModal({
             <span style={labelStyle}>{t('Send feedback')}</span>
             <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>›</span>
           </button>
-          <a href="https://github.com/stevenwang415/nyc-stoop" target="_blank" rel="noopener noreferrer"
-             style={{ ...rowStyle, textDecoration: 'none' }}>
-            <span style={{ display: 'inline-flex', color: 'var(--gray-500)' }}><NavIcon name="code" size={18} /></span>
-            <span style={labelStyle}>Source on GitHub</span>
-            <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>↗</span>
-          </a>
+          {/* (Source-on-GitHub row removed 2026-07-14 — users don't need the code.) */}
 
           {/* Thanks — the friends whose places, tips, and ideas seeded the guide */}
           <button onClick={() => setThanksOpen(o => !o)} aria-expanded={thanksOpen} style={rowStyle}>
@@ -15590,6 +15694,17 @@ export default function App() {
 
   // ── Auth — token + user cached in localStorage by ./auth/api ────────────
   const [user, setUserState] = useState(() => getUser())
+  // Migration for installs that predate per-account workspaces: if someone is
+  // already signed in but no active-profile flag exists, adopt the device's
+  // current data as THEIR workspace (don't orphan it to 'guest').
+  React.useEffect(() => {
+    try {
+      if (!localStorage.getItem('nyc_active_profile')) {
+        const u = getUser()
+        lsSet('nyc_active_profile', u?.id != null ? `u${u.id}` : 'guest')
+      }
+    } catch {}
+  }, [])
   useEffect(() => {
     if (!getToken()) return
     // Refresh the cached profile from the server; sign out silently on 401.
@@ -15600,11 +15715,15 @@ export default function App() {
   function handleSignedIn(token, u) {
     authSetToken(token)
     authSetUser(u)
-    setUserState(u)
+    // Per-account workspaces: park the current identity's data, then load the
+    // incoming account's bundle (empty for a brand-new account). Reload so
+    // every localStorage-seeded state re-initializes from the right bundle.
+    switchDataProfile(u?.id != null ? `u${u.id}` : 'guest')
   }
   function handleSignedOut() {
     authSignOut()
     setUserState(null)
+    switchDataProfile('guest')
   }
 
   // ── First-time-user onboarding — versioned key so we can re-show after major updates ──

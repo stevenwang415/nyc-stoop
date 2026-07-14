@@ -215,6 +215,10 @@ export function AuthModal({ onClose, onSuccess, initialTab = 'signin' }) {
     setError(''); setInfo(''); setBusy(true)
     try {
       await ensureSocialLogin()
+      // Clear any cached Google session first — otherwise the iOS SDK silently
+      // reuses the LAST account and the user never gets Google's account
+      // chooser (the web flow always shows it; native must be forced).
+      try { await SocialLogin.logout({ provider: 'google' }) } catch {}
       const res = await SocialLogin.login({ provider: 'google', options: { scopes: ['email', 'profile'] } })
       const idToken = res?.result?.idToken
       if (!idToken) throw new Error('No credential from Google')
@@ -263,7 +267,7 @@ export function AuthModal({ onClose, onSuccess, initialTab = 'signin' }) {
             <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 4 }}>
               {tab === 'forgot'
                 ? "Enter your email and we'll send you a reset link."
-                : t('Sync your saves and trip plan across devices.')}
+                : t('Your account keeps your identity — sync and sharing arrive in a coming update.')}
             </div>
           </div>
           <button onClick={onClose} aria-label="Close" style={{

@@ -31,6 +31,14 @@ surface in the app compete with itself. The venue color now appears as a
 dots, and the full palette still blooms on the venue's own detail page,
 where it IS that page's identity.
 
+## My Trip
+
+| # | Item | Status | Notes |
+|---|------|--------|-------|
+| 7 | Period labels retired | ✅ done 07-14 | MORNING/AFTERNOON/EVENING bands (and their tint colors) removed from all cards — users go wherever, whenever. Neutral strip keeps route number · type label (HOTEL/RESTAURANT only) · duration · ✕. Periods still order the day internally. Saved-plan view matched. |
+| 8 | Serif venue names (S2) | ✅ done 07-14 | Stop names + meal restaurant names go serif 17/ink — cards now sound like the guide, matching topic and show cards. |
+| 9 | "When are you visiting?" de-amber-ed (S5) | ✅ done 07-14 | The date prompt was dressed as a warning (#fef3c7 amber). Now the house cream card with quiet ink/gray text — a nudge, not an alarm. |
+
 ## Backlog (next pages to upgrade, same discipline)
 
 - Explore Topic/Domain heroes → FlowHero treatment (carried from v1.1 list).
