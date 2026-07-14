@@ -102,8 +102,9 @@ const NEIGHBORHOOD_GROUPS = [
   { key: 'brooklyn',        label: 'Brooklyn',          emoji: '🌉', match: n => /brooklyn|dumbo|greenpoint|williamsburg|bushwick|fort greene|clinton hill|prospect heights|park slope|crown heights/i.test(n) },
   { key: 'queens',          label: 'Queens',            emoji: '🎺', match: n => /queens/i.test(n),    comingSoon: true,
     tease: 'Long Island City, Astoria, Flushing, and the Rockaways. Coming soon.' },
-  { key: 'bronx',           label: 'The Bronx',         emoji: '⚾', match: n => /bronx/i.test(n),     comingSoon: true,
-    tease: 'Yankee Stadium, Arthur Avenue, the Bronx Zoo, and the New York Botanical Garden. Coming soon.' },
+  // The Bronx went live 2026-07-14 with its big three (Yankee Stadium, the
+  // Zoo, the Botanical Garden); Arthur Avenue et al. still to come.
+  { key: 'bronx',           label: 'The Bronx',         emoji: '⚾', match: n => /bronx/i.test(n) },
   // { key: 'staten_island',   label: 'Staten Island',     emoji: '⛴️', match: n => /staten island/i.test(n), comingSoon: true,
   //   tease: 'The free ferry, Snug Harbor, and the North Shore. Coming soon.' },
 ]
@@ -2236,6 +2237,49 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
   )
 }
 // ── Domain Screen ─────────────────────────────────────────────────────────
+// One signature work per topic (improve_design.md #3): a newcomer doesn't know
+// what "Cubism" means, but they recognize Les Demoiselles. Explicit picks for
+// fame; any topic without a pick falls back to its first work with a (legal)
+// image, and topics with no imaged works simply show no thumbnail.
+const TOPIC_HERO_WORK = {
+  post_impressionism: 'starry_night',
+  impressionism: 'monet_waterlilies',
+  cubism: 'picasso_demoiselles',
+  american_modernism: 'hopper_sunday_morning',
+  abstract_expressionism: 'pollock_one31',
+}
+function topicHeroWork(topic) {
+  const explicit = works[TOPIC_HERO_WORK[topic.id]]
+  if (explicit?.imageUrl) return explicit
+  const figIds = new Set(topic.figureIds || [])
+  return Object.values(works).find(w => w.imageUrl && (w.topicId === topic.id || figIds.has(w.figureId))) || null
+}
+// Full visual fallback chain for a topic card (improve_design.md #5):
+//   signature work → key figure's portrait → key venue's photo.
+// Jazz/Classical/History topics lost their work images to the fair-use purge,
+// but their FIGURES have legal Commons portraits — Charlie Parker's face
+// teaches "Bebop" the way Starry Night teaches "Post-Impressionism".
+// Architecture topics are buildings: the venue photo IS the subject.
+function topicHeroImage(topic, used = new Set()) {
+  const take = (url, alt) => { used.add(url); return { url, alt } }
+  const w = topicHeroWork(topic)
+  if (w && !used.has(w.imageUrl)) return take(w.imageUrl, w.title)
+  const fig = (topic.figureIds || []).map(id => figures[id]).find(f => f?.imageUrl && !used.has(f.imageUrl))
+  if (fig) return take(fig.imageUrl, fig.name)
+  // `used` keeps sibling topics from wearing the same face — two jazz topics
+  // both led with the Vanguard's awning before this.
+  const vid = (topic.venueIds || []).find(id => venueImages[id] && !used.has(venueImages[id]))
+  if (vid) return take(venueImages[vid], venues[vid]?.name || '')
+  return null
+}
+// Domain pages inherit the FlowHero treatment (improve_design.md #4 — clears
+// the v1.1 deviation noted in DESIGN_REVIEW S1). Each domain borrows the
+// hand-drawn scene closest to its world: museums for the looking arts,
+// the lit stage for the performing ones.
+const DOMAIN_HERO_ART = {
+  visual_art: 'culture', history: 'culture', architecture: 'culture',
+  jazz: 'live', classical_music: 'live', theater: 'live', hip_hop: 'live', sports: 'live',
+}
 function DomainScreen({ domainId, push, savedItems = {} }) {
   const domain = domains[domainId]
 
@@ -2309,25 +2353,55 @@ function DomainScreen({ domainId, push, savedItems = {} }) {
   const domainTopics = domain.topicIds.map(id => topics[id]).filter(Boolean)
   return (
     <div className="screen">
-      <div className="section">
-        <p className="meta">{domain.icon} {domain.name}</p>
-        <h1 className="display" style={{ marginTop: 8 }}>What draws you in?</h1>
-      </div>
+      {/* Hand-drawn hero — same editorial language as Eat and the mood flows,
+          replacing the bare meta + h1 header. */}
+      <FlowHero
+        art={<ActivityCoverArt activityId={DOMAIN_HERO_ART[domainId] || 'culture'} />}
+        eyebrow={domain.name}
+        title="What draws you in?"
+        body={clipWords(domain.description || '', 120)}
+        compact
+      />
 
-      <div className="card-list">
-        {domainTopics.map(topic => (
+      <div className="card-list" style={{ paddingTop: 18 }}>
+        {(() => { const _usedHeroImgs = new Set(); return domainTopics.map(topic => {
+          const hero = topicHeroImage(topic, _usedHeroImgs)
+          return (
           <button
             key={topic.id}
             className="card"
             onClick={() => push({ screen: 'topic', topicId: topic.id })}
           >
-            <div className="card-body">
-              <div className="card-name">{topic.name}</div>
-              {topic.years && <div className="card-meta">{topic.years}</div>}
-              <div className="card-tagline">{topic.tagline}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div className="card-body" style={{ flex: 1, minWidth: 0 }}>
+                {/* Serif topic names — S2: the biggest text on a card should
+                    sound like the guide, not the OS. */}
+                <div style={{ fontFamily: 'var(--serif)', fontSize: 19, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.2 }}>{topic.name}</div>
+                {topic.years && <div className="card-meta" style={{ marginTop: 3 }}>{topic.years}</div>}
+                <div className="card-tagline">{topic.tagline}</div>
+              </div>
+              {/* Signature work — the face a newcomer recognizes before the
+                  movement's name means anything. */}
+              {hero && (
+                /* Signature work, image only — the alt text still names the
+                   painting for screen readers; visually the canvas speaks. */
+                <img
+                  src={hero.url}
+                  alt={hero.alt}
+                  loading="lazy"
+                  onError={e => { e.currentTarget.style.display = 'none' }}
+                  style={{
+                    flexShrink: 0, alignSelf: 'center', marginRight: 10,
+                    width: 88, height: 88, objectFit: 'cover', borderRadius: 10,
+                    display: 'block', background: 'var(--gray-100)',
+                    boxShadow: '0 1px 4px rgba(33,27,20,0.14)',
+                  }}
+                />
+              )}
             </div>
           </button>
-        ))}
+          )
+        }) })()}
 
         {domain.comingSoon && domain.comingSoon.length > 0 && (
           <>
@@ -2448,7 +2522,11 @@ function TopicScreen({ topicId, push, savedItems = {} }) {
             // shows so 'now' tab would otherwise render nothing).
             const runningShows = theaterShows.filter(w => w.currentlyRunning)
             const historicShows = theaterShows.filter(w => !w.currentlyRunning)
-            const displayedShows = showFilter === 'now' ? runningShows : historicShows
+            // One-bucket topics (Drama/Off-Broadway are all historic) get NO
+            // toggle — a control with one valid state is furniture, not a
+            // choice. Just show the bucket that exists.
+            const onlyBucket = runningShows.length === 0 ? 'historic' : historicShows.length === 0 ? 'now' : null
+            const displayedShows = (onlyBucket || showFilter) === 'now' ? runningShows : historicShows
             return (
             <>
               <div className="section" style={{ paddingBottom: 4 }}>
@@ -2456,9 +2534,10 @@ function TopicScreen({ topicId, push, savedItems = {} }) {
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   gap: 10,
                 }}>
-                  <div className="section-label" style={{ margin: 0 }}>Broadway shows</div>
-                  {/* Toggle — sits at right. Empty buckets disable the tab so
-                      users don't tap into an empty list. */}
+                  <div className="section-label" style={{ margin: 0 }}>
+                    {onlyBucket === 'historic' ? 'Landmark productions' : 'Broadway shows'}
+                  </div>
+                  {onlyBucket === null && (
                   <div style={{
                     display: 'inline-flex', gap: 2, padding: 2,
                     background: 'var(--gray-100)', borderRadius: 999,
@@ -2497,6 +2576,7 @@ function TopicScreen({ topicId, push, savedItems = {} }) {
                       )
                     })}
                   </div>
+                  )}
                 </div>
               </div>
               {/* Empty-bucket fallback — shouldn't fire because buttons are
@@ -2524,6 +2604,11 @@ function TopicScreen({ topicId, push, savedItems = {} }) {
                   const colors = venueColors[work.venueId] || { bg: '#9d174d', text: '#ffffff' }
                   const preview = clipWords(work.description || '', 180)
                   return (
+                    /* House-style card (improve_design.md #1): cream ground,
+                       serif ink title, the venue's palette color reduced to an
+                       identity dot (full color belongs to the venue's own page),
+                       status as a quiet chip, Explore → in clay. Same logic —
+                       same buckets, same navigation. */
                     <button
                       key={work.id}
                       onClick={() => push({ screen: 'work', workId: work.id })}
@@ -2531,68 +2616,56 @@ function TopicScreen({ topicId, push, savedItems = {} }) {
                         position: 'relative',
                         width: '100%', textAlign: 'left',
                         background: 'var(--card)',
-                        border: '1px solid var(--gray-200)',
-                        borderRadius: 12, overflow: 'hidden',
+                        border: '1px solid rgba(33,27,20,0.10)',
+                        borderRadius: 14, overflow: 'hidden',
                         cursor: 'pointer', fontFamily: 'inherit',
-                        padding: 0,
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                        padding: '14px 16px 14px',
+                        boxShadow: '0 4px 14px rgba(33,27,20,0.05)',
                       }}
                     >
-                      {/* Colored header — show title is the hero, with theater
-                          and creator credited as a sub-line. */}
-                      <div style={{
-                        background: colors.bg,
-                        color: colors.text,
-                        padding: '14px 16px 12px',
-                      }}>
-                        <div style={{ fontWeight: 800, fontSize: 18, lineHeight: 1.2, paddingRight: isSaved ? 32 : 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                        <span style={{ width: 9, height: 9, borderRadius: 999, background: colors.bg, flexShrink: 0, alignSelf: 'center' }} />
+                        <div style={{ fontFamily: 'var(--serif)', fontWeight: 600, fontSize: 19, lineHeight: 1.2, color: 'var(--ink)' }}>
                           {work.title}
                         </div>
-                        {venue && (
-                          <div style={{ fontSize: 12, opacity: 0.85, marginTop: 3 }}>
-                            at {venue.name}{fig ? ` · ${fig.name}` : ''}
-                          </div>
-                        )}
                       </div>
-                      {/* Status bar — RUNNING NOW (dark green-accent) or
-                          HISTORIC (light grey). Mirrors the venue card's
-                          NOW PLAYING / BETWEEN PRODUCTIONS bar. */}
-                      {work.currentlyRunning ? (
-                        <div style={{
-                          background: '#0d1117', color: '#fff',
-                          padding: '8px 16px 9px',
-                          display: 'flex', alignItems: 'center', gap: 8,
-                        }}>
-                          <span style={{ fontSize: 10, fontWeight: 700, color: '#4ade80', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                            🟢 Running now
-                          </span>
-                          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)' }}>
-                            since {work.year}
-                          </span>
-                        </div>
-                      ) : (
-                        <div style={{
-                          background: '#fafafa',
-                          borderTop: '1px solid var(--gray-100)',
-                          padding: '8px 16px 9px',
-                          display: 'flex', alignItems: 'center', gap: 8,
-                        }}>
-                          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--gray-500)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                            📜 Historic
-                          </span>
-                          <span style={{ fontSize: 10, color: 'var(--gray-400)' }}>
-                            {work.year}
-                          </span>
+                      {venue && (
+                        <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 4, marginLeft: 17 }}>
+                          at {venue.name}{fig ? ` · ${fig.name}` : ''}
                         </div>
                       )}
+                      {/* Status chip — same information as the old full-width bar,
+                          at the weight the information deserves. */}
+                      <div style={{ margin: '10px 0 0 17px' }}>
+                        {work.currentlyRunning ? (
+                          <span style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 6,
+                            fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase',
+                            color: '#1b7a3d', background: '#e6f4ea',
+                            padding: '3px 10px', borderRadius: 999,
+                          }}>
+                            <span style={{ width: 7, height: 7, borderRadius: 999, background: '#21a049' }} />
+                            Running now · since {work.year}
+                          </span>
+                        ) : (
+                          <span style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 6,
+                            fontSize: 10.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase',
+                            color: 'var(--gray-500)', background: 'var(--gray-100)',
+                            padding: '3px 10px', borderRadius: 999,
+                          }}>
+                            📜 Historic · {work.year}
+                          </span>
+                        )}
+                      </div>
                       {/* Body */}
-                      <div style={{ padding: '12px 16px 14px' }}>
+                      <div style={{ padding: '10px 0 0 17px' }}>
                         {preview && (
-                          <div style={{ fontSize: 13, color: 'var(--gray-600)', lineHeight: 1.55, marginBottom: 10 }}>
+                          <div style={{ fontSize: 13, color: 'var(--gray-600)', lineHeight: 1.55, marginBottom: 8 }}>
                             {preview}
                           </div>
                         )}
-                        <div style={{ fontSize: 12, fontWeight: 700, color: colors.bg }}>Explore →</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-text, var(--accent))' }}>Explore →</div>
                       </div>
                     </button>
                   )
@@ -3697,6 +3770,18 @@ function WorkScreen({ workId, push, savedItems = {}, toggleSave = () => {} }) {
 
   const venue = !isJazz ? venues[work.venueId] : null
 
+  // Works we can't legally picture (AbEx is copyrighted into the 2040s) get a
+  // "see it at the museum" link under the tile — the image is one honest tap
+  // away on the collection's own site. Only museums with known search URLs.
+  const MUSEUM_SEARCH = {
+    met: (q) => `https://www.metmuseum.org/search-results?q=${encodeURIComponent(q)}`,
+    moma: (q) => `https://www.moma.org/collection/works?q=${encodeURIComponent(q)}`,
+    guggenheim: (q) => `https://www.guggenheim.org/search?query=${encodeURIComponent(q)}`,
+    whitney: (q) => `https://whitney.org/search?q=${encodeURIComponent(q)}`,
+  }
+  const museumLink = !work.imageUrl && MUSEUM_SEARCH[work.venueId]
+    ? MUSEUM_SEARCH[work.venueId](work.title) : null
+
   return (
     <div className="screen">
       <ImgWithFallback
@@ -3705,6 +3790,15 @@ function WorkScreen({ workId, push, savedItems = {}, toggleSave = () => {} }) {
         alt={work.title}
         fallbackColor={venueColors[work.venueId]?.bg}
       />
+      {museumLink && (
+        <a href={museumLink} target="_blank" rel="noopener noreferrer" style={{
+          display: 'block', textAlign: 'center', padding: '10px 20px 0',
+          fontSize: 12.5, fontWeight: 700, color: 'var(--accent-text, var(--accent))',
+          textDecoration: 'none',
+        }}>
+          🖼️ See this work at {venue?.name || 'the museum'} ↗
+        </a>
+      )}
 
       <div className="work-header" style={{ position: 'relative' }}>
         {/* (Share button removed app-wide — non-functional inside the iOS webview.) */}
@@ -6617,7 +6711,7 @@ const VENUE_DOMAIN = (() => {
   return m
 })()
 
-function NeighborhoodScreen({ neighborhoodKey, subAreaName, push, savedItems = {}, userVenues = {}, toggleSave = () => {}, onAddToTrip = () => null }) {
+function NeighborhoodScreen({ neighborhoodKey, subAreaName, push, savedItems = {}, userVenues = {}, toggleSave = () => {}, onAddToTrip = () => null, onOpenFeedback = () => {} }) {
   // Category screening for the venue list: a filter chip + per-section "show all".
   const [catFilter, setCatFilter] = React.useState('all')
   const [expanded, setExpanded] = React.useState({})
@@ -6653,15 +6747,18 @@ function NeighborhoodScreen({ neighborhoodKey, subAreaName, push, savedItems = {
               Want a specific place added first? Tell us what to start with —
               feedback shapes which neighborhood we cover next.
             </div>
-            <a
-              href={`mailto:hsichunw@gmail.com?subject=NYC%20Stoop%20${encodeURIComponent(group.label)}%20request`}
+            {/* Opens the shared in-app feedback page (same one as My Trip +
+                Settings) instead of a bare mailto. */}
+            <button
+              onClick={() => onOpenFeedback?.()}
               style={{
-                display: 'inline-block', textAlign: 'center',
-                background: 'var(--gray-900)', color: '#fff', textDecoration: 'none',
+                display: 'inline-block', textAlign: 'center', width: '100%',
+                background: 'var(--gray-900)', color: '#fff', border: 'none',
+                cursor: 'pointer', fontFamily: 'inherit',
                 fontSize: 13, fontWeight: 700,
                 padding: '10px 14px', borderRadius: 10, marginTop: 4,
               }}
-            >Suggest a place →</a>
+            >Suggest a place →</button>
           </div>
           {/* Tease: in the meantime, here are the other boroughs that are live. */}
           <div style={{
@@ -14671,22 +14768,38 @@ function OnboardingModal({ onDismiss }) {
 // Houses About / version, Privacy policy link, Send feedback (mailto), and a
 // destructive "Clear all data" with a two-tap confirmation.
 const APP_VERSION = '1.0.0'
-const FEEDBACK_EMAIL = 'hsichunw@gmail.com'
+const FEEDBACK_EMAIL = 'stevenwang.nycstoop@gmail.com'
 const PRIVACY_URL = 'https://stevenwang415.github.io/nyc-stoop/privacy.html'
 
-// ── Send Feedback — one shared page, reachable from My Trip's footer and
-// Settings (both routes land here; see my_trip_update.md). The user writes in
-// the app; Send opens their mail composer with the message prefilled, so
-// feedback works with zero backend.
+// ── Send Feedback — one shared page, reachable from My Trip's footer,
+// Settings, and coming-soon neighborhoods. Sends IN-APP via POST /feedback
+// (stored in the app database — no mail composer). If the API is unreachable,
+// falls back to the old mailto so a written message is never lost.
 function FeedbackPage({ onClose, user = null }) {
   const [msg, setMsg] = React.useState('')
-  const [sent, setSent] = React.useState(false)
-  const send = () => {
+  const [sent, setSent] = React.useState(false)      // true → thank-you state
+  const [sending, setSending] = React.useState(false)
+  const send = async () => {
     const body = msg.trim()
-    if (!body) return
-    const meta = `\n\n—\nNYC Stoop v${APP_VERSION}${user?.email ? ` · ${user.email}` : ''}`
-    window.location.href = `mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent(`NYC Stoop feedback (v${APP_VERSION})`)}&body=${encodeURIComponent(body + meta)}`
-    setSent(true)
+    if (!body || sending) return
+    setSending(true)
+    try {
+      const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '')
+      const r = await fetch(`${apiUrl}/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: body, email: user?.email || null, app_version: APP_VERSION }),
+      })
+      if (!r.ok) throw new Error('feedback POST failed: ' + r.status)
+      setSent(true)
+      setMsg('')
+    } catch (e) {
+      // Offline / API down — the mail composer is the honest backup.
+      const meta = `\n\n—\nNYC Stoop v${APP_VERSION}${user?.email ? ` · ${user.email}` : ''}`
+      window.location.href = `mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent(`NYC Stoop feedback (v${APP_VERSION})`)}&body=${encodeURIComponent(body + meta)}`
+    } finally {
+      setSending(false)
+    }
   }
   return (
     <div style={{
@@ -14724,17 +14837,17 @@ function FeedbackPage({ onClose, user = null }) {
             color: 'var(--ink)', fontFamily: 'inherit', outline: 'none', minHeight: 150,
           }}
         />
-        <button onClick={send} disabled={!msg.trim()} style={{
+        <button onClick={send} disabled={!msg.trim() || sending} style={{
           width: '100%', marginTop: 14, border: 'none', borderRadius: 999, padding: '14px',
-          background: msg.trim() ? 'var(--accent)' : 'var(--gray-200)',
-          color: msg.trim() ? '#fff' : 'var(--gray-400)',
-          fontWeight: 800, fontSize: 14, cursor: msg.trim() ? 'pointer' : 'default',
-          fontFamily: 'inherit', boxShadow: msg.trim() ? 'var(--shadow-accent)' : 'none',
-        }}>{t('Send')}</button>
-        <div style={{ fontSize: 11.5, color: 'var(--gray-400)', textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
+          background: msg.trim() && !sending ? 'var(--accent)' : 'var(--gray-200)',
+          color: msg.trim() && !sending ? '#fff' : 'var(--gray-400)',
+          fontWeight: 800, fontSize: 14, cursor: msg.trim() && !sending ? 'pointer' : 'default',
+          fontFamily: 'inherit', boxShadow: msg.trim() && !sending ? 'var(--shadow-accent)' : 'none',
+        }}>{sending ? t('Sending…') : t('Send')}</button>
+        <div style={{ fontSize: 11.5, color: sent ? '#1b7a3d' : 'var(--gray-400)', textAlign: 'center', marginTop: 10, lineHeight: 1.5 }}>
           {sent
-            ? t('Your mail app should have opened with the message ready — just hit send there. Thank you!')
-            : t('Sending opens your mail app with the message filled in.')}
+            ? t('✓ Sent — thank you! Every note gets read.')
+            : t('Your note goes straight to the NYC Stoop team.')}
         </div>
       </div>
     </div>
@@ -15731,7 +15844,7 @@ export default function App() {
       case 'figure':    return <FigureScreen figureId={current.figureId} push={push} savedItems={savedItems} toggleSave={toggleSave} />
       case 'work':      return <WorkScreen workId={current.workId} push={push} savedItems={savedItems} toggleSave={toggleSave} />
       case 'venueGroup':return <VenueGroupScreen domainId={current.domainId} groupIndex={current.groupIndex} push={push} savedItems={savedItems} />
-      case 'neighborhood': return <NeighborhoodScreen neighborhoodKey={current.neighborhoodKey} subAreaName={current.subAreaName} push={push} savedItems={savedItems} userVenues={userVenues} toggleSave={toggleSave} onAddToTrip={addUserVenue} />
+      case 'neighborhood': return <NeighborhoodScreen neighborhoodKey={current.neighborhoodKey} subAreaName={current.subAreaName} push={push} savedItems={savedItems} userVenues={userVenues} toggleSave={toggleSave} onAddToTrip={addUserVenue} onOpenFeedback={() => setFeedbackOpen(true)} />
       case 'sight':     return <SightScreen sightId={current.sightId} push={push} savedItems={savedItems} toggleSave={toggleSave} />
       case 'mood':      return <MoodFlowScreen moodId={current.moodId} initialActivity={current.activityId || null} push={push} savedItems={savedItems} toggleSave={toggleSave} userVenues={userVenues} onAddPlace={() => setAddPlaceOpen(true)} onAddToTrip={addUserVenue} />
       case 'eat':       return <EatScreen push={push} savedItems={savedItems} userVenues={userVenues} toggleSave={toggleSave} onAddToTrip={addUserVenue} initialLoc={userLoc} />

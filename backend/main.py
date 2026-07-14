@@ -45,6 +45,16 @@ def _bootstrap_db() -> None:
     with engine.begin() as conn:
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS apple_sub VARCHAR(255)"))
         conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_apple_sub ON users (apple_sub)"))
+        # In-app feedback (2026-07-14): replaces the mailto round-trip.
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS feedback (
+                id          SERIAL PRIMARY KEY,
+                email       VARCHAR(320),
+                message     TEXT NOT NULL,
+                app_version VARCHAR(32),
+                created_at  TIMESTAMPTZ DEFAULT now()
+            )
+        """))
     logger.info("Database tables ensured.")
 
 
@@ -73,6 +83,65 @@ app.include_router(auth_router)
 @app.get("/health")
 def health() -> dict:
     return {"ok": True, "service": "nyc-stoop-api"}
+
+
+# ── Feedback (in-app, replaces the mailto composer) ────────────────────────
+# Anonymous allowed — the signed-in email rides along when the client has it.
+# Read messages: Neon SQL editor → SELECT * FROM feedback ORDER BY created_at DESC;
+from pydantic import BaseModel, Field  # noqa: E402
+
+
+class FeedbackIn(BaseModel):
+    message: str = Field(min_length=3, max_length=4000)
+    email: str | None = Field(default=None, max_length=320)
+    app_version: str | None = Field(default=None, max_length=32)
+
+
+def _email_feedback(body: "FeedbackIn") -> bool:
+    """Forward the note to the inbox via Gmail SMTP (App Password).
+
+    Env: FEEDBACK_SMTP_USER (the Gmail address; also the recipient) and
+    FEEDBACK_SMTP_APP_PASSWORD (Google Account → Security → 2-Step
+    Verification → App passwords). Failure is non-fatal — the DB row is the
+    source of truth; this is the convenience copy.
+    """
+    import smtplib
+    from email.message import EmailMessage
+
+    user = os.environ.get("FEEDBACK_SMTP_USER", "stevenwang.nycstoop@gmail.com")
+    pw = os.environ.get("FEEDBACK_SMTP_APP_PASSWORD", "")
+    if not pw:
+        return False
+    msg = EmailMessage()
+    msg["Subject"] = f"NYC Stoop feedback (v{body.app_version or '?'})"
+    msg["From"] = user
+    msg["To"] = user
+    msg["Reply-To"] = (body.email or user)
+    msg.set_content(
+        f"{body.message.strip()}\n\n—\nfrom: {body.email or 'anonymous'}\napp: v{body.app_version or '?'}"
+    )
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10) as s:
+            s.login(user, pw)
+            s.send_message(msg)
+        return True
+    except Exception as exc:  # noqa: BLE001 — log and move on; DB row survives
+        logger.warning("feedback email forward failed: %s", exc)
+        return False
+
+
+@app.post("/feedback")
+def create_feedback(body: FeedbackIn) -> dict:
+    from sqlalchemy import text
+    with engine.begin() as conn:
+        conn.execute(
+            text("INSERT INTO feedback (email, message, app_version) VALUES (:e, :m, :v)"),
+            {"e": (body.email or "").strip()[:320] or None,
+             "m": body.message.strip(),
+             "v": (body.app_version or "").strip()[:32] or None},
+        )
+    emailed = _email_feedback(body)
+    return {"ok": True, "emailed": emailed}
 
 
 @app.get("/")

@@ -4,6 +4,7 @@
   "rewrites": [
     { "source": "/auth/:path*", "destination": "/api/index" },
     { "source": "/health", "destination": "/api/index" },
+    { "source": "/feedback", "destination": "/api/index" },
     { "source": "/((?!api/|assets/).*)", "destination": "/index.html" }
   ]
 }

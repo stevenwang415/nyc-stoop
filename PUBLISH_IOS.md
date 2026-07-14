@@ -123,7 +123,10 @@ is already open).
 - **Keywords (97 chars):**
   `nyc,new york,travel guide,itinerary,trip planner,manhattan,brooklyn,subway,restaurants,events,map`
 - **Support URL:** https://nyc-stoop.vercel.app
-  (TODO: add "Support: hsichunw@gmail.com" footer line to the site)
+  (TODO: add "Support: stevenwang.nycstoop@gmail.com" footer line to the site)
+- **Business/support email (2026-07-14):** stevenwang.nycstoop@gmail.com — now
+  wired as FEEDBACK_EMAIL in the app (feedback page + all contact points).
+  Use it for App Store Connect support contact + review notes too.
 - **Marketing URL:** https://nyc-stoop.vercel.app (optional)
 - **Copyright:** © 2026 Hsi-Chun Wang
 - **Routing App Coverage File:** none (navigation apps only)

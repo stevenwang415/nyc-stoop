@@ -33,5 +33,10 @@
 
 ## Backlog / later
 
-- In-app feedback POST endpoint (skip the mail composer round-trip).
+- ~~In-app feedback POST endpoint~~ ✅ done 07-14: `POST /feedback` (FastAPI +
+  `feedback` table via idempotent bootstrap; `/feedback` added to vercel.json
+  rewrites). FeedbackPage now sends in-app with a Sending…/✓ Sent state;
+  mailto (stevenwang.nycstoop@gmail.com) survives only as the offline/API-down
+  fallback. **Read messages:** Neon console → SQL editor →
+  `SELECT * FROM feedback ORDER BY created_at DESC;`
 - (add future My Trip items here)
