@@ -9939,8 +9939,9 @@ ${body}
 
   return (
     <div className="screen">
-      {/* Header */}
-      <div style={{ padding: '16px 20px 14px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--gray-100)' }}>
+      {/* Header — top padding clears the iPhone status bar (was overlapping
+          the clock; safe-area inset added 07-15). */}
+      <div style={{ padding: 'calc(env(safe-area-inset-top, 0px) + 14px) 20px 14px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--gray-100)' }}>
         <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: 'var(--gray-400)', padding: '0 4px 0 0', lineHeight: 1 }}>←</button>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--gray-900)' }}>{snapshot?.name || 'Saved plan'}</div>
@@ -10046,8 +10047,9 @@ ${body}
         })}
       </div>
 
-      {/* Open route button */}
-      <div style={{ padding: '4px 20px 100px' }}>
+      {/* Open route button — bottom padding just clears the home indicator
+          (was a fixed 100px void; review feedback 07-15). */}
+      <div style={{ padding: '4px 20px calc(20px + env(safe-area-inset-bottom, 0px) + 60px)' }}>
         <button
           onClick={exportSavedPlanPdf}
           style={{
