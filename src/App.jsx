@@ -9646,34 +9646,48 @@ function TripRouteMap({ groups }) {
   const boxRef = React.useRef(null)
   const mapRef = React.useRef(null)
   const layersRef = React.useRef([])
-  const [ready, setReady] = React.useState(!!window.L)
-  // Same id-deduped loader contract as MapScreen — one script tag ever.
+  const [ready, setReady] = React.useState(!!window.L?.Map?.prototype?.setBearing)
+  // Same id-deduped loader contract as MapScreen — one script tag per src,
+  // ever. Loads leaflet, then the rotate plugin (two-finger rotate), then ready.
   React.useEffect(() => {
-    if (window.L) { setReady(true); return }
-    let s = document.getElementById('leaflet-js')
-    const done = () => setReady(true)
-    if (s) {
-      if (s.dataset.loaded) return done()
-      s.addEventListener('load', done)
-      return () => s.removeEventListener('load', done)
+    const loadOnce = (id, src, done) => {
+      let s = document.getElementById(id)
+      if (s) {
+        if (s.dataset.loaded) return done()
+        s.addEventListener('load', done); s.addEventListener('error', done)
+        return
+      }
+      s = document.createElement('script')
+      s.id = id; s.src = src
+      s.onload = () => { s.dataset.loaded = '1'; done() }
+      s.onerror = done // rotation is optional — never block the map on it
+      document.head.appendChild(s)
     }
-    s = document.createElement('script')
-    s.id = 'leaflet-js'
-    s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
-    s.onload = () => { s.dataset.loaded = '1'; done() }
-    document.head.appendChild(s)
+    const loadRotate = (done) => {
+      if (window.L?.Map?.prototype?.setBearing) return done()
+      loadOnce('leaflet-rotate-js', 'https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate.js', done)
+    }
+    if (window.L) { loadRotate(() => setReady(r => r || true)); return }
+    loadOnce('leaflet-js', 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', () => loadRotate(() => setReady(true)))
   }, [])
   React.useEffect(() => {
     const L = window.L
     if (!ready || !L || !boxRef.current) return
     if (!mapRef.current) {
-      // Interactive since 07-14 (user request): pinch-zoom + drag enabled.
-      // scrollWheelZoom stays off so desktop page-scroll over the map doesn't
-      // hijack; on phones a one-finger drag pans the map (accepted tradeoff).
+      // Interactive since 07-14 (user request): pinch-zoom + drag enabled,
+      // and rotatable when the rotate plugin loaded (two-finger twist +
+      // compass reset — same as the Map tab). scrollWheelZoom stays off so
+      // desktop page-scroll over the map doesn't hijack.
+      const canRotate = !!L.Map.prototype.setBearing
       mapRef.current = L.map(boxRef.current, {
         zoomControl: true, dragging: true, scrollWheelZoom: false,
         touchZoom: true, doubleClickZoom: true, boxZoom: false,
         keyboard: false, attributionControl: true,
+        ...(canRotate ? {
+          rotate: true,
+          touchRotate: true,
+          rotateControl: { closeOnZeroBearing: false, position: 'topright' },
+        } : {}),
       })
       L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
