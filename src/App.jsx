@@ -16325,7 +16325,7 @@ export default function App() {
       case 'home':      return (
         <>
           <TabTutorial key="nyc_tut_explore_v1" tutKey="nyc_tut_explore_v1" title="Start here" rows={[
-            ['✨', <>Pick a mood — <b>Eat, Drink, Jazz…</b> — and get a short, curated list.</>],
+            ['✨', <>Pick a mood — <b>Eat, Drink…</b> — and get a short, curated list.</>],
             ['🗽', <>Or browse by <b>neighborhood</b> and <b>topic</b> to go deeper.</>],
             ['🔖', <>Save anything you like — it all lands in <b>My Trip</b>.</>],
           ]} />
