@@ -11948,7 +11948,11 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                     <div style={{
                       background: 'var(--gray-50)',
                       borderBottom: '1px solid var(--gray-100)',
-                      padding: '7px 14px',
+                      // Pull the strip past the card's 28px drag-rail padding so
+                      // the route badge lines up with the meal cards' badges
+                      // (16px from the card edge), full-bleed like a real bar.
+                      marginLeft: -28,
+                      padding: '7px 14px 7px 16px',
                       display: 'flex', alignItems: 'center', gap: 8,
                     }}>
                       {routeNumBadge(_routeNum['stop:' + stop.id])}

@@ -66,46 +66,46 @@ Rule: researched factual descriptions only; insider tips ONLY when actually know
 | 58 | Mountain House Flushing 川山甲 | food | 4.7 | Flushing, Queens | ☑ done 07-14 |
 | 59 | Nick + Sons Bakery | food | 4.7 | Greenpoint | ☑ done 07-14 |
 | 60 | L’industrie Pizzeria West Village | food | 4.7 | West Village | ☑ done 07-14 |
-| 61 | 9/11 Memorial & Museum | art | 4.8 | Financial District | ☐ |
-| 62 | Ground Zero | outdoors | 4.9 | ? | ☐ |
-| 63 | St. Patrick's Cathedral | culture | 4.8 | ? | ☐ |
-| 64 | The Metropolitan Museum of Art | art | 4.8 | Upper East Side | ☐ |
-| 65 | Kinzan Omakase | food | 4.7 | ? | ☐ |
-| 66 | Musaafer | food | 4.7 | ? | ☐ |
-| 67 | Manhatta | food | 4.7 | ? | ☐ |
-| 68 | Leitao | food | 4.7 | ? | ☐ |
-| 69 | Saint Julivert | food | 4.7 | Cobble Hill | ☐ |
-| 70 | Pranakhon | food | 4.7 | ? | ☐ |
-| 71 | The Dead Rabbit | drinks | 4.7 | ? | ☐ |
-| 72 | Amor y Amargo | drinks | 4.7 | ? | ☐ |
-| 73 | Madame George | drinks | 4.7 | ? | ☐ |
-| 74 | Banzarbar | drinks | 4.7 | ? | ☐ |
-| 75 | Hole In The Wall | food | 4.7 | ? | ☐ |
-| 76 | Citizens Of Chelsea, A Breakfast Restaurant & Cafe | food | 4.7 | Chelsea | ☐ |
-| 77 | La Pecora Bianca NoMad | food | 4.7 | NoMad | ☐ |
-| 78 | Duane Park | food | 4.7 | Tribeca | ☐ |
-| 79 | Au Cheval | food | 4.7 | Tribeca | ☐ |
-| 80 | Lost in Paradise Rooftop | drinks | 4.7 | Long Island City, Queens | ☐ |
-| 81 | The Honey Well | drinks | 4.7 | Harlem | ☐ |
-| 82 | Sote Coffee | coffee | 4.8 | Upper West Side | ☐ |
-| 83 | Bar Snack | drinks | 4.7 | Chelsea | ☐ |
-| 84 | Miss Nellie's | drinks | 4.7 | Hell's Kitchen | ☐ |
-| 85 | Sunny's Bar | drinks | 4.7 | Red Hook | ☐ |
-| 86 | Black Mountain Wine House | drinks | 4.7 | Carroll Gardens | ☐ |
-| 87 | Principles GI Coffee House | coffee | 4.8 | Gowanus | ☐ |
-| 88 | Bar Lunatico | drinks | 4.7 | Bed-Stuy | ☐ |
-| 89 | All Night Skate | drinks | 4.7 | Bed-Stuy | ☐ |
-| 90 | Sleepwalk | drinks | 4.7 | Bushwick | ☐ |
-| 91 | Little Skips | coffee | 4.8 | Bushwick | ☐ |
-| 92 | Ornithology Jazz Club | music | 4.7 | Bushwick | ☐ |
-| 93 | Le Paris Dakar | food | 4.6 | Bed-Stuy | ☐ |
-| 94 | Olea | food | 4.6 | Fort Greene | ☐ |
-| 95 | Mike's Coffee Shop | food | 4.6 | Clinton Hill | ☐ |
-| 96 | Don Angie | food | 4.6 | West Village | ☐ |
-| 97 | Red Rover | coffee | 4.7 | Greenpoint | ☐ |
-| 98 | Runner & Stone | food | 4.6 | Gowanus | ☐ |
-| 99 | Luigi's Pizzeria | food | 4.6 | Park Slope | ☐ |
-| 100 | Zaidi's NYC | shopping | 4.8 | ? | ☐ |
+| 61 | 9/11 Memorial & Museum | art | 4.8 | Financial District | ☑ done 07-14 (wave 2) |
+| 62 | Ground Zero | outdoors | 4.9 | ? | ☑ done 07-14 (wave 2) |
+| 63 | St. Patrick's Cathedral | culture | 4.8 | ? | ☑ done 07-14 (wave 2) |
+| 64 | The Metropolitan Museum of Art | art | 4.8 | Upper East Side | ☑ done 07-14 (wave 2) |
+| 65 | Kinzan Omakase | food | 4.7 | ? | ☑ done 07-14 (wave 2) |
+| 66 | Musaafer | food | 4.7 | ? | ☑ done 07-14 (wave 2) |
+| 67 | Manhatta | food | 4.7 | ? | ☑ done 07-14 (wave 2) |
+| 68 | Leitao | food | 4.7 | ? | ☑ done 07-14 (wave 2) |
+| 69 | Saint Julivert | food | 4.7 | Cobble Hill | ☑ done 07-14 (wave 2) |
+| 70 | Pranakhon | food | 4.7 | ? | ☑ done 07-14 (wave 2) |
+| 71 | The Dead Rabbit | drinks | 4.7 | ? | ☑ done 07-14 (wave 2) |
+| 72 | Amor y Amargo | drinks | 4.7 | ? | ☑ done 07-14 (wave 2) |
+| 73 | Madame George | drinks | 4.7 | ? | ☑ done 07-14 (wave 2) |
+| 74 | Banzarbar | drinks | 4.7 | ? | ☑ done 07-14 (wave 2) |
+| 75 | Hole In The Wall | food | 4.7 | ? | ☑ done 07-14 (wave 2) |
+| 76 | Citizens Of Chelsea, A Breakfast Restaurant & Cafe | food | 4.7 | Chelsea | ☑ done 07-14 (wave 2) |
+| 77 | La Pecora Bianca NoMad | food | 4.7 | NoMad | ☑ done 07-14 (wave 2) |
+| 78 | Duane Park | food | 4.7 | Tribeca | ☑ done 07-14 (wave 2) |
+| 79 | Au Cheval | food | 4.7 | Tribeca | ☑ done 07-14 (wave 2) |
+| 80 | Lost in Paradise Rooftop | drinks | 4.7 | Long Island City, Queens | ☑ done 07-14 (wave 2) |
+| 81 | The Honey Well | drinks | 4.7 | Harlem | ☑ done 07-14 (wave 2) |
+| 82 | Sote Coffee | coffee | 4.8 | Upper West Side | ☑ done 07-14 (wave 2) |
+| 83 | Bar Snack | drinks | 4.7 | Chelsea | ☑ done 07-14 (wave 2) |
+| 84 | Miss Nellie's | drinks | 4.7 | Hell's Kitchen | ☑ done 07-14 (wave 2) |
+| 85 | Sunny's Bar | drinks | 4.7 | Red Hook | ☑ done 07-14 (wave 2) |
+| 86 | Black Mountain Wine House | drinks | 4.7 | Carroll Gardens | ☑ done 07-14 (wave 2) |
+| 87 | Principles GI Coffee House | coffee | 4.8 | Gowanus | ☑ done 07-14 (wave 2) |
+| 88 | Bar Lunatico | drinks | 4.7 | Bed-Stuy | ☑ done 07-14 (wave 2) |
+| 89 | All Night Skate | drinks | 4.7 | Bed-Stuy | ☑ done 07-14 (wave 2) |
+| 90 | Sleepwalk | drinks | 4.7 | Bushwick | ☑ done 07-14 (wave 2) |
+| 91 | Little Skips | coffee | 4.8 | Bushwick | ☑ done 07-14 (wave 2) |
+| 92 | Ornithology Jazz Club | music | 4.7 | Bushwick | ☑ done 07-14 (wave 2) |
+| 93 | Le Paris Dakar | food | 4.6 | Bed-Stuy | ☑ done 07-14 (wave 2) |
+| 94 | Olea | food | 4.6 | Fort Greene | ☑ done 07-14 (wave 2) |
+| 95 | Mike's Coffee Shop | food | 4.6 | Clinton Hill | ☑ done 07-14 (wave 2) |
+| 96 | Don Angie | food | 4.6 | West Village | ☑ done 07-14 (wave 2) |
+| 97 | Red Rover | coffee | 4.7 | Greenpoint | ☑ done 07-14 (wave 2) |
+| 98 | Runner & Stone | food | 4.6 | Gowanus | ☑ done 07-14 (wave 2) |
+| 99 | Luigi's Pizzeria | food | 4.6 | Park Slope | ☑ done 07-14 (wave 2) |
+| 100 | Zaidi's NYC | shopping | 4.8 | ? | ☑ done 07-14 (wave 2) |
 
 
 ## Progress log
@@ -114,4 +114,10 @@ Rule: researched factual descriptions only; insider tips ONLY when actually know
   slice, Soothr boat noodles, Fish Cheeks crab curry, Manhatta bar room,
   Lisbonata warm natas, Salt Bread Ko sellouts, Shukette breads, Ivan Ramen
   shio, AUTOPHOTO develop-time). #33 Seamstress skipped: probable closure.
-- Remaining bare: 481 of 695. Next: ranks 61–100.
+- 2026-07-14 (wave 2): ranks 61–100 enriched (39 descriptions, 11 new tips —
+  Dead Rabbit Irish coffee, Amor y Amargo stirred-only, Sunny's bluegrass jam,
+  Bar Lunatico live sets, Au Cheval burger, Duane Park show seating, Qahwah
+  adeni chai, NYPL Rose Room, Statue crown reservations, 9/11 timing,
+  Ornithology listening etiquette). Seamstress still skipped — awaiting removal.
+- Remaining bare: 442 of 695. Next tier is genuinely long-tail (low exposure);
+  enrich opportunistically or via community tips in v1.1.
