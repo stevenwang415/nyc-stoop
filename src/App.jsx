@@ -9750,6 +9750,18 @@ function writePlanSnapshots(list) {
     localStorage.removeItem('nyc_plan_snapshot') // legacy slot retired
   } catch {}
 }
+// Default plan name = the trip's FIRST day, not the day you pressed Save —
+// two plans saved the same afternoon were both titled "Jul 15" even though
+// one started Jul 30. Falls back to savedAt for undated plans.
+function planDefaultName(snap) {
+  if (snap?.tripStartDate) {
+    const p = String(snap.tripStartDate).split('-').map(Number)
+    if (p.length === 3 && !p.some(isNaN)) {
+      return new Date(p[0], p[1] - 1, p[2]).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    }
+  }
+  return new Date(snap?.savedAt || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
 
 // Hotel detection for user-added stops (Google adds arrive with no category).
 // Name-based: catches "Hotel"/"Hostel"/"Motel" plus the big chains. A hotel
@@ -9813,6 +9825,19 @@ function restaurantCoords(r) {
   return HOOD_CENTROIDS[r?.neighborhood] || HOOD_CENTROIDS[r?.area] || null
 }
 // ── Plan Error Boundary ─────────────────────────────────────────────────────
+// Each day gets its own hue from the field palette (same family as the home
+// cover art) — color as wayfinding: the day tab, day pill, meal accents and
+// map pins share it, so you always know where you are. Cycles past 5 days.
+// Module-scoped so the live trip AND the saved-plan view use one palette (S4).
+const DAY_HUES = ['#B7472A', '#475A66', '#6F7A45', '#6B4453', '#C6892F']
+const dayHue = (i) => DAY_HUES[i % DAY_HUES.length]
+// One icon per domain — the same grammar as the meal cards' 🍴/🌙. Module-
+// scoped so the live trip and the saved-plan view share one vocabulary.
+const DOMAIN_ICONS = {
+  visual_art: '🎨', jazz: '🎷', classical_music: '🎼', theater: '🎭',
+  history: '📜', architecture: '🏛️', sports: '🏆', hip_hop: '🎤', food: '🍴',
+}
+
 // ── SavedPlanSummary: read-only view of the plan the user just saved ──────────
 function SavedPlanSummary({ snapshot, onBack }) {
   const [shareCopied, setShareCopied] = React.useState(false)
@@ -9826,12 +9851,10 @@ function SavedPlanSummary({ snapshot, onBack }) {
   // re-deriving for old snapshots that predate day-snapshotting.
   const days = (Array.isArray(snapDays) && snapDays.length) ? snapDays : capDays(buildItinerary(venueIds), snapTripDays)
 
-  const PERIOD_COLORS = {
-    Morning:   { bg: '#fef9c3', text: '#854d0e', dot: '#ca8a04' },
-    Afternoon: { bg: '#dbeafe', text: '#1e40af', dot: '#3b82f6' },
-    Evening:   { bg: '#ede9fe', text: '#5b21b6', dot: '#7c3aed' },
-  }
   const cuisineLabel = c => CUISINE_OPTIONS.find(o => o.id === c)?.label || c
+  // Notes the user wrote on the live cards, shown read-only here — this is
+  // the page they'll actually be reading at the table / on the sidewalk.
+  const savedNotes = (() => { try { return JSON.parse(localStorage.getItem('nyc_venue_notes') || '{}') } catch { return {} } })()
   // Backward-compat readers: new snapshots key restaurants by dayIdx; old snapshots used day.area.
   const lunchAt  = (dayIdx, day) => lunchRestaurants?.[dayIdx]  ?? lunchRestaurants?.[day.area]
   const dinnerAt = (dayIdx, day) => dinnerRestaurants?.[dayIdx] ?? dinnerRestaurants?.[day.area]
@@ -9925,14 +9948,14 @@ function SavedPlanSummary({ snapshot, onBack }) {
       let rows = ''
       items.forEach(it => {
         if (it.type === 'meal') {
-          rows += `<div class="meal">🍴 ${it.meal === 'lunch' ? 'Lunch' : 'Dinner'}${it.cuisine ? ' · ' + esc(cuisineLabel(it.cuisine)) : ''} — ${esc(it.r.name)}<span class="mm">${[it.r.price, it.r.neighborhood].filter(Boolean).map(esc).join(' · ')}</span></div>`
+          rows += `<div class="meal">🍴 ${it.meal === 'lunch' ? 'Lunch' : 'Dinner'}${it.cuisine ? ' · ' + esc(cuisineLabel(it.cuisine)) : ''} — ${esc(it.r.name)}<span class="mm">${[mealPriceApprox(it.r.price), it.r.neighborhood].filter(Boolean).map(esc).join(' · ')}</span></div>`
           return
         }
         const s = it.stop
         const meta = [s.period, s.neighborhood].filter(Boolean).map(esc).join(' · ')
         rows += `<div class="stop"><div class="time">${esc(fmtHour(s.startHour))}</div><div class="b"><div class="name">${esc(s.name)}</div>${meta ? `<div class="meta">${meta}</div>` : ''}</div></div>`
       })
-      body += `<div class="day"><div class="dh"><span>${esc(String(getDayLabel(dayIdx, null)).toUpperCase())}${day.area ? ' · ' + esc(day.area) : ''}</span></div>${rows}</div>`
+      body += `<div class="day"><div class="dh"><span>${esc(String(getDayLabel(dayIdx, snapshot.tripStartDate || null)).toUpperCase())}${day.area ? ' · ' + esc(day.area) : ''}</span></div>${rows}</div>`
     })
     const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>My NYC Trip</title><style>
 *{box-sizing:border-box}body{font-family:-apple-system,system-ui,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1d2733;margin:0;padding:28px 24px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
@@ -9969,7 +9992,9 @@ ${body}
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--gray-900)' }}>{snapshot?.name || 'Saved plan'}</div>
           <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 1 }}>
-            {new Date(savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            {/* Trip's first day (falls back to saved-date for undated plans) —
+                showing savedAt here made two different trips look identical. */}
+            {planDefaultName(snapshot)}
             {' · '}{venueIds.length} stop{venueIds.length !== 1 ? 's' : ''}
             {snapTripDays ? ` · ${snapTripDays} day${snapTripDays !== 1 ? 's' : ''}` : ''}
             {(() => {
@@ -10003,34 +10028,121 @@ ${body}
           if (!lunchAdded && lunchR) renderItems.push({ type: 'meal', meal: 'lunch', r: lunchR, cuisine: lunchCuisineAt(dayIdx) })
           if (!dinnerAdded && dinnerR) renderItems.push({ type: 'meal', meal: 'dinner', r: dinnerR, cuisine: dinnerCuisineAt(dayIdx) })
 
+          // Same locatable rule everywhere on this page: curated coords first,
+          // then coords the snapshot itself carries (custom stops).
+          const coordsOf = (it) => {
+            if (it.type === 'meal') return restaurantCoords(it.r)
+            const c = venueCoords[it.stop.id]
+            if (c) return c
+            const s = it.stop
+            return (typeof s.lat === 'number' && typeof s.lng === 'number') ? { lat: s.lat, lng: s.lng } : null
+          }
+
+          // Day summary — the SAME per-mode estimator + meal midpoint as the
+          // live page (my_trip_update #3), so the two views can never disagree.
+          const modeMins = { walk: 0, subway: 0, taxi: 0 }
+          {
+            let prev = null
+            for (const it of renderItems) {
+              const c = coordsOf(it)
+              if (!c) continue
+              if (prev) { const tr = estimateTravelCoords(prev, c); if (tr) modeMins[tr.mode] += tr.mins }
+              prev = c
+            }
+          }
+          const sumBits = []
+          if (modeMins.walk)   sumBits.push(`🚶 ~${modeMins.walk} min`)
+          if (modeMins.subway) sumBits.push(`🚇 ~${modeMins.subway} min`)
+          if (modeMins.taxi)   sumBits.push(`🚕 ~${modeMins.taxi} min`)
+          let mealLo = 0, mealHi = 0
+          ;[lunchR, dinnerR].forEach(r => { const rng = r && MEAL_PRICE_RANGE[r.price]; if (rng) { mealLo += rng[0]; mealHi += rng[1] } })
+          if (mealHi > 0) sumBits.push(`≈$${Math.round((mealLo + mealHi) / 2 / 5) * 5}${t('/person')}`)
+
           return (
             <div key={dayIdx} style={{ marginBottom: 24 }}>
+              {/* Day pill wears the SAME day hue as the live trip page (S4:
+                  color = wayfinding, one learnable palette) — and shows the
+                  trip's real dates when the snapshot has them. */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                <span style={{ background: 'var(--gray-900)', color: '#fff', fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 20, letterSpacing: '0.05em' }}>
-                  {getDayLabel(dayIdx, null).toUpperCase()}
+                <span style={{ background: dayHue(dayIdx), color: '#fff', fontSize: 11, fontWeight: 800, padding: '4px 10px', borderRadius: 20, letterSpacing: '0.04em' }}>
+                  {getDayLabel(dayIdx, snapshot.tripStartDate || null).toUpperCase()}
                 </span>
                 <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-700)' }}>{day.area}</span>
               </div>
+              {sumBits.length > 0 && (
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-500)', margin: '-8px 0 12px 2px' }}>
+                  {sumBits.join(' · ')}
+                </div>
+              )}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {renderItems.map((item, i) => {
+                  // Travel connector between consecutive locatable items — the
+                  // standing-on-the-sidewalk question ("how do I get there?"),
+                  // with the live page's subway detail when the leg is a train.
+                  const myCoord = coordsOf(item)
+                  let prevCoord = null
+                  for (let j = i - 1; j >= 0; j--) { const c = coordsOf(renderItems[j]); if (c) { prevCoord = c; break } }
+                  const travel = i > 0 && prevCoord && myCoord ? estimateTravelCoords(prevCoord, myCoord) : null
+                  const leg = travel?.mode === 'subway' ? findSubwayLeg(prevCoord, myCoord) : null
+                  const travelConnector = travel && travel.mins > 0 ? (
+                    <div style={{
+                      display: 'flex', alignItems: 'flex-start', gap: 8,
+                      padding: '2px 16px', margin: '-4px 0 -4px',
+                      color: 'var(--gray-400)', fontSize: 11, fontWeight: 600,
+                    }}>
+                      <span style={{ width: 2, alignSelf: 'stretch', minHeight: 14, background: 'var(--gray-200)', marginLeft: 6 }} />
+                      <span style={{ lineHeight: '15px' }}>{travel.icon}</span>
+                      <span style={{ lineHeight: '15px' }}>
+                        ~{travel.mins} min {travel.mode}
+                        {leg && (
+                          <span style={{ display: 'block', fontWeight: 500, color: 'var(--gray-500)', marginTop: 3, lineHeight: 1.6 }}>
+                            <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+                              <span>Take the{leg.dir ? ` ${leg.dir.toLowerCase()}` : ''}</span>
+                              {leg.lines.split('·').map((ln, li, arr) => (
+                                <React.Fragment key={ln}>
+                                  {li > 0 && li === arr.length - 1 && <span>or</span>}
+                                  <SubwayBullet line={ln} />
+                                </React.Fragment>
+                              ))}
+                              <span>at {leg.from}</span>
+                            </span>
+                            <span style={{ display: 'block' }}>Get off at {leg.to}</span>
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  ) : null
+                  // The note the user wrote on the live card (stops keyed by id,
+                  // meals by rest:<id>) — read-only, shown only when it exists.
+                  const note = String(savedNotes[item.type === 'meal' ? `rest:${item.r.id}` : item.stop.id] || '').trim()
+                  const noteLine = note ? (
+                    <div style={{ fontSize: 12, color: 'var(--gray-600)', fontStyle: 'italic', marginTop: 4, lineHeight: 1.4 }}>✎ {note}</div>
+                  ) : null
                   if (item.type === 'meal') {
                     const isLunch = item.meal === 'lunch'
                     return (
-                      <div key={`meal-${i}`} style={{ background: 'var(--gray-50)', border: '1px solid var(--gray-200)', borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                      <React.Fragment key={`meal-${i}`}>
+                      {travelConnector}
+                      <div style={{ background: 'var(--gray-50)', border: '1px solid var(--gray-200)', borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                         <span style={{ fontSize: 18, marginTop: 1 }}>{isLunch ? '🍴' : '🌙'}</span>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>
                             {isLunch ? t('Lunch') : t('Dinner')} · {cuisineLabel(item.cuisine)}
                           </div>
-                          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-900)' }}>{item.r.name}</div>
-                          <div style={{ fontSize: 12, color: 'var(--gray-500)' }}>{item.r.price} · {item.r.neighborhood}</div>
+                          {/* S2: restaurant names speak in the guide's serif voice,
+                              matching the live meal cards. */}
+                          <div style={{ fontFamily: 'var(--serif)', fontSize: 17, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.25 }}>{item.r.name}</div>
+                          {/* One per-person approximation, not raw $-symbols —
+                              same rule as the live cards (never disagree). */}
+                          <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>{mealPriceApprox(item.r.price)} · {item.r.neighborhood}</div>
+                          {noteLine}
                         </div>
                         <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
                           {item.r.walkIn ? (
                             <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-500)' }}>Walk-in</span>
                           ) : item.r.reservationUrl && (
                             <a href={item.r.reservationUrl} target="_blank" rel="noopener noreferrer"
-                              style={{ fontSize: 11, fontWeight: 700, background: '#ea580c', color: '#fff', padding: '5px 8px', borderRadius: 7, textDecoration: 'none' }}>
+                              style={{ fontSize: 11, fontWeight: 700, background: 'var(--accent)', color: '#fff', padding: '5px 8px', borderRadius: 7, textDecoration: 'none' }}>
                               Reserve →
                             </a>
                           )}
@@ -10040,25 +10152,40 @@ ${body}
                           </a>
                         </div>
                       </div>
+                      </React.Fragment>
                     )
                   }
                   const stop = item.stop
-                  const pc = PERIOD_COLORS[stop.period] || PERIOD_COLORS.Afternoon
+                  // Stop cards speak the SAME grammar as the meal cards beside
+                  // them: leading icon · serif name · one quiet meta line · 📍.
+                  // The old top strip was a mostly-empty gray band holding one
+                  // right-aligned duration — the duration now lives in the meta
+                  // line where the eye already is.
+                  const v = venues[stop.id]
+                  const icon = isHotelStop(stop) ? '🏨' : isRestaurantStop(stop) ? '🍽️' : (DOMAIN_ICONS[(stop.domain || v?.domain)] || '📍')
+                  const durLabel = stop.duration
+                    ? `~${stop.duration < 1 ? `${Math.round(stop.duration * 60)} min` : stop.duration % 1 === 0 ? `${stop.duration} hrs` : `${stop.duration.toFixed(1)} hrs`}`
+                    : null
+                  const mapsUrl = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(v?.address || `${stop.name}, New York`)
                   return (
-                    <div key={stop.id} style={{ background: 'var(--card)', border: '1px solid var(--gray-200)', borderRadius: 12, overflow: 'hidden' }}>
-                      {/* Neutral strip — period labels removed app-wide 2026-07-14. */}
-                      <div style={{ background: 'var(--gray-50)', borderBottom: '1px solid var(--gray-100)', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--gray-500)' }}>
-                          ~{stop.duration < 1 ? `${Math.round(stop.duration * 60)} min` : stop.duration % 1 === 0 ? `${stop.duration} hrs` : `${stop.duration.toFixed(1)} hrs`}
-                        </span>
-                      </div>
-                      <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-900)' }}>{stop.name}</div>
-                          <div style={{ fontSize: 12, color: 'var(--gray-500)' }}>{stop.neighborhood}</div>
+                    <React.Fragment key={stop.id}>
+                    {travelConnector}
+                    <div style={{ background: 'var(--card)', border: '1px solid var(--gray-200)', borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                      <span style={{ fontSize: 18, marginTop: 1 }}>{icon}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        {/* S2: serif venue names, same voice as the live trip cards. */}
+                        <div style={{ fontFamily: 'var(--serif)', fontSize: 17, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.25 }}>{stop.name}</div>
+                        <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>
+                          {[stop.neighborhood, durLabel].filter(Boolean).join(' · ')}
                         </div>
+                        {noteLine}
                       </div>
+                      <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
+                        style={{ fontSize: 11, fontWeight: 600, background: 'var(--gray-200)', color: 'var(--gray-700)', padding: '5px 8px', borderRadius: 7, textDecoration: 'none', flexShrink: 0 }}>
+                        📍
+                      </a>
                     </div>
+                    </React.Fragment>
                   )
                 })}
               </div>
@@ -10578,16 +10705,6 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
 
 
 
-  const DOMAIN_ICONS = {
-    visual_art: '🎨', jazz: '🎷', classical_music: '🎼', theater: '🎭',
-    history: '📜', architecture: '🏛️', sports: '🏆', hip_hop: '🎤', food: '🍴',
-  }
-  // Each day gets its own hue from the field palette (same family as the home
-  // cover art) — color as wayfinding on a long monochrome page: the day tab,
-  // the day pill, and the meal accents share it, so you always know where you
-  // are. Cycles past 5 days.
-  const DAY_HUES = ['#B7472A', '#475A66', '#6F7A45', '#6B4453', '#C6892F']
-  const dayHue = (i) => DAY_HUES[i % DAY_HUES.length]
   const PERIOD_COLORS = {
     Morning:   { bg: '#fef9c3', text: '#854d0e', dot: '#ca8a04' },
     Afternoon: { bg: '#dbeafe', text: '#1e40af', dot: '#3b82f6' },
@@ -13002,7 +13119,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                       autoFocus value={planNameDraft}
                       onChange={e => setPlanNameDraft(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.nextSibling?.click() }}
-                      placeholder={new Date(snap.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      placeholder={planDefaultName(snap)}
                       maxLength={40}
                       style={{
                         flex: 1, minWidth: 0, padding: '5px 10px', fontSize: 13.5, fontWeight: 600,
@@ -13023,7 +13140,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                 ) : (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, minWidth: 0 }}>
                     <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-900)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {snap.name || new Date(snap.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {snap.name || planDefaultName(snap)}
                     </span>
                     <button
                       onClick={e => { e.stopPropagation(); setPlanNameDraft(snap.name || ''); setRenamingPlan(snap.id) }}
