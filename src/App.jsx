@@ -9797,6 +9797,10 @@ function restaurantCoords(r) {
 // ── SavedPlanSummary: read-only view of the plan the user just saved ──────────
 function SavedPlanSummary({ snapshot, onBack }) {
   const [shareCopied, setShareCopied] = React.useState(false)
+  // Land at the TOP of the plan — this view replaces a page the user had
+  // scrolled deep, and inheriting that scroll position opened it at the
+  // bottom buttons instead of Day 1.
+  React.useEffect(() => { try { window.scrollTo(0, 0) } catch {} }, [])
   if (!snapshot) return null
   const { savedAt, venueIds, days: snapDays, tripDays: snapTripDays, lunchCuisine, dinnerCuisine, mealCuisines, lunchRestaurants, dinnerRestaurants } = snapshot
   // Prefer the snapshotted itinerary (exactly what was saved). Fall back to
@@ -10047,9 +10051,9 @@ ${body}
         })}
       </div>
 
-      {/* Open route button — bottom padding just clears the home indicator
-          (was a fixed 100px void; review feedback 07-15). */}
-      <div style={{ padding: '4px 20px calc(20px + env(safe-area-inset-bottom, 0px) + 60px)' }}>
+      {/* Open route button — bottom padding is exactly nav-height + a small
+          breath; anything more reads as a void on short plans. */}
+      <div style={{ padding: '4px 20px calc(72px + env(safe-area-inset-bottom, 0px))' }}>
         <button
           onClick={exportSavedPlanPdf}
           style={{
