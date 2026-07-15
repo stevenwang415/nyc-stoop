@@ -9597,15 +9597,20 @@ const SUBWAY_LINE_COLORS = {
   S: '#808183',
 }
 // The colored circle-with-numeral IS the MTA's registered route symbol.
-// Product decision 2026-07-14: v1.0 SHIPS WITH the symbols, and the App Store
-// submission waits until MTA's license is granted (application in progress,
-// questionnaire answered). If the license is denied, flip to false — the text
-// fallback ("the 1 train", bold) is fully wired below.
-const MTA_BULLETS_LICENSED = true
+// Product decision 2026-07-15: MTA offered a license, but the planned $3.99
+// unlock would trigger a 10–15% royalty + amended agreement. Not worth it for
+// a polish-only element — v1.0 ships with the text fallback ("E or F", bold)
+// and no license. Flip to true only if a signed agreement ever makes sense.
+const MTA_BULLETS_LICENSED = false
+// ONE color for every route — deliberately not any MTA line color (their marks
+// pair specific colors with the letters) and not the clay accent (that stays
+// the action color). A single teal for all lines honestly reads "our styling,
+// not the official symbol", which is the legal point of the fallback.
+const SUBWAY_TEXT_COLOR = '#1E7269'
 function SubwayBullet({ line }) {
   if (!MTA_BULLETS_LICENSED) {
     return (
-      <span aria-label={`${line} train`} style={{ fontWeight: 800, color: 'var(--gray-700)' }}>
+      <span aria-label={`${line} train`} style={{ fontWeight: 800, color: SUBWAY_TEXT_COLOR }}>
         {line}
       </span>
     )
@@ -9729,7 +9734,10 @@ function TripRouteMap({ groups }) {
     }
   }, [ready, JSON.stringify(groups)])
   React.useEffect(() => () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null } }, [])
-  return <div ref={boxRef} style={{ height: 210, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--gray-200)' }} />
+  // position:relative + zIndex:0 traps Leaflet's internal z-indexes (controls
+  // are z-1000) inside this box's stacking context — without it the map's
+  // zoom/compass buttons floated ABOVE overlay pages (My Plans) and stole taps.
+  return <div ref={boxRef} style={{ height: 210, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--gray-200)', position: 'relative', zIndex: 0 }} />
 }
 
 // ── Saved plan snapshots — a LIST since 2026-07-15. The old single-slot key
