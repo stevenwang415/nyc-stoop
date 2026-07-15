@@ -9732,6 +9732,25 @@ function TripRouteMap({ groups }) {
   return <div ref={boxRef} style={{ height: 210, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--gray-200)' }} />
 }
 
+// ── Saved plan snapshots — a LIST since 2026-07-15. The old single-slot key
+// (nyc_plan_snapshot) silently overwrote plan #1 when you saved plan #2.
+// readPlanSnapshots migrates the legacy single snapshot into the list form.
+function readPlanSnapshots() {
+  try {
+    const list = JSON.parse(localStorage.getItem('nyc_plan_snapshots') || 'null')
+    if (Array.isArray(list)) return list
+    const legacy = JSON.parse(localStorage.getItem('nyc_plan_snapshot') || 'null')
+    if (legacy) { if (!legacy.id) legacy.id = 'snap_' + (legacy.savedAt || Date.now()); return [legacy] }
+    return []
+  } catch { return [] }
+}
+function writePlanSnapshots(list) {
+  try {
+    lsSet('nyc_plan_snapshots', JSON.stringify(list))
+    localStorage.removeItem('nyc_plan_snapshot') // legacy slot retired
+  } catch {}
+}
+
 // Hotel detection for user-added stops (Google adds arrive with no category).
 // Name-based: catches "Hotel"/"Hostel"/"Motel" plus the big chains. A hotel
 // stop isn't an activity — its band reads HOTEL with no invented duration.
@@ -10051,9 +10070,9 @@ ${body}
         })}
       </div>
 
-      {/* Open route button — bottom padding is exactly nav-height + a small
-          breath; anything more reads as a void on short plans. */}
-      <div style={{ padding: '4px 20px calc(72px + env(safe-area-inset-bottom, 0px))' }}>
+      {/* Open route button — bottom padding = nav-height (64 + inset−12) + 8px
+          breath, nothing more; anything extra reads as a void on short plans. */}
+      <div style={{ padding: '4px 20px calc(60px + env(safe-area-inset-bottom, 0px))' }}>
         <button
           onClick={exportSavedPlanPdf}
           style={{
@@ -10213,8 +10232,11 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     const key = `${dayIdx}:${meal}`
     setOpenMealPicker(prev => prev === key ? null : key)
   }
-  const [planSaved, setPlanSaved] = React.useState(false)
-  const [savedPlanView, setSavedPlanView] = React.useState(false)
+  // Which snapshot is open in the full plan view (by id) — replaces the old
+  // boolean, since there can now be MANY saved plans.
+  const [viewSnapId, setViewSnapId] = React.useState(null)
+  // Bump to re-read the snapshots list after writes (it's read per-render).
+  const [, bumpSnaps] = React.useReducer(x => x + 1, 0)
   const [confirmDelete, setConfirmDelete] = React.useState(false)
   // Saved-page display mode: 'all' (full archive) or 'plans' (plans only —
   // what the header's "Saved plans" row opens). Rename state for the snapshot.
@@ -11050,11 +11072,12 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
     w.document.open(); w.document.write(html); w.document.close()
   }
 
-  // Restore saved snapshot on mount so returning users land on their plan
-  const _snap = (() => { try { return JSON.parse(localStorage.getItem('nyc_plan_snapshot') || 'null') } catch { return null } })()
-  // Show saved plan summary if user just saved OR if they're returning and have a snapshot
-  if (savedPlanView && _snap) {
-    return <SavedPlanSummary snapshot={_snap} onBack={() => setSavedPlanView(false)} />
+  // All saved plans (legacy single-slot migrates into the list on read).
+  const _snaps = readPlanSnapshots()
+  // Full-page view of ONE selected snapshot.
+  const _viewSnap = viewSnapId ? _snaps.find(sn => sn.id === viewSnapId) : null
+  if (_viewSnap) {
+    return <SavedPlanSummary snapshot={_viewSnap} onBack={() => setViewSnapId(null)} />
   }
 
   // Stops + meal count for the header subtitle (totals across all days)
@@ -12327,8 +12350,17 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
             <button
               onClick={() => {
                 lsSet('nyc_plan_sel',   JSON.stringify(venueIds))
+                // Saving APPENDS to the plans list (multi-plan since 07-15 —
+                // the old single slot silently overwrote plan #1 with plan #2).
+                // Identical plan already saved? Open it instead of duplicating.
+                const list = readPlanSnapshots()
+                const sig = JSON.stringify([venueIds, tripDays, tripStartDate || null])
+                const dup = list.find(sn => JSON.stringify([sn.venueIds, sn.tripDays, sn.tripStartDate || null]) === sig)
+                if (dup) { setViewSnapId(dup.id); return }
                 const snap = {
+                  id: 'snap_' + Date.now(),
                   savedAt: Date.now(),
+                  tripStartDate: tripStartDate || null,
                   venueIds,
                   // Snapshot the EXACT days the user arranged (incl. trip-length
                   // padding + drag reassignments) so the saved view matches 1:1
@@ -12340,19 +12372,18 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                   lunchRestaurants: Object.fromEntries(Object.entries(lunchRestaurants).map(([k,r]) => [k, r ? { id: r.id, name: r.name, price: r.price, neighborhood: r.neighborhood, reservationUrl: r.reservationUrl, mapsUrl: r.mapsUrl } : null])),
                   dinnerRestaurants: Object.fromEntries(Object.entries(dinnerRestaurants).map(([k,r]) => [k, r ? { id: r.id, name: r.name, price: r.price, neighborhood: r.neighborhood, reservationUrl: r.reservationUrl, mapsUrl: r.mapsUrl } : null])),
                 }
-                lsSet('nyc_plan_snapshot', JSON.stringify(snap))
-                setSavedPlanView(true)
+                writePlanSnapshots([snap, ...list])   // newest first
+                bumpSnaps()
+                setViewSnapId(snap.id)
               }}
               style={{
                 flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                 padding: '11px 6px', borderRadius: 10, border: '1px solid var(--gray-200)',
-                background: planSaved ? '#dcfce7' : 'var(--white)',
-                color: planSaved ? '#15803d' : 'var(--gray-700)',
+                background: 'var(--white)', color: 'var(--gray-700)',
                 fontSize: 13, fontWeight: 700, cursor: 'pointer',
               }}
             >
-              <span>{planSaved ? '✓' : '💾'}</span>
-              <span>{planSaved ? t('Saved') : t('Save')}</span>
+              <span>💾</span><span>{t('Save')}</span>
             </button>
             {/* Open route in Maps — context-aware: filtered to one day, it routes
                 THAT day (the standing-on-the-sidewalk moment); All days routes
@@ -12374,12 +12405,16 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
           </div>
         )}
 
-        {_snap && !savedPlanView && (
-          <button onClick={() => setSavedPlanView(true)} style={{
+        {_snaps.length > 0 && (
+          <button onClick={() => {
+            // One plan → open it; several → the My Plans page to choose.
+            if (_snaps.length === 1) setViewSnapId(_snaps[0].id)
+            else { savedPageOriginRef.current = 'trip'; setSavedPageMode('plans'); setInvOpen('plans'); setSavedPageOpen(true) }
+          }} style={{
             width: '100%', background: 'none', border: 'none', cursor: 'pointer',
-            fontSize: 13, color: 'var(--gray-400)', textDecoration: 'underline', padding: '4px 0',
+            fontSize: 13, color: 'var(--gray-400)', textDecoration: 'underline', padding: '4px 0', fontFamily: 'inherit',
           }}>
-            View your saved plan →
+            {_snaps.length === 1 ? 'View your saved plan →' : `View your ${_snaps.length} saved plans →`}
           </button>
         )}
         {/* (Tip banner removed — permanent onboarding copy that repeated forever,
@@ -12839,7 +12874,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
             "No plans yet" + "Nothing saved yet" pair) + 3-step how-it-works row.
             Hidden once the working plan already has days — the live itinerary
             below makes the how-it-works explainer redundant. */}
-        {!_snap && days.length === 0 && (() => {
+        {_snaps.length === 0 && days.length === 0 && (() => {
           // Hearts + imported/custom places, without double-counting user_venue
           // entries that live in both savedItems and userVenues.
           // Count only what the USER chose: editorial saves, their own added
@@ -12896,11 +12931,11 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
           )
         })()}
 
-        {/* Saved plan card */}
-        {_snap && (
-          <div style={{ position: 'relative' }}>
+        {/* Saved plan cards — one per snapshot, newest first (multi-plan 07-15) */}
+        {_snaps.map(snap => (
+          <div key={snap.id} style={{ position: 'relative', marginBottom: 12 }}>
             {/* Confirm-delete overlay */}
-            {confirmDelete && (
+            {confirmDelete === snap.id && (
               <div style={{
                 position: 'absolute', inset: 0, zIndex: 10,
                 background: 'rgba(255,255,255,0.97)', borderRadius: 14,
@@ -12912,7 +12947,8 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                 <div style={{ display: 'flex', gap: 10, width: '100%' }}>
                   <button
                     onClick={() => {
-                      try { localStorage.removeItem('nyc_plan_snapshot') } catch {}
+                      writePlanSnapshots(readPlanSnapshots().filter(sn => sn.id !== snap.id))
+                      bumpSnaps()
                       setConfirmDelete(false)
                     }}
                     style={{
@@ -12938,7 +12974,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
 
             {/* X delete button */}
             <button
-              onClick={e => { e.stopPropagation(); setConfirmDelete(true) }}
+              onClick={e => { e.stopPropagation(); setConfirmDelete(snap.id) }}
               style={{
                 position: 'absolute', top: 10, right: 12, zIndex: 5,
                 background: 'none', border: 'none', cursor: 'pointer',
@@ -12950,7 +12986,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
 
             {/* Card body */}
             <div
-              onClick={() => setSavedPlanView(true)}
+              onClick={() => setViewSnapId(snap.id)}
               style={{
                 background: 'var(--gray-50)', border: '1px solid var(--gray-200)',
                 borderRadius: 14, padding: '14px 16px', cursor: 'pointer',
@@ -12959,14 +12995,14 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
             >
               <span style={{ fontSize: 22 }}>🗓️</span>
               <div style={{ flex: 1, minWidth: 0 }}>
-                {renamingPlan ? (
+                {renamingPlan === snap.id ? (
                   /* Inline rename — saves onto the snapshot; empty resets to the date */
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }} onClick={e => e.stopPropagation()}>
                     <input
                       autoFocus value={planNameDraft}
                       onChange={e => setPlanNameDraft(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.nextSibling?.click() }}
-                      placeholder={new Date(_snap.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      placeholder={new Date(snap.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                       maxLength={40}
                       style={{
                         flex: 1, minWidth: 0, padding: '5px 10px', fontSize: 13.5, fontWeight: 600,
@@ -12975,7 +13011,8 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                       }}
                     />
                     <button onClick={() => {
-                      try { lsSet('nyc_plan_snapshot', JSON.stringify({ ..._snap, name: planNameDraft.trim() || undefined })) } catch {}
+                      writePlanSnapshots(readPlanSnapshots().map(sn => sn.id === snap.id ? { ...sn, name: planNameDraft.trim() || undefined } : sn))
+                      bumpSnaps()
                       setRenamingPlan(false)
                     }} style={{
                       padding: '5px 10px', fontSize: 12, fontWeight: 700, flexShrink: 0,
@@ -12986,10 +13023,10 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                 ) : (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, minWidth: 0 }}>
                     <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-900)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {_snap.name || new Date(_snap.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {snap.name || new Date(snap.savedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </span>
                     <button
-                      onClick={e => { e.stopPropagation(); setPlanNameDraft(_snap.name || ''); setRenamingPlan(true) }}
+                      onClick={e => { e.stopPropagation(); setPlanNameDraft(snap.name || ''); setRenamingPlan(snap.id) }}
                       aria-label="Rename plan"
                       style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', fontSize: 13, color: 'var(--gray-400)', lineHeight: 1, flexShrink: 0 }}
                     >✎</button>
@@ -12997,24 +13034,24 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                   </div>
                 )}
                 <div style={{ fontSize: 12, color: 'var(--gray-500)', lineHeight: 1.5 }}>
-                  {_snap.venueIds?.length} stop{_snap.venueIds?.length !== 1 ? 's' : ''}
-                  {_snap.tripDays ? ` · ${_snap.tripDays} day${_snap.tripDays !== 1 ? 's' : ''}` : ''}
+                  {snap.venueIds?.length} stop{snap.venueIds?.length !== 1 ? 's' : ''}
+                  {snap.tripDays ? ` · ${snap.tripDays} day${snap.tripDays !== 1 ? 's' : ''}` : ''}
                   {/* Show count of meals with cuisine set (new mealCuisines shape) or fall back to old format */}
                   {(() => {
-                    const mealCount = _snap.mealCuisines ? Object.keys(_snap.mealCuisines).length
-                      : ((_snap.lunchCuisine ? 1 : 0) + (_snap.dinnerCuisine ? 1 : 0))
+                    const mealCount = snap.mealCuisines ? Object.keys(snap.mealCuisines).length
+                      : ((snap.lunchCuisine ? 1 : 0) + (snap.dinnerCuisine ? 1 : 0))
                     return mealCount > 0 ? ` · ${mealCount} meal${mealCount !== 1 ? 's' : ''} picked` : ''
                   })()}
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 3, lineHeight: 1.4 }}>
-                  {(_snap.venueIds || []).map(id => venues[id]?.name).filter(Boolean).join(' · ')}
+                  {(snap.venueIds || []).map(id => venues[id]?.name).filter(Boolean).join(' · ')}
                 </div>
                 {/* Trip-level estimates — same estimators as the day headers:
                     per-mode travel mins (legs between consecutive stops of each
                     snapshotted day) + meals per person across the whole trip. */}
                 {(() => {
                   const modeMins = { walk: 0, subway: 0, taxi: 0 }
-                  ;(_snap.days || []).forEach(d => {
+                  ;(snap.days || []).forEach(d => {
                     let prev = null
                     ;(d.stops || []).forEach(s => {
                       const c = venueCoords[s.id]
@@ -13028,7 +13065,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                     const rng = r && MEAL_PRICE_RANGE[r.price]
                     if (rng) { lo += rng[0]; hi += rng[1] }
                   })
-                  collect(_snap.lunchRestaurants); collect(_snap.dinnerRestaurants)
+                  collect(snap.lunchRestaurants); collect(snap.dinnerRestaurants)
                   const bits = []
                   if (modeMins.walk)   bits.push(`🚶 ~${modeMins.walk} min`)
                   if (modeMins.subway) bits.push(`🚇 ~${modeMins.subway} min`)
@@ -13044,7 +13081,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
               <span style={{ fontSize: 20, color: 'var(--gray-300)', flexShrink: 0 }}>›</span>
             </div>
           </div>
-        )}
+        ))}
       </div>
       )}
           </div>

@@ -28,6 +28,7 @@
 
 | 14 | Trip map interactive | ✅ done 07-14 | Pinch-zoom, drag, double-tap zoom + zoom buttons enabled (was fully static). scrollWheelZoom stays off for desktop page-scroll; on phones one-finger drag pans the map — accepted tradeoff, requested. |
 | 15 | Kefi removed (permanently closed) | ✅ done 07-14 | Third closed restaurant found by hand (Class on 38th, Spotted Pig, now Kefi). The v1.1 automated liveness sweep (Google `businessStatus`) keeps earning its priority. |
+| 16 | Multi-plan snapshots — Save no longer overwrites | ✅ done 07-15 | User-found bug: saving a second plan (different start date) silently overwrote plan #1 — the store was a single `nyc_plan_snapshot` slot. Now a LIST (`nyc_plan_snapshots`, newest first): each save appends a snapshot with its own id/name/date; cards, rename, delete, and the plans page all work per-plan. Saving an identical plan (same places + length + start date) opens the existing one instead of duplicating. "View your saved plan →" pluralizes and, with several plans, opens the plans page instead of one plan. Legacy single snapshots migrate automatically on first read — nobody loses their existing plan. Dead `planSaved` state removed. Headless-verified: two plans coexist, dup re-save refused, legacy key opens. |
 
 ## Design notes
 
