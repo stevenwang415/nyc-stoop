@@ -9846,6 +9846,46 @@ const DOMAIN_ICONS = {
   history: '📜', architecture: '🏛️', sports: '🏆', hip_hop: '🎤', food: '🍴',
 }
 
+// ── First-visit tab tutorials — the Map tab's coach card, generalized. A
+// translucent scrim keeps the tab faintly visible underneath (the page is
+// dimmed, not blocked), with a cream card of 3 quick pointers. Shown ONCE per
+// tab: each key is in PROFILE_GLOBAL_KEYS, so switching accounts never
+// re-shows it. Tap anywhere (or "Got it") to dismiss.
+function TabTutorial({ tutKey, title, rows }) {
+  const [show, setShow] = React.useState(() => {
+    try { return !localStorage.getItem(tutKey) } catch { return false }
+  })
+  const dismiss = () => { setShow(false); try { lsSet(tutKey, '1') } catch {} }
+  if (!show) return null
+  return (
+    <div onClick={dismiss} style={{
+      position: 'fixed', inset: 0, zIndex: 3000,
+      background: 'rgba(33,27,20,0.45)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: 'var(--card, #FBF6EC)', borderRadius: 18, padding: '22px 20px 18px',
+        maxWidth: 320, width: '100%', boxShadow: '0 18px 50px rgba(0,0,0,0.35)',
+      }}>
+        <div style={{ fontFamily: 'var(--serif)', fontSize: 20, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.2, marginBottom: 14 }}>
+          {title}
+        </div>
+        {rows.map(([icon, text], i) => (
+          <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12 }}>
+            <span style={{ fontSize: 17, lineHeight: 1.35, flexShrink: 0 }}>{icon}</span>
+            <span style={{ fontSize: 13.5, color: 'var(--ink)', lineHeight: 1.45 }}>{text}</span>
+          </div>
+        ))}
+        <button onClick={dismiss} style={{
+          width: '100%', marginTop: 4, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+          background: 'var(--gray-900)', color: '#fff', borderRadius: 12,
+          padding: '12px 16px', fontSize: 13.5, fontWeight: 700,
+        }}>Got it</button>
+      </div>
+    </div>
+  )
+}
+
 // ── SavedPlanSummary: read-only view of the plan the user just saved ──────────
 function SavedPlanSummary({ snapshot, onBack }) {
   const [shareCopied, setShareCopied] = React.useState(false)
@@ -15057,6 +15097,7 @@ const FEEDBACK_EMAIL = 'stevenwang.nycstoop@gmail.com'
 const PROFILE_GLOBAL_KEYS = new Set([
   'nyc_token', 'nyc_user', 'nyc_active_profile',
   'nyc_onboarded_v2', 'nyc_map_tut_v1', 'nyc_temp_unit', 'nyc_lang',
+  'nyc_tut_explore_v1', 'nyc_tut_tonight_v1', 'nyc_tut_trip_v1',
   'nyc_last_visit', 'nyc_whats_new_dismissed_for', 'nyc_profile_overlays',
 ])
 function _profileDataKeys() {
@@ -16281,7 +16322,16 @@ export default function App() {
 
   function renderExploreScreen() {
     switch (current.screen) {
-      case 'home':      return <HomeScreen push={push} savedItems={savedItems} toggleSave={toggleSave} onSeeAllTonight={() => setActiveTab('tonight')} onOpenSettings={() => setSettingsOpen(true)} onPlanNight={() => setPlanNightOpen(true)} userVenues={userVenues} weather={weather} user={user} />
+      case 'home':      return (
+        <>
+          <TabTutorial key="nyc_tut_explore_v1" tutKey="nyc_tut_explore_v1" title="Start here" rows={[
+            ['✨', <>Pick a mood — <b>Eat, Drink, Jazz…</b> — and get a short, curated list.</>],
+            ['🗽', <>Or browse by <b>neighborhood</b> and <b>topic</b> to go deeper.</>],
+            ['🔖', <>Save anything you like — it all lands in <b>My Trip</b>.</>],
+          ]} />
+          <HomeScreen push={push} savedItems={savedItems} toggleSave={toggleSave} onSeeAllTonight={() => setActiveTab('tonight')} onOpenSettings={() => setSettingsOpen(true)} onPlanNight={() => setPlanNightOpen(true)} userVenues={userVenues} weather={weather} user={user} />
+        </>
+      )
       case 'domain':    return <DomainScreen domainId={current.domainId} push={push} savedItems={savedItems} />
       case 'topic':     return <TopicScreen topicId={current.topicId} push={push} savedItems={savedItems} />
       case 'venue':     return <VenueScreen venueId={current.venueId} fromTopicId={current.fromTopicId} fromDomainId={current.fromDomainId} push={push} savedItems={savedItems} toggleSave={toggleSave} onViewMap={venueCoords[current.venueId] ? () => { resetExplore(); setMapHighlight(current.venueId); setActiveTab('map') } : null} />
@@ -16328,6 +16378,11 @@ export default function App() {
         }
         return (
           <>
+            <TabTutorial key="nyc_tut_tonight_v1" tutKey="nyc_tut_tonight_v1" title="What's on tonight" rows={[
+              ['🌙', <>The evening lineup — jazz sets, shows, and live events, <b>night by night</b>.</>],
+              ['🗓️', <>Use the <b>day selector</b> to look ahead; the lineup changes with the night.</>],
+              ['🎟️', <>Tap any card for details — <b>On Sale</b> events link straight to tickets.</>],
+            ]} />
             <TonightScreen
               savedItems={savedItems}
               toggleSave={toggleSave}
@@ -16358,6 +16413,11 @@ export default function App() {
         }
         return (
           <PlanErrorBoundary>
+            <TabTutorial key="nyc_tut_trip_v1" tutKey="nyc_tut_trip_v1" title="Your trip, planned" rows={[
+              ['🗓️', <>Your saves become a routed <b>day-by-day plan</b> — drag cards to reorder.</>],
+              ['🍴', <>Lunch & dinner picks appear between stops — <b>Change</b> swaps them, ✕ removes.</>],
+              ['💾', <><b>Save</b> keeps a plan; save as many versions as you like.</>],
+            ]} />
             <PlanScreen
               savedItems={savedItems}
               toggleSave={toggleSave}
