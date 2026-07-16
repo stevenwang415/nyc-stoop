@@ -13031,16 +13031,23 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
           color: 'var(--gray-400)', padding: '24px 0 12px',
           borderTop: Object.keys(safeItems).length > 0 ? '1px solid var(--gray-100)' : 'none',
         }}>
-          {t('Saved places')} · {Object.keys(safeItems).length}
+          {t('Saved places')} · {Object.values(safeItems).filter(item => item.type !== 'user_venue' || userVenues[item.id]).length}
         </div>
         {Object.values(safeItems).length === 0 && (
           <div style={{ fontSize: 14, color: 'var(--gray-400)', fontStyle: 'italic' }}>
             Nothing saved yet — explore and bookmark venues, works, and figures.
           </div>
         )}
-        {Object.values(safeItems).sort((a, b) => b.savedAt - a.savedAt).map(item => {
+        {Object.values(safeItems).sort((a, b) => b.savedAt - a.savedAt)
+          // Orphaned user_venue refs (their userVenues entry is gone) would
+          // render as raw ids like "user_mrnxg3ad_l2l1" — never show those.
+          .filter(item => item.type !== 'user_venue' || userVenues[item.id])
+          .map(item => {
+          const uv = item.type === 'user_venue' ? userVenues[item.id] : null
           const label = item.type === 'venue'
             ? venues[item.id]?.name
+            : item.type === 'user_venue'
+            ? uv?.name
             : item.type === 'work'
             ? works[item.id]?.title
             : figures[item.id]?.name
@@ -13049,15 +13056,17 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
             : item.type === 'work'
             ? topics[works[item.id]?.topicId]?.domainId
             : topics[figures[item.id]?.topicIds?.[0]]?.domainId
-          const icon = { visual_art:'🎨', jazz:'🎷', classical_music:'🎼', theater:'🎭', history:'📜', architecture:'🏛️', sports:'🏆', hip_hop:'🎤' }[domainId] || '📍'
+          const icon = item.type === 'user_venue'
+            ? ({ food:'🍴', coffee:'☕', drink:'🍷', drinks:'🍷', art:'🎨', music:'🎵', history:'📜', sports:'🏆', shopping:'🛍️', other:'📍' }[uv?.category] || '📍')
+            : ({ visual_art:'🎨', jazz:'🎷', classical_music:'🎼', theater:'🎭', history:'📜', architecture:'🏛️', sports:'🏆', hip_hop:'🎤' }[domainId] || '📍')
           return (
             <div
               key={`${item.type}:${item.id}`}
               style={{
                 display: 'flex', alignItems: 'center', gap: 12,
-                padding: '11px 0', borderBottom: '1px solid var(--gray-100)', cursor: 'pointer',
+                padding: '11px 0', borderBottom: '1px solid var(--gray-100)', cursor: item.type === 'user_venue' ? 'default' : 'pointer',
               }}
-              onClick={() => onSelectSaved?.({ type: item.type, id: item.id })}
+              onClick={() => { if (item.type !== 'user_venue') onSelectSaved?.({ type: item.type, id: item.id }) }}
             >
               <span style={{ fontSize: 18, width: 28, textAlign: 'center', flexShrink: 0 }}>{icon}</span>
               <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 500, color: 'var(--gray-800)', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -13067,7 +13076,9 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                   "Day N" (tap = jump to that day via the day tabs) or "+ Add to
                   plan" (tap = include it). Other types keep their type tag. */}
               {(() => {
-                if (item.type !== 'venue') {
+                // user_venues participate in the plan too — they get the same
+                // Day-N pill instead of a raw "user_venue" type tag.
+                if (item.type !== 'venue' && item.type !== 'user_venue') {
                   return (
                     <span style={{ fontSize: 11, color: 'var(--gray-400)', marginRight: 4, textTransform: 'capitalize', flexShrink: 0 }}>
                       {item.type}
