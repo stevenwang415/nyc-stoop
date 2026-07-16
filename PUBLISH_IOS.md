@@ -182,3 +182,9 @@ localStorage to force the free tier; `nyc_plus_v1 = 1` simulates owned.
 **Review-notes addition:** "The app is free with one optional non-consumable
 IAP ($3.99 lifetime) unlocking multi-day planning, unlimited saved plans, and
 PDF export. All content is browsable without purchase or sign-in."
+
+**⏰ POST-LAUNCH REMINDER — friend promo codes:** once the app + IAP are live,
+App Store Connect → app → Promo Codes → pick the "Lifetime unlock" IAP →
+request codes (up to 100/version, expire 28 days after generation — generate
+when ready to send). Friends redeem via App Store → profile → Redeem Gift
+Card or Code. No app code involved.

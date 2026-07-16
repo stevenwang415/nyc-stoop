@@ -15701,6 +15701,15 @@ function SettingsModal({
 
         {/* Action rows */}
         <div style={{ borderTop: '1px solid var(--gray-100)' }}>
+          {/* Lifetime unlock — leads the list (the one purchasable thing).
+              Shows the owned state honestly. */}
+          <button onClick={() => openPaywall('settings')} style={rowStyle}>
+            <span style={{ display: 'inline-flex', color: 'var(--gray-500)', fontSize: 15 }}>⭐</span>
+            <span style={labelStyle}>{t('Lifetime unlock')}</span>
+            {hasPlus()
+              ? <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '3px 8px', borderRadius: 20 }}>✓ Unlocked</span>
+              : <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>›</span>}
+          </button>
           {user && (
             <button onClick={handleSignOut} style={rowStyle}>
               <span style={{ display: 'inline-flex', color: 'var(--gray-500)' }}><NavIcon name="logOut" size={18} /></span>
@@ -15761,31 +15770,17 @@ function SettingsModal({
             <span style={labelStyle}>Privacy policy</span>
             <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>↗</span>
           </a>
-          <button onClick={() => onOpenCredits?.()} style={rowStyle}>
-            <span style={{ display: 'inline-flex', color: 'var(--gray-500)' }}><NavIcon name="image" size={18} /></span>
-            <span style={labelStyle}>{t('Image credits')}</span>
-            <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>›</span>
-          </button>
           <button onClick={() => onOpenFeedback?.()} style={rowStyle}>
             <span style={{ display: 'inline-flex', color: 'var(--gray-500)' }}><NavIcon name="mail" size={18} /></span>
             <span style={labelStyle}>{t('Send feedback')}</span>
             <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>›</span>
-          </button>
-          {/* Lifetime unlock — the one place the purchase is discoverable
-              outside the gates themselves. Shows the owned state honestly. */}
-          <button onClick={() => openPaywall('settings')} style={rowStyle}>
-            <span style={{ display: 'inline-flex', color: 'var(--gray-500)', fontSize: 15 }}>⭐</span>
-            <span style={labelStyle}>{t('Lifetime unlock')}</span>
-            {hasPlus()
-              ? <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '3px 8px', borderRadius: 20 }}>✓ Unlocked</span>
-              : <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>›</span>}
           </button>
           {/* (Source-on-GitHub row removed 2026-07-14 — users don't need the code.) */}
 
           {/* Thanks — the friends whose places, tips, and ideas seeded the guide */}
           <button onClick={() => setThanksOpen(o => !o)} aria-expanded={thanksOpen} style={rowStyle}>
             <span style={{ display: 'inline-flex', color: 'var(--gray-500)' }}><NavIcon name="heart" size={18} /></span>
-            <span style={labelStyle}>{t('Thanks')}</span>
+            <span style={labelStyle}>{t('Special Thanks')}</span>
             <span style={{
               fontSize: 14, color: 'var(--gray-400)', display: 'inline-block',
               transform: thanksOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s ease',
@@ -15854,6 +15849,13 @@ function SettingsModal({
           <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>
             © 2026 NYC Stoop · Built in New York
           </div>
+          {/* CC BY / BY-SA images legally require attribution — the credits
+              page must stay reachable. Demoted from a full row (2026-07-16)
+              to this quiet footer link. */}
+          <button onClick={() => onOpenCredits?.()} style={{
+            background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+            fontSize: 11, color: 'var(--gray-400)', textDecoration: 'underline', padding: '6px 8px',
+          }}>{t('Image credits')}</button>
         </div>
       </div>
     </div>
