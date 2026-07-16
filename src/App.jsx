@@ -10623,6 +10623,9 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     }
   }, [allVenueIds.join(',')])  // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Parked-saves fold in the Choose Stops drawer (cap 8 chips, expandable).
+  const [offPlanExpanded, setOffPlanExpanded] = React.useState(false)
+
   // Prune plan-only extras the user has since removed from the plan — checked
   // once per visit so an unchecked pick doesn't haunt the stops list forever.
   React.useEffect(() => {
@@ -11532,14 +11535,18 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                 the page — they define the trip and shouldn't hide in a drawer. */}
             {/* Cuisine selection moved to each meal card — every meal can have its own cuisine now. */}
 
-            {/* Planning with — 2-column grid for stop chips (cleaner alignment than free wrap) */}
+            {/* Stops — TWO labeled groups (2026-07-16). One flat grid of
+                checked/unchecked chips made ✕-removed places read as ghosts
+                ("I removed it, why is it still here?"). The groups make the
+                model legible: ✕ takes a place out of the PLAN; it stays in
+                your saves, parked below, one tap from coming back. */}
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
               <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-400)', flexShrink: 0, width: 78, paddingTop: 6 }}>
                 Stops <span style={{ color: 'var(--gray-300)' }}>{venueIds.length}/{allVenueIds.length}</span>
               </span>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
-                  {allVenueIds.map(id => {
+                {(() => {
+                  const chipFor = (id) => {
                     const v = venues[id] || userVenues[id]
                     if (!v) return null
                     const isUser = !venues[id] && !!userVenues[id]
@@ -11559,24 +11566,58 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                           fontSize: 11, fontWeight: 600,
                           background: selected ? 'var(--gray-900)' : 'var(--white)',
                           color: selected ? '#fff' : 'var(--gray-500)',
-                          border: selected ? '1px solid var(--gray-900)' : '1px solid var(--gray-200)',
-                          opacity: selected ? 1 : 0.7,
+                          border: selected ? '1px solid var(--gray-900)' : '1px dashed var(--gray-300)',
                           transition: 'all 0.15s ease',
                           minWidth: 0,
                         }}
                       >
+                        {!selected && <span style={{ flexShrink: 0, fontWeight: 700 }}>+</span>}
                         <span style={{ flexShrink: 0 }}>{icon}</span>
                         <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{v.name}</span>
                       </button>
                     )
-                  })}
-                </div>
-                {allVenueIds.length > 1 && venueIds.length < allVenueIds.length && (
-                  <button onClick={() => { const s = new Set(allVenueIds); setPlanSelection(s); lsSet('nyc_plan_sel', JSON.stringify([...s])) }}
-                    style={{ fontSize: 11, color: 'var(--gray-400)', background: 'none', border: 'none', cursor: 'pointer', padding: '8px 0 0', textDecoration: 'underline' }}>
-                    Select all
-                  </button>
-                )}
+                  }
+                  const groupLabel = { fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--gray-400)', margin: '0 0 6px' }
+                  const grid = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }
+                  const inPlan  = allVenueIds.filter(id => planSelection.has(id))
+                  const offPlan = allVenueIds.filter(id => !planSelection.has(id))
+                  return (
+                    <>
+                      {inPlan.length > 0 && (
+                        <>
+                          <div style={groupLabel}>In your plan</div>
+                          <div style={grid}>{inPlan.map(chipFor)}</div>
+                        </>
+                      )}
+                      {offPlan.length > 0 && (
+                        <>
+                          <div style={{ ...groupLabel, marginTop: inPlan.length > 0 ? 12 : 0 }}>Saved — not in this plan ({offPlan.length})</div>
+                          {/* Cap the parked group at 8 chips — with 30 saves this
+                              group is the overwhelm risk; the fold keeps the
+                              drawer scannable while everything stays reachable. */}
+                          <div style={grid}>{(offPlanExpanded ? offPlan : offPlan.slice(0, 8)).map(chipFor)}</div>
+                          {offPlan.length > 8 && (
+                            <button onClick={() => setOffPlanExpanded(e => !e)} style={{
+                              fontSize: 11, fontWeight: 600, color: 'var(--gray-500)', background: 'none',
+                              border: 'none', cursor: 'pointer', padding: '8px 0 0', textDecoration: 'underline',
+                            }}>
+                              {offPlanExpanded ? 'Show fewer' : `Show all ${offPlan.length}`}
+                            </button>
+                          )}
+                          <div style={{ fontSize: 10.5, color: 'var(--gray-400)', lineHeight: 1.5, marginTop: 6 }}>
+                            Tap + to add one back. Removing a card only takes it out of this plan — your saves stay in My saved places.
+                          </div>
+                        </>
+                      )}
+                      {allVenueIds.length > 1 && venueIds.length < allVenueIds.length && (
+                        <button onClick={() => { const s = new Set(allVenueIds); setPlanSelection(s); lsSet('nyc_plan_sel', JSON.stringify([...s])) }}
+                          style={{ fontSize: 11, color: 'var(--gray-400)', background: 'none', border: 'none', cursor: 'pointer', padding: '8px 0 0', textDecoration: 'underline' }}>
+                          Add all back
+                        </button>
+                      )}
+                    </>
+                  )
+                })()}
               </div>
             </div>
           </div>
