@@ -15497,14 +15497,43 @@ function SettingsModal({
     window.location.reload()
   }
 
+  // 11px vertical padding (was 14) — with 12 rows the sheet ran past the
+  // screen; still comfortably over the 44pt tap-target floor.
   const rowStyle = {
-    width: '100%', display: 'flex', alignItems: 'center', gap: 14,
-    padding: '14px 18px', background: 'var(--white)',
+    width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+    padding: '11px 18px', background: 'var(--white)',
     border: 'none', borderBottom: '1px solid var(--gray-100)',
     cursor: 'pointer', textAlign: 'left',
-    fontFamily: 'inherit', fontSize: 15, color: 'var(--gray-900)',
+    fontFamily: 'inherit', fontSize: 14.5, color: 'var(--gray-900)',
   }
   const labelStyle = { flex: 1, minWidth: 0 }
+
+  // Swipe-down-to-close: the handle + header act as the grab zone. The sheet
+  // follows the finger (transform), then either dismisses (>90px pull) or
+  // springs back. Kept off the row list so it never fights scrolling.
+  const sheetRef = React.useRef(null)
+  const dragState = React.useRef({ startY: null, delta: 0 })
+  const onSheetTouchStart = (e) => { dragState.current = { startY: e.touches[0].clientY, delta: 0 } }
+  const onSheetTouchMove = (e) => {
+    const st = dragState.current
+    if (st.startY == null || !sheetRef.current) return
+    st.delta = Math.max(0, e.touches[0].clientY - st.startY)
+    sheetRef.current.style.transition = 'none'
+    sheetRef.current.style.transform = `translateY(${st.delta}px)`
+  }
+  const onSheetTouchEnd = () => {
+    const el = sheetRef.current
+    const { delta } = dragState.current
+    dragState.current = { startY: null, delta: 0 }
+    if (!el) return
+    el.style.transition = 'transform 200ms ease'
+    if (delta > 90) {
+      el.style.transform = 'translateY(100%)'
+      setTimeout(onClose, 180)
+    } else {
+      el.style.transform = 'translateY(0)'
+    }
+  }
 
   // If the embedded AuthModal is open, render IT inside the sheet shell.
   if (authOpen) {
@@ -15529,22 +15558,25 @@ function SettingsModal({
       }}
     >
       <div
+        ref={sheetRef}
         onClick={e => e.stopPropagation()}
         style={{
           background: 'var(--white)', borderRadius: '20px 20px 0 0',
           width: '100%', maxWidth: 460,
-          maxHeight: '92vh', overflowY: 'auto',
+          maxHeight: '88vh', overflowY: 'auto',
           boxSizing: 'border-box',
           paddingBottom: 'env(safe-area-inset-bottom, 16px)',
         }}
       >
-        {/* Drag handle */}
-        <div style={{ padding: '12px 0 4px', display: 'flex', justifyContent: 'center' }}>
+        {/* Drag handle + header = the swipe-down grab zone (kept off the
+            scrollable rows so the gesture never fights list scrolling). */}
+        <div onTouchStart={onSheetTouchStart} onTouchMove={onSheetTouchMove} onTouchEnd={onSheetTouchEnd} style={{ touchAction: 'none' }}>
+        <div style={{ padding: '10px 0 4px', display: 'flex', justifyContent: 'center' }}>
           <div style={{ width: 40, height: 4, borderRadius: 2, background: 'var(--gray-300)' }} />
         </div>
 
         {/* Header */}
-        <div style={{ padding: '8px 20px 18px', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ padding: '4px 20px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--gray-900)', lineHeight: 1.2 }}>
               {t('Settings')}
@@ -15559,12 +15591,13 @@ function SettingsModal({
             fontSize: 16, color: 'var(--gray-500)', lineHeight: 1, flexShrink: 0,
           }}>✕</button>
         </div>
+        </div>
 
         {/* ── Temperature unit — one quiet row, house light-segmented style.
             (Language toggle held for v1.1 — dictionary + t() wiring live in
             src/lib/i18n.js; re-add a row like this and unforce 'en'.) ── */}
-        <div style={{ padding: '0 20px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ flex: 1, fontSize: 15, color: 'var(--gray-900)' }}>{t('Temperature')}</span>
+        <div style={{ padding: '0 20px 12px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ flex: 1, fontSize: 14.5, color: 'var(--gray-900)' }}>{t('Temperature')}</span>
           <div role="tablist" style={{ display: 'inline-flex', background: 'var(--gray-100)', borderRadius: 999, padding: 3 }}>
             {[['f', '°F'], ['c', '°C']].map(([code, label]) => {
               const on = getUnit() === code
@@ -15586,11 +15619,11 @@ function SettingsModal({
 
         {/* ── Account section ─────────────────────────────────────────── */}
         {user ? (
-          <div style={{ padding: '0 20px 18px' }}>
+          <div style={{ padding: '0 20px 14px' }}>
             <div style={{
               background: 'var(--gray-50)', border: '1px solid var(--gray-200)',
-              borderRadius: 14, padding: 16,
-              display: 'flex', alignItems: 'center', gap: 14,
+              borderRadius: 14, padding: 12,
+              display: 'flex', alignItems: 'center', gap: 12,
             }}>
               {/* Avatar with upload overlay */}
               <button
