@@ -32,7 +32,7 @@ import { venueImages } from './data/venueImages.js'
 // (idempotent by stable `seed_*` ids so re-runs don't duplicate).
 import { seedUserPlaces } from './data/places.js'
 import { t, t2, getLang, setLang, getUnit, setUnit, fmtTemp, unitLabel, dateLocale } from './lib/i18n.js'
-import { findSubwayLeg } from './data/subway.js'
+import { findSubwayLeg, findBusLeg } from './data/subway.js'
 import { hasPlus, usePlus, openPaywall, initIap, buyPlus, restorePlus, plusPrice } from './iap.js'
 
 // Safe localStorage write — Safari private mode and WKWebView storage pressure
@@ -9702,7 +9702,17 @@ function SubwayLegDetail({ leg }) {
           <Bullets lines={leg.transfer.lines} />
         </span>
       )}
-      <span style={{ display: 'block' }}>Get off at {leg.to}</span>
+      {/* Last-mile honesty: "Get off at Grand Central" hid a 10-min walk to
+          the UN. ≥5 min gets said out loud; a matching bus corridor becomes
+          a text-only alternative (route names are facts — no MTA symbols). */}
+      <span style={{ display: 'block' }}>
+        Get off at {leg.to}{leg.exitWalkMins >= 5 ? ` — then a ~${leg.exitWalkMins} min walk` : ''}
+      </span>
+      {leg.exitBus && (
+        <span style={{ display: 'block' }}>
+          …or the <b>{leg.exitBus.route}</b> bus toward {leg.exitBus.toward} from near {leg.to}
+        </span>
+      )}
     </span>
   )
 }
@@ -10295,6 +10305,10 @@ ${body}
                   for (let j = i - 1; j >= 0; j--) { const c = coordsOf(renderItems[j]); if (c) { prevCoord = c; break } }
                   const travel = i > 0 && prevCoord && myCoord ? estimateTravelCoords(prevCoord, myCoord) : null
                   const leg = travel?.mode === 'subway' ? findSubwayLeg(prevCoord, myCoord) : null
+                  // Same one-best-way rule as the live page (bus wins over
+                  // transfer-or-long-walk subway) — the views must agree.
+                  const bus = travel?.mode === 'subway' ? findBusLeg(prevCoord, myCoord) : null
+                  const busPrimary = !!(bus && (!leg || leg.transfer || (leg.exitWalkMins ?? 0) >= 8))
                   const travelConnector = travel && travel.mins > 0 ? (
                     <div style={{
                       display: 'flex', alignItems: 'flex-start', gap: 8,
@@ -10302,10 +10316,16 @@ ${body}
                       color: 'var(--gray-400)', fontSize: 11, fontWeight: 600,
                     }}>
                       <span style={{ width: 2, alignSelf: 'stretch', minHeight: 14, background: 'var(--gray-200)', marginLeft: 6 }} />
-                      <span style={{ lineHeight: '15px' }}>{travel.icon}</span>
+                      <span style={{ lineHeight: '15px' }}>{busPrimary ? '🚌' : travel.icon}</span>
                       <span style={{ lineHeight: '15px' }}>
-                        ~{travel.mins} min {travel.mode}
-                        <SubwayLegDetail leg={leg} />
+                        {busPrimary ? <>~{bus.mins} min bus</> : <>~{travel.mins} min {travel.mode}</>}
+                        {busPrimary ? (
+                          <span style={{ display: 'block', fontWeight: 500, color: 'var(--gray-500)', marginTop: 3, lineHeight: 1.6 }}>
+                            Take the <b>{bus.route}</b> bus ({bus.corridor}) toward {bus.toward}
+                          </span>
+                        ) : (
+                          <SubwayLegDetail leg={leg} />
+                        )}
                       </span>
                     </div>
                   ) : null
@@ -12058,6 +12078,11 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                 // Downtown · 5 Av/53 St → W 4 St". Transfer trips get no detail
                 // (null) rather than an invented route.
                 const _leg = _travel?.mode === 'subway' ? findSubwayLeg(_prevCoord, _myCoord) : null
+                // ONE best way, chosen by STRUCTURE (not fake minute-precision):
+                // a one-seat bus beats a subway trip that needs a transfer or a
+                // ≥8-min exit walk; a direct subway with a short walk beats all.
+                const _bus = _travel?.mode === 'subway' ? findBusLeg(_prevCoord, _myCoord) : null
+                const _busPrimary = !!(_bus && (!_leg || _leg.transfer || (_leg.exitWalkMins ?? 0) >= 8))
                 const travelConnector = _travel && _travel.mins > 0 ? (
                   <div style={{
                     display: 'flex', alignItems: 'flex-start', gap: 8,
@@ -12065,10 +12090,16 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                     color: 'var(--gray-400)', fontSize: 11, fontWeight: 600,
                   }}>
                     <span style={{ width: 2, alignSelf: 'stretch', minHeight: 14, background: 'var(--gray-200)', marginLeft: 6 }} />
-                    <span style={{ lineHeight: '15px' }}>{_travel.icon}</span>
+                    <span style={{ lineHeight: '15px' }}>{_busPrimary ? '🚌' : _travel.icon}</span>
                     <span style={{ lineHeight: '15px' }}>
-                      ~{_travel.mins} min {_travel.mode}
-                      <SubwayLegDetail leg={_leg} />
+                      {_busPrimary ? <>~{_bus.mins} min bus</> : <>~{_travel.mins} min {_travel.mode}</>}
+                      {_busPrimary ? (
+                        <span style={{ display: 'block', fontWeight: 500, color: 'var(--gray-500)', marginTop: 3, lineHeight: 1.6 }}>
+                          Take the <b>{_bus.route}</b> bus ({_bus.corridor}) toward {_bus.toward}
+                        </span>
+                      ) : (
+                        <SubwayLegDetail leg={_leg} />
+                      )}
                     </span>
                   </div>
                 ) : null

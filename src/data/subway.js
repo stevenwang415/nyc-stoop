@@ -36,15 +36,25 @@ export function findSubwayLeg(a, b) {
     const raw = towardLat > from[1] ? from[4] : from[5]
     return (raw || '').split('&')[0].trim()  // "Uptown & The Bronx" → "Uptown"
   }
+  // Last-mile honesty (2026-07-16): "Get off at Grand Central" hid a 10-min
+  // walk to the UN. Attach the exit-station→destination walk (and a bus hint
+  // when a corridor covers it) so the rider knows the WHOLE trip.
+  const finish = (leg, exitStation) => {
+    const exitWalkMi = _mi({ lat: exitStation[1], lng: exitStation[2] }, b)
+    leg.exitWalkMins = Math.round(exitWalkMi * 19)
+    const bus = findBusLeg({ lat: exitStation[1], lng: exitStation[2] }, b)
+    if (bus && leg.exitWalkMins >= 8) leg.exitBus = bus
+    return leg
+  }
   if (pairs.length) {
     pairs.sort((p, q) => p.walk - q.walk)
     const { x, y, shared } = pairs[0]
-    return {
+    return finish({
       lines: shared.slice(0, 3).join('·'),
       from: x.s[0],
       to: y.s[0],
       dir: dirOf(x.s, y.s[1]),
-    }
+    }, y.s)
   }
   // ── ONE-transfer fallback (2026-07-16) — no single line serves both ends,
   // so look for a transfer STATION T sharing a route with each side (e.g.
@@ -71,11 +81,64 @@ export function findSubwayLeg(a, b) {
   }
   if (!best) return null
   const { x, y, t, l1, l2 } = best
-  return {
+  return finish({
     lines: l1.slice(0, 3).join('·'),
     from: x.s[0],
     dir: dirOf(x.s, t[1]),
     transfer: { at: t[0], lines: l2.slice(0, 3).join('·'), dir: dirOf(t, y.s[1]) },
     to: y.s[0],
+  }, y.s)
+}
+
+// ── Bus corridors — TEXT-ONLY route hints (no MTA symbols, so no license
+// question; route designations are facts, same posture as our plain-text
+// subway letters). Curated Manhattan corridors where a bus genuinely beats
+// walking: the crosstown streets (subway deserts) + the 1st/2nd Av spine.
+// Each: [route, corridor label, endA {lat,lng,name}, endB {lat,lng,name}].
+const BUS_CORRIDORS = [
+  ['M14', '14th St crosstown', { lat: 40.7420, lng: -74.0080, name: 'the West Side' }, { lat: 40.7290, lng: -73.9760, name: 'the East Village' }],
+  ['M23', '23rd St crosstown', { lat: 40.7482, lng: -74.0075, name: 'Chelsea Piers' }, { lat: 40.7365, lng: -73.9745, name: 'the East Side' }],
+  ['M34', '34th St crosstown', { lat: 40.7573, lng: -74.0035, name: 'Javits Center' }, { lat: 40.7438, lng: -73.9715, name: 'the East Side' }],
+  ['M42', '42nd St crosstown', { lat: 40.7622, lng: -74.0006, name: 'the West Side' }, { lat: 40.7490, lng: -73.9698, name: '1 Av / the UN' }],
+  ['M57', '57th St crosstown', { lat: 40.7715, lng: -73.9925, name: 'the West Side' }, { lat: 40.7588, lng: -73.9640, name: 'the East Side' }],
+  ['M66', '65th/66th St crosstown', { lat: 40.7750, lng: -73.9860, name: 'Lincoln Center' }, { lat: 40.7645, lng: -73.9565, name: 'York Av' }],
+  ['M72', '72nd St crosstown', { lat: 40.7800, lng: -73.9855, name: 'the West Side' }, { lat: 40.7674, lng: -73.9545, name: 'York Av' }],
+  ['M79', '79th St crosstown', { lat: 40.7840, lng: -73.9815, name: 'the West Side' }, { lat: 40.7710, lng: -73.9490, name: 'East End Av' }],
+  ['M86', '86th St crosstown', { lat: 40.7890, lng: -73.9780, name: 'the West Side' }, { lat: 40.7760, lng: -73.9450, name: 'East End Av' }],
+  ['M96', '96th St crosstown', { lat: 40.7945, lng: -73.9740, name: 'the West Side' }, { lat: 40.7822, lng: -73.9445, name: 'the East Side' }],
+  ['M15', '1st/2nd Av', { lat: 40.7218, lng: -73.9880, name: 'Houston St' }, { lat: 40.7838, lng: -73.9470, name: '96th St' }],
+]
+
+// Perpendicular distance (miles) from point p to segment a–b, plus the
+// position t along the segment — local flat projection is fine at NYC scale.
+function _distToSegMi(p, a, b) {
+  const kx = Math.cos(((a.lat + b.lat) / 2) * Math.PI / 180) * 69.17
+  const ky = 69.05
+  const ax = a.lng * kx, ay = a.lat * ky
+  const bx = b.lng * kx, by = b.lat * ky
+  const px = p.lng * kx, py = p.lat * ky
+  const dx = bx - ax, dy = by - ay
+  const L2 = dx * dx + dy * dy
+  let t = L2 ? ((px - ax) * dx + (py - ay) * dy) / L2 : 0
+  t = Math.max(0, Math.min(1, t))
+  return { d: Math.hypot(px - (ax + t * dx), py - (ay + t * dy)), t }
+}
+
+/** Text-only bus suggestion between two coordinates, or null. Both points
+ *  must sit on the same corridor (≤0.16 mi ≈ 1.5 avenue blocks) and be far
+ *  enough apart that a bus beats walking (≥0.35 mi). */
+export function findBusLeg(a, b) {
+  if (!a || !b) return null
+  let best = null
+  for (const [route, corridor, A, B] of BUS_CORRIDORS) {
+    const pa = _distToSegMi(a, A, B)
+    const pb = _distToSegMi(b, A, B)
+    if (pa.d > 0.16 || pb.d > 0.16) continue
+    const along = Math.abs(pa.t - pb.t) * _mi(A, B)
+    if (along < 0.35) continue // three blocks — just walk
+    const toward = (pb.t > pa.t ? B : A).name
+    const score = pa.d + pb.d
+    if (!best || score < best.score) best = { route, corridor, toward, score, mins: Math.round(5 + along * 6) }
   }
+  return best ? { route: best.route, corridor: best.corridor, toward: best.toward, mins: best.mins } : null
 }
