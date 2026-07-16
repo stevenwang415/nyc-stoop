@@ -9710,7 +9710,7 @@ function SubwayLegDetail({ leg }) {
       </span>
       {leg.exitBus && (
         <span style={{ display: 'block' }}>
-          …or the <b>{leg.exitBus.route}</b> bus toward {leg.exitBus.toward} from near {leg.to}
+          …or the <b>{leg.exitBus.route}</b> bus: on near {leg.exitBus.on}, off near {leg.exitBus.off}
         </span>
       )}
     </span>
@@ -10321,7 +10321,8 @@ ${body}
                         {busPrimary ? <>~{bus.mins} min bus</> : <>~{travel.mins} min {travel.mode}</>}
                         {busPrimary ? (
                           <span style={{ display: 'block', fontWeight: 500, color: 'var(--gray-500)', marginTop: 3, lineHeight: 1.6 }}>
-                            Take the <b>{bus.route}</b> bus ({bus.corridor}) toward {bus.toward}
+                            <span style={{ display: 'block' }}>Take the <b>{bus.route}</b> bus toward {bus.toward}</span>
+                            <span style={{ display: 'block' }}>Get on near {bus.on} · off near {bus.off}</span>
                           </span>
                         ) : (
                           <SubwayLegDetail leg={leg} />
@@ -10987,11 +10988,27 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
   //   - google_place       → convert to user_venue via addUserVenue, then assign
   function handleAddStopToDay(item) {
     if (addStopToDayIdx == null) return
+    // "Add a place" must put the place IN THE PLAN, not just in saves. The
+    // old code only saved-if-unsaved — so re-adding a place the user had
+    // ✕-removed earlier (already saved, just deselected) did nothing visible
+    // except nudging the meal anchor, which read as "my add replaced a
+    // restaurant". Selection is now explicit for every path.
+    const ensureInPlan = (id) => {
+      setPlanSelection(prev => {
+        if (prev.has(id)) return prev
+        const next = new Set(prev)
+        next.add(id)
+        lsSet('nyc_plan_sel', JSON.stringify([...next]))
+        return next
+      })
+    }
     if (item.type === 'venue') {
       if (!savedItems[`venue:${item.id}`]) toggleSave('venue', item.id)
+      ensureInPlan(item.id)
       moveStopToDay(item.id, addStopToDayIdx)
       setNewlyAddedStopId(item.id)
     } else if (item.type === 'user_venue') {
+      ensureInPlan(item.id)
       moveStopToDay(item.id, addStopToDayIdx)
       setNewlyAddedStopId(item.id)
     } else if (item.type === 'google_place') {
@@ -11012,7 +11029,7 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
         source: 'google',
         googlePlaceId: item.placeId,
       })
-      if (newId) { moveStopToDay(newId, addStopToDayIdx); setNewlyAddedStopId(newId) }
+      if (newId) { ensureInPlan(newId); moveStopToDay(newId, addStopToDayIdx); setNewlyAddedStopId(newId) }
     }
     setAddStopToDayIdx(null)
   }
@@ -12095,7 +12112,8 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                       {_busPrimary ? <>~{_bus.mins} min bus</> : <>~{_travel.mins} min {_travel.mode}</>}
                       {_busPrimary ? (
                         <span style={{ display: 'block', fontWeight: 500, color: 'var(--gray-500)', marginTop: 3, lineHeight: 1.6 }}>
-                          Take the <b>{_bus.route}</b> bus ({_bus.corridor}) toward {_bus.toward}
+                          <span style={{ display: 'block' }}>Take the <b>{_bus.route}</b> bus toward {_bus.toward}</span>
+                          <span style={{ display: 'block' }}>Get on near {_bus.on} · off near {_bus.off}</span>
                         </span>
                       ) : (
                         <SubwayLegDetail leg={_leg} />

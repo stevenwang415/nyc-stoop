@@ -94,19 +94,35 @@ export function findSubwayLeg(a, b) {
 // question; route designations are facts, same posture as our plain-text
 // subway letters). Curated Manhattan corridors where a bus genuinely beats
 // walking: the crosstown streets (subway deserts) + the 1st/2nd Av spine.
-// Each: [route, corridor label, endA {lat,lng,name}, endB {lat,lng,name}].
+// Each: [route, corridor label, endA {lat,lng,name}, endB {lat,lng,name},
+// marks]. Marks are stop anchors as [t-along-corridor, label] — calibrated
+// against the subway-station coords above where a station sits on the street
+// (Times Sq, Bryant Pk, Grand Central on 42nd, the 86 St stations, …), so
+// "get on near X" names the right block. Stops run every 2–3 blocks, hence
+// the "near" phrasing — we name anchors, not exact bus poles.
 const BUS_CORRIDORS = [
-  ['M14', '14th St crosstown', { lat: 40.7420, lng: -74.0080, name: 'the West Side' }, { lat: 40.7290, lng: -73.9760, name: 'the East Village' }],
-  ['M23', '23rd St crosstown', { lat: 40.7482, lng: -74.0075, name: 'Chelsea Piers' }, { lat: 40.7365, lng: -73.9745, name: 'the East Side' }],
-  ['M34', '34th St crosstown', { lat: 40.7573, lng: -74.0035, name: 'Javits Center' }, { lat: 40.7438, lng: -73.9715, name: 'the East Side' }],
-  ['M42', '42nd St crosstown', { lat: 40.7622, lng: -74.0006, name: 'the West Side' }, { lat: 40.7490, lng: -73.9698, name: '1 Av / the UN' }],
-  ['M57', '57th St crosstown', { lat: 40.7715, lng: -73.9925, name: 'the West Side' }, { lat: 40.7588, lng: -73.9640, name: 'the East Side' }],
-  ['M66', '65th/66th St crosstown', { lat: 40.7750, lng: -73.9860, name: 'Lincoln Center' }, { lat: 40.7645, lng: -73.9565, name: 'York Av' }],
-  ['M72', '72nd St crosstown', { lat: 40.7800, lng: -73.9855, name: 'the West Side' }, { lat: 40.7674, lng: -73.9545, name: 'York Av' }],
-  ['M79', '79th St crosstown', { lat: 40.7840, lng: -73.9815, name: 'the West Side' }, { lat: 40.7710, lng: -73.9490, name: 'East End Av' }],
-  ['M86', '86th St crosstown', { lat: 40.7890, lng: -73.9780, name: 'the West Side' }, { lat: 40.7760, lng: -73.9450, name: 'East End Av' }],
-  ['M96', '96th St crosstown', { lat: 40.7945, lng: -73.9740, name: 'the West Side' }, { lat: 40.7822, lng: -73.9445, name: 'the East Side' }],
-  ['M15', '1st/2nd Av', { lat: 40.7218, lng: -73.9880, name: 'Houston St' }, { lat: 40.7838, lng: -73.9470, name: '96th St' }],
+  ['M14', '14th St crosstown', { lat: 40.7420, lng: -74.0080, name: 'the West Side' }, { lat: 40.7290, lng: -73.9760, name: 'the East Village' },
+    [[0, '14 St & 10 Av'], [0.13, '14 St & 8 Av'], [0.32, '14 St & 6 Av'], [0.53, 'Union Sq'], [0.70, '14 St & 3 Av'], [0.85, '14 St & 1 Av'], [1, '14 St & Av C']]],
+  ['M23', '23rd St crosstown', { lat: 40.7482, lng: -74.0075, name: 'Chelsea Piers' }, { lat: 40.7365, lng: -73.9745, name: 'the East Side' },
+    [[0, 'Chelsea Piers'], [0.20, '23 St & 8 Av'], [0.45, '23 St & 6 Av'], [0.59, '23 St & Broadway'], [0.71, '23 St & Park Av S'], [1, '23 St & 1 Av']]],
+  ['M34', '34th St crosstown', { lat: 40.7573, lng: -74.0035, name: 'Javits Center' }, { lat: 40.7438, lng: -73.9715, name: 'the East Side' },
+    [[0, 'Javits Center'], [0.37, '34 St & 8 Av (Penn)'], [0.57, 'Herald Sq'], [0.70, '34 St & 5 Av'], [0.83, '34 St & Park Av'], [1, '34 St & 1 Av']]],
+  ['M42', '42nd St crosstown', { lat: 40.7622, lng: -74.0006, name: 'the West Side' }, { lat: 40.7490, lng: -73.9698, name: '1 Av / the UN' },
+    [[0, '42 St & 12 Av'], [0.35, '42 St & 8 Av'], [0.49, 'Times Sq'], [0.62, '42 St & 5 Av'], [0.77, 'Grand Central'], [1, '42 St & 1 Av (UN)']]],
+  ['M57', '57th St crosstown', { lat: 40.7715, lng: -73.9925, name: 'the West Side' }, { lat: 40.7588, lng: -73.9640, name: 'the East Side' },
+    [[0, '57 St & 11 Av'], [0.35, '57 St & 8 Av'], [0.54, '57 St & 7 Av'], [0.59, '57 St & 6 Av'], [0.72, '57 St & 5 Av'], [0.86, '57 St & Lex'], [1, '57 St & 1 Av']]],
+  ['M66', '65th/66th St crosstown', { lat: 40.7750, lng: -73.9860, name: 'Lincoln Center' }, { lat: 40.7645, lng: -73.9565, name: 'York Av' },
+    [[0, '66 St & West End Av'], [0.15, 'Lincoln Center'], [0.77, '66 St & 5 Av'], [0.91, '66 St & Lex'], [1, '66 St & York Av']]],
+  ['M72', '72nd St crosstown', { lat: 40.7800, lng: -73.9855, name: 'the West Side' }, { lat: 40.7674, lng: -73.9545, name: 'York Av' },
+    [[0, '72 St & Riverside'], [0.12, '72 St & Broadway'], [0.64, '72 St & 5 Av'], [0.89, '72 St & 2 Av'], [1, '72 St & York Av']]],
+  ['M79', '79th St crosstown', { lat: 40.7840, lng: -73.9815, name: 'the West Side' }, { lat: 40.7710, lng: -73.9490, name: 'East End Av' },
+    [[0, '79 St & Broadway'], [0.30, '79 St & Central Park West'], [0.53, '79 St & 5 Av'], [0.69, '79 St & Lex'], [0.88, '79 St & 1 Av'], [1, '79 St & East End Av']]],
+  ['M86', '86th St crosstown', { lat: 40.7890, lng: -73.9780, name: 'the West Side' }, { lat: 40.7760, lng: -73.9450, name: 'East End Av' },
+    [[0.03, '86 St & Broadway'], [0.24, '86 St & Central Park West'], [0.52, '86 St & 5 Av'], [0.73, '86 St & Lex'], [0.86, '86 St & 2 Av'], [1, '86 St & East End Av']]],
+  ['M96', '96th St crosstown', { lat: 40.7945, lng: -73.9740, name: 'the West Side' }, { lat: 40.7822, lng: -73.9445, name: 'the East Side' },
+    [[0.05, '96 St & Broadway'], [0.23, '96 St & Central Park West'], [0.41, '96 St & 5 Av'], [0.72, '96 St & Lex'], [0.83, '96 St & 2 Av'], [1, '96 St & 1 Av']]],
+  ['M15', '1st/2nd Av', { lat: 40.7218, lng: -73.9880, name: 'Houston St' }, { lat: 40.7838, lng: -73.9470, name: '96th St' },
+    [[0, 'Houston St'], [0.15, '14 St'], [0.24, '23 St'], [0.36, '34 St'], [0.44, '42 St'], [0.59, '57 St'], [0.74, '72 St'], [0.89, '86 St'], [1, '96 St']]],
 ]
 
 // Perpendicular distance (miles) from point p to segment a–b, plus the
@@ -130,15 +146,20 @@ function _distToSegMi(p, a, b) {
 export function findBusLeg(a, b) {
   if (!a || !b) return null
   let best = null
-  for (const [route, corridor, A, B] of BUS_CORRIDORS) {
+  for (const [route, corridor, A, B, marks] of BUS_CORRIDORS) {
     const pa = _distToSegMi(a, A, B)
     const pb = _distToSegMi(b, A, B)
     if (pa.d > 0.16 || pb.d > 0.16) continue
     const along = Math.abs(pa.t - pb.t) * _mi(A, B)
     if (along < 0.35) continue // three blocks — just walk
+    // Board/alight anchors: the nearest named stop mark to each end. Same
+    // mark for both = trip shorter than our stop resolution → not worth a bus.
+    const markAt = (t) => marks.reduce((m, cur) => Math.abs(cur[0] - t) < Math.abs(m[0] - t) ? cur : m)[1]
+    const on = markAt(pa.t), off = markAt(pb.t)
+    if (on === off) continue
     const toward = (pb.t > pa.t ? B : A).name
     const score = pa.d + pb.d
-    if (!best || score < best.score) best = { route, corridor, toward, score, mins: Math.round(5 + along * 6) }
+    if (!best || score < best.score) best = { route, corridor, toward, on, off, score, mins: Math.round(5 + along * 6) }
   }
-  return best ? { route: best.route, corridor: best.corridor, toward: best.toward, mins: best.mins } : null
+  return best ? { route: best.route, corridor: best.corridor, toward: best.toward, on: best.on, off: best.off, mins: best.mins } : null
 }
