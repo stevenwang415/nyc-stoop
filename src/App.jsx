@@ -7581,6 +7581,7 @@ function VenueCard({ venue }) {
 // No emoji as UI icons — emoji stay allowed inside content only.
 const NAV_ICON_PATHS = {
   compass:  <><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></>,
+  fileText: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></>,
   mapPin:   <><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></>,
   utensils: <><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></>,
   moon:     <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>,
@@ -15232,9 +15233,10 @@ function switchDataProfile(nextId) {
   // 4) Hard re-init — dozens of states seed from localStorage at mount.
   window.location.reload()
 }
-// Hosted on the app's own Vercel site (deploys with every git push). The old
-// GitHub Pages URL went blank when the repo visibility changed (2026-07-16).
-const PRIVACY_URL = 'https://nyc-stoop.vercel.app/privacy.html'
+// Published Notion pages (2026-07-16) — one source of truth, no repo/deploy
+// dependency. The same privacy URL goes in App Store Connect.
+const PRIVACY_URL = 'https://island-lime-fa1.notion.site/NYC-Stoop-Privacy-Policy-39f129b450be81d6bcc0f966ea97c410'
+const TERMS_URL = 'https://island-lime-fa1.notion.site/NYC-Stoop-Terms-of-Use-39f129b450be813f8524c05685743d60'
 
 // ── Image credits — CC BY / BY-SA attribution for the Wikimedia Commons
 // photography (license terms ask for attribution WITH the work; a credits
@@ -15732,9 +15734,15 @@ function SettingsModal({
             <span style={labelStyle}>Import from Google Maps</span>
             <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>›</span>
           </button>
+          {/* Privacy + Terms — published Notion pages, one source of truth. */}
           <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer" style={{ ...rowStyle, textDecoration: 'none' }}>
             <span style={{ display: 'inline-flex', color: 'var(--gray-500)' }}><NavIcon name="lock" size={18} /></span>
             <span style={labelStyle}>Privacy policy</span>
+            <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>↗</span>
+          </a>
+          <a href={TERMS_URL} target="_blank" rel="noopener noreferrer" style={{ ...rowStyle, textDecoration: 'none' }}>
+            <span style={{ display: 'inline-flex', color: 'var(--gray-500)' }}><NavIcon name="fileText" size={18} /></span>
+            <span style={labelStyle}>Terms of use</span>
             <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>↗</span>
           </a>
           <button onClick={() => onOpenFeedback?.()} style={rowStyle}>
