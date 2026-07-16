@@ -11002,14 +11002,29 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
         return next
       })
     }
+    // The just-added card goes LAST in the day (with its NEW badge), instead
+    // of being slotted by period — "where did it go?" answered by "the end".
+    // Also makes re-adding an already-in-plan place visibly DO something.
+    const placeLast = (id) => {
+      const dayIdx = addStopToDayIdx
+      const day = days[dayIdx]
+      setDayItemOrders(prev => {
+        const base = prev[dayIdx] ?? (day ? computeDayPlan(day, dayIdx).defaultItemIds : [])
+        const next = { ...prev, [dayIdx]: [...base.filter(x => x !== id), id] }
+        try { lsSet('nyc_day_item_orders', JSON.stringify(next)) } catch {}
+        return next
+      })
+    }
     if (item.type === 'venue') {
       if (!savedItems[`venue:${item.id}`]) toggleSave('venue', item.id)
       ensureInPlan(item.id)
       moveStopToDay(item.id, addStopToDayIdx)
+      placeLast(item.id)
       setNewlyAddedStopId(item.id)
     } else if (item.type === 'user_venue') {
       ensureInPlan(item.id)
       moveStopToDay(item.id, addStopToDayIdx)
+      placeLast(item.id)
       setNewlyAddedStopId(item.id)
     } else if (item.type === 'google_place') {
       // Persist Google-sourced place as a user_venue. addUserVenue returns the
@@ -11029,7 +11044,7 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
         source: 'google',
         googlePlaceId: item.placeId,
       })
-      if (newId) { ensureInPlan(newId); moveStopToDay(newId, addStopToDayIdx); setNewlyAddedStopId(newId) }
+      if (newId) { ensureInPlan(newId); moveStopToDay(newId, addStopToDayIdx); placeLast(newId); setNewlyAddedStopId(newId) }
     }
     setAddStopToDayIdx(null)
   }
@@ -12041,7 +12056,9 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                 fontSize: 11, fontWeight: 800, padding: '4px 10px', borderRadius: 20,
                 letterSpacing: '0.04em',
               }}>{getDayLabel(dayIdx, tripStartDate).toUpperCase()}</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-700)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{day.area}</div>
+              {/* Area label removed 2026-07-16 — merged multi-cluster names
+                  ("Downtown Village + Upper East Side") read as noise; the
+                  date is the identity of the day. */}
               {/* One-line header: pill · area · forecast (right-aligned). The old
                   "drag to reorder" hint is gone — the ▲⠿▼ rails on every card
                   are their own explanation. Forecast needs an arrival date and
@@ -12476,11 +12493,6 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                                   padding: '2px 7px', borderRadius: 999,
                                 }}>{t('NEW')}</span>
                               )}
-                              <span style={{
-                                fontSize: 9, fontWeight: 700, letterSpacing: '0.05em',
-                                textTransform: 'uppercase', color: 'var(--gray-500)',
-                                background: 'var(--gray-100)', padding: '2px 6px', borderRadius: 4,
-                              }}>Added by you</span>
                             </div>
                             <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 3 }}>{stop.neighborhood}</div>
                             {stop.blurb && (
