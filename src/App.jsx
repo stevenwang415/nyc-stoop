@@ -10684,7 +10684,14 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     // Free tier: a full 1-day plan — Auto's extra days and 2–7 day trips are
     // Plus. Clamping HERE means everything downstream (map, summaries, save,
     // saved plans) is consistently one day; no scattered checks.
-    if (!plusOwned) return _rawClusters.length > 1 ? capDays(_rawClusters, 1) : _rawClusters
+    if (!plusOwned) {
+      const capped = _rawClusters.length > 1 ? capDays(_rawClusters, 1) : _rawClusters.slice()
+      // Keep the day itself alive when a chosen trip length exists — the
+      // orphan-dinner rule needs a day to hang the meal on after the last
+      // stop is ✕'d (matches the padding the paid path does below).
+      if (tripDays && capped.length < 1) capped.push({ area: 'Day 1', stops: [] })
+      return capped
+    }
     if (!tripDays) return _rawClusters
     if (_rawClusters.length > tripDays) return capDays(_rawClusters, tripDays)
     const out = _rawClusters.slice()
@@ -11218,6 +11225,14 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     })
     if (hasDaytime2 && !li2) defaultItemIds.push('__lunch__')
     if (!di2 && hasEvening2) defaultItemIds.push('__dinner__')
+    // Orphan-dinner rule: ✕ing the LAST place of a 1-day trip keeps the dinner
+    // — "I don't want this venue" shouldn't also cancel the meal (and with
+    // restore chips gone, a vanished dinner is unrecoverable). Scoped to
+    // single-day trips only: multi-day padding creates empty days that must
+    // NOT sprout phantom dinner cards.
+    if (sortedDayStops.length === 0 && days.length === 1 && dinnerRestaurants[dayIdx]) {
+      defaultItemIds.push('__dinner__')
+    }
     // ✕-removed meals: filter ONCE here, after every insertion path (meals get
     // pushed both inline-between-stops and as fallbacks above — guarding only
     // one path left ghost cards on days with saved orders).
@@ -15522,11 +15537,11 @@ function SettingsModal({
     window.location.reload()
   }
 
-  // 11px vertical padding (was 14) — with 12 rows the sheet ran past the
-  // screen; still comfortably over the 44pt tap-target floor.
+  // 15px vertical padding — the row CULL (12 → 7 rows, 2026-07-16) bought
+  // back the room to let each option breathe.
   const rowStyle = {
     width: '100%', display: 'flex', alignItems: 'center', gap: 12,
-    padding: '11px 18px', background: 'var(--white)',
+    padding: '15px 18px', background: 'var(--white)',
     border: 'none', borderBottom: '1px solid var(--gray-100)',
     cursor: 'pointer', textAlign: 'left',
     fontFamily: 'inherit', fontSize: 14.5, color: 'var(--gray-900)',
@@ -15810,7 +15825,7 @@ function SettingsModal({
               borderBottom: '1px solid var(--gray-100)',
             }}>
               <div style={{ fontSize: 12, color: 'var(--gray-500)', lineHeight: 1.5, marginBottom: 12 }}>
-                {t('For the friends who shared their favorite corners of New York — places, tips, and ideas.')}
+                {t('To my dearest friends, thanks for sharing your favorite corners of New YOrk. This App cannot be built without each of you!')}
               </div>
               <div style={{
                 display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px',
