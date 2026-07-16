@@ -1084,7 +1084,12 @@ function BottomSheet({ open, onClose, children, defaultMode = 'peek', fit = fals
           <div style={{ padding: '10px 0 2px', flexShrink: 0, cursor: 'grab' }}>
             <div style={{ width: 40, height: 5, borderRadius: 999, background: 'var(--gray-300)', margin: '0 auto' }} />
           </div>
-          <div ref={fitScrollRef} style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain' }}>{children}</div>
+          {/* touchAction:'none' HERE too — touch-action doesn't inherit, so
+              without it the browser claimed body-swipes for native scroll and
+              pointer-cancelled the dismiss gesture (sheet only closed from the
+              handle on phones). fitMove scrolls this div manually; desktop
+              wheel scrolling is unaffected (touch-action is touch-only). */}
+          <div ref={fitScrollRef} style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', touchAction: 'none' }}>{children}</div>
         </div>
       </div>
     ), document.body)
