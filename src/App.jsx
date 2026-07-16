@@ -10592,6 +10592,10 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
       if (w?.venueId) venueIdSet.add(w.venueId)
     }
   })
+  // Plan-my-night picks are plan-only stops (nyc_plan_extra_ids) — they join
+  // the itinerary WITHOUT ever touching saves / My Saved Places.
+  const _extraIds = (() => { try { return JSON.parse(localStorage.getItem('nyc_plan_extra_ids') || '[]') } catch { return [] } })()
+  if (Array.isArray(_extraIds)) _extraIds.forEach(id => venueIdSet.add(id))
   // Accept curated venues OR user-added venues; everything else is filtered out.
   const allVenueIds = [...venueIdSet].filter(id => !!venues[id] || !!userVenues[id])
 
@@ -10618,6 +10622,17 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
       })
     }
   }, [allVenueIds.join(',')])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Prune plan-only extras the user has since removed from the plan — checked
+  // once per visit so an unchecked pick doesn't haunt the stops list forever.
+  React.useEffect(() => {
+    try {
+      const extras = JSON.parse(localStorage.getItem('nyc_plan_extra_ids') || '[]')
+      if (!Array.isArray(extras) || extras.length === 0) return
+      const kept = extras.filter(id => planSelection.has(id))
+      if (kept.length !== extras.length) lsSet('nyc_plan_extra_ids', JSON.stringify(kept))
+    } catch {}
+  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggleVenueInPlan(id) {
     const willBeInPlan = !planSelection.has(id)
@@ -16370,9 +16385,10 @@ export default function App() {
       ids = fb.filter(id => venues[id]).slice(0, wantEvening ? 1 : 3)
     }
 
-    // Add the picks to saves (non-destructive) so the itinerary can include them.
-    const alreadySaved = new Set(Object.values(savedItems || {}).filter(i => i?.type === 'venue').map(i => i.id))
-    ids.forEach(id => { if (!alreadySaved.has(id)) toggleSave('venue', id) })
+    // Picks are PLAN stops, not saves (2026-07-16): they flow through
+    // nyc_plan_extra_ids so My Saved Places stays purely what the user
+    // hearted by hand. (They used to be toggleSave'd in, which polluted it.)
+    try { lsSet('nyc_plan_extra_ids', JSON.stringify(ids)) } catch {}
 
     // Focus the plan on JUST these picks. My Trip builds its itinerary from the
     // plan SELECTION (nyc_plan_sel), not every saved venue — so by setting the
