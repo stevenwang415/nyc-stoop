@@ -142,3 +142,43 @@ is already open).
    with a tip, the Brooklyn map sheet, My Trip with a pinned event.
 4. Submit. If 4.2-rejected, respond citing the native-feeling features and the
    curated dataset; apps like this pass on appeal regularly.
+
+---
+
+## In-App Purchase — $3.99 lifetime unlock (added 2026-07-16)
+
+**Model:** free download + one non-consumable IAP.
+Free forever: Explore/Events/Map, saving places, a full 1-day routed plan
+(meals included), 1 saved plan. Unlock: multi-day trips (2–7 days),
+unlimited saved plans, PDF export. Web (Vercel) stays fully free — gates are
+native-iOS only. Code: `src/iap.js` (StoreKit via cordova-plugin-purchase),
+`PaywallSheet` in App.jsx, gates in PlanScreen + SavedPlanSummary, Settings →
+"Lifetime unlock" row (shows ✓ when owned). Entitlement key `nyc_plus_v1` is
+profile-global (never locked by account switching).
+
+**Your setup steps (in order):**
+1. `npm install` (pulls cordova-plugin-purchase) → `npm run build && npx cap sync ios`.
+2. Xcode → target → Signing & Capabilities → **+ In-App Purchase** capability.
+3. App Store Connect → your app → **Features → In-App Purchases → +**:
+   - Type: **Non-Consumable**
+   - Product ID: **`com.nycstoop.app.lifetime`** (must match `src/iap.js` exactly)
+   - Reference name: NYC Stoop Lifetime Unlock
+   - Price: $3.99 tier
+   - Display name: "Lifetime unlock" · Description: "Multi-day trips,
+     unlimited saved plans, and PDF export — yours forever."
+   - Review screenshot: any screenshot of the paywall sheet.
+4. Paid Apps agreement: ASC → Business — must be **signed with banking + tax
+   info complete**, or the IAP can't go on sale (common first-submission trap).
+5. Sandbox test: Settings app → App Store → Sandbox Account (create a sandbox
+   tester in ASC → Users and Access → Sandbox). In the app: tap a 🔒 pill →
+   paywall → Unlock → sandbox purchase → verify pills unlock, 2nd plan saves,
+   PDF exports. Then **Restore purchases** after deleting + reinstalling.
+6. Submit the IAP **together with the app version** (select it on the version
+   page under In-App Purchases) — a lone IAP won't be reviewed.
+
+**Testing gates in a desktop browser:** set `nyc_iap_gate_test = 1` in
+localStorage to force the free tier; `nyc_plus_v1 = 1` simulates owned.
+
+**Review-notes addition:** "The app is free with one optional non-consumable
+IAP ($3.99 lifetime) unlocking multi-day planning, unlimited saved plans, and
+PDF export. All content is browsable without purchase or sign-in."

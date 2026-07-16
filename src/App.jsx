@@ -33,6 +33,7 @@ import { venueImages } from './data/venueImages.js'
 import { seedUserPlaces } from './data/places.js'
 import { t, t2, getLang, setLang, getUnit, setUnit, fmtTemp, unitLabel, dateLocale } from './lib/i18n.js'
 import { findSubwayLeg } from './data/subway.js'
+import { hasPlus, usePlus, openPaywall, initIap, buyPlus, restorePlus, plusPrice } from './iap.js'
 
 // Safe localStorage write — Safari private mode and WKWebView storage pressure
 // can throw on setItem; a failed persist should never crash the app.
@@ -9886,8 +9887,91 @@ function TabTutorial({ tutKey, title, rows }) {
   )
 }
 
+// ── Paywall — the ONE place the $3.99 lifetime unlock is sold. Honest sheet:
+// what's free forever on top (most of the app), what the unlock adds below.
+// Purchase + restore go through StoreKit (iap.js); the sheet closes itself
+// when the entitlement lands. Rendered once at the app root, opened from
+// anywhere via openPaywall().
+function PaywallSheet({ onClose }) {
+  const owned = usePlus()
+  const [busy, setBusy] = React.useState(null) // 'buy' | 'restore' | null
+  const [err, setErr] = React.useState('')
+  React.useEffect(() => {
+    if (owned) { const id = setTimeout(onClose, 1100); return () => clearTimeout(id) }
+  }, [owned, onClose])
+  const run = async (which, fn) => {
+    setErr(''); setBusy(which)
+    try {
+      const r = await fn()
+      if (which === 'restore' && !r && !hasPlus()) setErr('No previous purchase found for this Apple ID.')
+    } catch (e) { setErr(e?.message || 'Something went wrong. Please try again.') }
+    finally { setBusy(null) }
+  }
+  const Row = ({ icon, children, dim }) => (
+    <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start', marginBottom: 8 }}>
+      <span style={{ fontSize: 13, lineHeight: 1.45, flexShrink: 0, width: 16, textAlign: 'center' }}>{icon}</span>
+      <span style={{ fontSize: 13, color: dim ? 'var(--gray-500)' : 'var(--ink)', lineHeight: 1.45 }}>{children}</span>
+    </div>
+  )
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, zIndex: 3200,
+      background: 'rgba(33,27,20,0.5)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 22,
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: 'var(--card, #FBF6EC)', borderRadius: 20, padding: '24px 20px 18px',
+        maxWidth: 340, width: '100%', boxShadow: '0 18px 50px rgba(0,0,0,0.4)',
+        maxHeight: '86vh', overflowY: 'auto',
+      }}>
+        <div style={{ fontFamily: 'var(--serif)', fontSize: 22, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.15 }}>
+          The whole city, forever
+        </div>
+        <div style={{ fontSize: 12.5, color: 'var(--gray-500)', margin: '6px 0 16px' }}>
+          One-time {plusPrice()} — no subscription, ever.
+        </div>
+        <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--gray-400)', marginBottom: 8 }}>
+          Free forever
+        </div>
+        <Row icon="✓" dim>Explore, Events & the Map — all of it</Row>
+        <Row icon="✓" dim>Save places and events</Row>
+        <Row icon="✓" dim>A full 1-day routed plan, meals included</Row>
+        <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--accent-text, #BE4D2B)', margin: '14px 0 8px' }}>
+          With the unlock
+        </div>
+        <Row icon="🗓️">Multi-day trips — plan 2 to 7 days</Row>
+        <Row icon="💾">Unlimited saved plans</Row>
+        <Row icon="⬇️">Download your schedule as a PDF</Row>
+        {owned ? (
+          <div style={{ marginTop: 16, textAlign: 'center', fontSize: 14.5, fontWeight: 700, color: '#15803d', padding: '12px 0' }}>
+            ✓ Unlocked — thank you!
+          </div>
+        ) : (
+          <>
+            <button disabled={!!busy} onClick={() => run('buy', buyPlus)} style={{
+              width: '100%', marginTop: 16, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+              background: 'var(--accent)', color: '#fff', borderRadius: 12,
+              padding: '13px 16px', fontSize: 14.5, fontWeight: 700, opacity: busy ? 0.6 : 1,
+            }}>{busy === 'buy' ? 'Opening App Store…' : `Unlock for ${plusPrice()}`}</button>
+            <button disabled={!!busy} onClick={() => run('restore', restorePlus)} style={{
+              width: '100%', marginTop: 8, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+              background: 'none', color: 'var(--gray-500)', borderRadius: 12,
+              padding: '10px 16px', fontSize: 12.5, fontWeight: 600,
+            }}>{busy === 'restore' ? 'Restoring…' : 'Restore purchases'}</button>
+          </>
+        )}
+        {err && <div style={{ marginTop: 8, fontSize: 12, color: '#b91c1c', textAlign: 'center', lineHeight: 1.4 }}>{err}</div>}
+        <div style={{ marginTop: 10, fontSize: 10.5, color: 'var(--gray-400)', textAlign: 'center', lineHeight: 1.5 }}>
+          One-time purchase tied to your Apple ID — restores free on any device.
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── SavedPlanSummary: read-only view of the plan the user just saved ──────────
 function SavedPlanSummary({ snapshot, onBack }) {
+  const plusOwned = usePlus() // PDF export is a Plus feature
   const [shareCopied, setShareCopied] = React.useState(false)
   // Land at the TOP of the plan — this view replaces a page the user had
   // scrolled deep, and inheriting that scroll position opened it at the
@@ -10249,14 +10333,15 @@ ${body}
           breath, nothing more; anything extra reads as a void on short plans. */}
       <div style={{ padding: '4px 20px calc(60px + env(safe-area-inset-bottom, 0px))' }}>
         <button
-          onClick={exportSavedPlanPdf}
+          onClick={() => { if (!plusOwned) { openPaywall('pdf'); return } exportSavedPlanPdf() }}
           style={{
             width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             padding: '14px', borderRadius: 12, background: 'var(--accent)', color: '#fff',
             border: 'none', cursor: 'pointer', fontSize: 15, fontWeight: 700, marginBottom: 10, fontFamily: 'inherit',
+            opacity: plusOwned ? 1 : 0.85,
           }}
         >
-          <span style={{ fontSize: 16 }}>⬇</span><span>Download schedule (PDF)</span>
+          <span style={{ fontSize: 16 }}>{plusOwned ? '⬇' : '🔒'}</span><span>Download schedule (PDF)</span>
         </button>
         {(() => {
           const url = buildRouteUrl()
@@ -10385,6 +10470,9 @@ function SavedEventsSection({ hiddenIds = null }) {
 }
 
 function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, setVenueNote = () => {}, userVenues = {}, removeUserVenue = () => {}, addUserVenue = () => null, addPlaceFromHeader = () => {}, weather = null, savedPlacesReq = 0, onBackToSettings = null, onOpenFeedback = () => {} }) {
+  // $3.99 lifetime unlock: free tier gets a FULL 1-day plan + 1 saved plan;
+  // multi-day, unlimited plans, and PDF export are Plus (see iap.js).
+  const plusOwned = usePlus()
   // Per-meal-per-day cuisine. Keyed by `${dayIdx}:${meal}` → cuisineId. Each meal stands alone — no trip-level default.
   const [mealCuisines, setMealCuisines] = React.useState(() => {
     try { return JSON.parse(localStorage.getItem('nyc_meal_cuisines') || '{}') } catch { return {} }
@@ -10577,6 +10665,10 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
   // Honor the chosen trip length: pad with empty days so stops can be spread
   // across N days, or cap when there are more clusters than days. null = Auto.
   const _rawDays = (() => {
+    // Free tier: a full 1-day plan — Auto's extra days and 2–7 day trips are
+    // Plus. Clamping HERE means everything downstream (map, summaries, save,
+    // saved plans) is consistently one day; no scattered checks.
+    if (!plusOwned) return _rawClusters.length > 1 ? capDays(_rawClusters, 1) : _rawClusters
     if (!tripDays) return _rawClusters
     if (_rawClusters.length > tripDays) return capDays(_rawClusters, tripDays)
     const out = _rawClusters.slice()
@@ -11363,15 +11455,18 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
           <div style={{ display: 'flex', gap: 6, overflowX: 'auto', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }} className="hide-scrollbar">
             {[null, 1, 2, 3, 4, 5, 6, 7].map(n => {
               const active = tripDays === n
+              // 2+ day pills are Plus — tap opens the paywall instead of
+              // silently failing. Auto and 1 stay free.
+              const locked = !plusOwned && n !== null && n > 1
               return (
-                <button key={n ?? 'auto'} onClick={() => setAndStoreTripDays(n)} style={{
+                <button key={n ?? 'auto'} onClick={() => { if (locked) { openPaywall('multiday'); return } setAndStoreTripDays(n) }} style={{
                   flexShrink: 0, padding: '5px 12px', borderRadius: 20, border: 'none', cursor: 'pointer',
                   fontSize: 12, fontWeight: active ? 700 : 500,
                   background: active ? 'var(--gray-900)' : 'var(--gray-100)',
-                  color: active ? '#fff' : 'var(--gray-500)',
+                  color: active ? '#fff' : locked ? 'var(--gray-400)' : 'var(--gray-500)',
                   transition: 'all 0.15s ease',
                 }}>
-                  {n === null ? t('Auto') : n}
+                  {n === null ? t('Auto') : n}{locked ? ' 🔒' : ''}
                 </button>
               )
             })}
@@ -12522,6 +12617,9 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                 const sig = JSON.stringify([venueIds, tripDays, tripStartDate || null])
                 const dup = list.find(sn => JSON.stringify([sn.venueIds, sn.tripDays, sn.tripStartDate || null]) === sig)
                 if (dup) { setViewSnapId(dup.id); return }
+                // Free tier keeps 1 saved plan; the 2nd opens the paywall.
+                // (Dup check runs first so re-opening the existing plan stays free.)
+                if (!plusOwned && list.length >= 1) { openPaywall('plans'); return }
                 const snap = {
                   id: 'snap_' + Date.now(),
                   savedAt: Date.now(),
@@ -15098,6 +15196,9 @@ const PROFILE_GLOBAL_KEYS = new Set([
   'nyc_token', 'nyc_user', 'nyc_active_profile',
   'nyc_onboarded_v2', 'nyc_map_tut_v1', 'nyc_temp_unit', 'nyc_lang',
   'nyc_tut_explore_v1', 'nyc_tut_tonight_v1', 'nyc_tut_trip_v1',
+  // Entitlement is per-device/Apple-ID, NOT per app account — switching
+  // accounts must never lock a purchase the person paid for.
+  'nyc_plus_v1',
   'nyc_last_visit', 'nyc_whats_new_dismissed_for', 'nyc_profile_overlays',
 ])
 function _profileDataKeys() {
@@ -15670,6 +15771,15 @@ function SettingsModal({
             <span style={labelStyle}>{t('Send feedback')}</span>
             <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>›</span>
           </button>
+          {/* Lifetime unlock — the one place the purchase is discoverable
+              outside the gates themselves. Shows the owned state honestly. */}
+          <button onClick={() => openPaywall('settings')} style={rowStyle}>
+            <span style={{ display: 'inline-flex', color: 'var(--gray-500)', fontSize: 15 }}>⭐</span>
+            <span style={labelStyle}>{t('Lifetime unlock')}</span>
+            {hasPlus()
+              ? <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '3px 8px', borderRadius: 20 }}>✓ Unlocked</span>
+              : <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>›</span>}
+          </button>
           {/* (Source-on-GitHub row removed 2026-07-14 — users don't need the code.) */}
 
           {/* Thanks — the friends whose places, tips, and ideas seeded the guide */}
@@ -16100,6 +16210,15 @@ export default function App() {
   }
 
   const [addPlaceOpen, setAddPlaceOpen] = useState(false)
+  // Paywall — rendered once here at the root; opened from anywhere (gates,
+  // Settings row) via openPaywall(). StoreKit initializes once on launch.
+  const [paywallOpen, setPaywallOpen] = useState(false)
+  useEffect(() => {
+    initIap()
+    const open = () => setPaywallOpen(true)
+    window.addEventListener('nyc-open-paywall', open)
+    return () => window.removeEventListener('nyc-open-paywall', open)
+  }, [])
   const [settingsOpen, setSettingsOpen] = useState(false)
   // Language / temperature-unit live at module level in i18n.js; bumping this
   // counter re-renders the whole tree so every t()/fmtTemp() re-evaluates.
@@ -16473,6 +16592,8 @@ export default function App() {
       />
       {/* First-time-user onboarding overlay */}
       {showOnboarding && <OnboardingModal onDismiss={dismissOnboarding} />}
+      {/* $3.99 lifetime unlock — see iap.js for the free/Plus split */}
+      {paywallOpen && <PaywallSheet onClose={() => setPaywallOpen(false)} />}
       {/* Add-place modal — user-added venues, kept separate from curated data */}
       {addPlaceOpen && (
         <AddPlaceModal
