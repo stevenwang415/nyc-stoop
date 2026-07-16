@@ -9462,7 +9462,7 @@ const CUISINE_OPTIONS = [
 
 const RESTAURANT_DATA = [
   // ── MIDTOWN ──
-  { id: 'sushi_yasuda',    name: 'Sushi Yasuda',       cuisines: ['japanese'],   area: 'Midtown', price: '$$$', neighborhood: 'Midtown East',   description: 'Pristine traditional Edomae sushi in a serene bamboo-walled room. One of NYC\'s finest.',      reservationUrl: 'https://www.opentable.com/sushi-yasuda',           mapsUrl: 'https://maps.google.com/?q=Sushi+Yasuda+New+York' },
+  { id: 'sushi_yasuda',    name: 'Sushi Yasuda',       cuisines: ['japanese'],   area: 'Midtown', price: '$$$', neighborhood: 'Midtown East',   description: 'Pristine traditional Edomae sushi in a serene bamboo-walled room. One of NYC\'s finest.',      reservationUrl: 'https://www.sushiyasuda.com/reservations.html',    mapsUrl: 'https://maps.google.com/?q=Sushi+Yasuda+New+York' },
   { id: 'ootoya_midtown',  name: 'Ootoya',             cuisines: ['japanese'],   area: 'Midtown', price: '$$',  neighborhood: 'Midtown',         description: 'Homestyle Japanese teishoku sets — rice, miso soup, pickles, grilled fish or tonkatsu.',      reservationUrl: 'https://www.opentable.com/ootoya-chelsea',          mapsUrl: 'https://maps.google.com/?q=Ootoya+Midtown+New+York' },
   { id: 'marea',           name: 'Marea',              cuisines: ['italian'],    area: 'Midtown', price: '$$$$',neighborhood: 'Central Park South', description: 'Michelin-starred coastal Italian — impeccable seafood pastas and crudo overlooking the park.', reservationUrl: 'https://www.opentable.com/marea',                   mapsUrl: 'https://maps.google.com/?q=Marea+Restaurant+New+York' },
   { id: 'the_modern',      name: 'The Modern',         cuisines: ['american'],   area: 'Midtown', price: '$$$$',neighborhood: 'Midtown (MoMA)',   description: 'Danny Meyer\'s MoMA restaurant with floor-to-ceiling sculpture garden views and seasonal tasting menus.', reservationUrl: 'https://www.opentable.com/the-modern',         mapsUrl: 'https://maps.google.com/?q=The+Modern+Restaurant+MoMA+New+York' },
@@ -9669,6 +9669,41 @@ function SubwayBullet({ line }) {
       color: dark ? '#111' : '#fff', fontSize: 9.5, fontWeight: 800,
       lineHeight: 1, flexShrink: 0,
     }}>{line}</span>
+  )
+}
+
+// Plain-language route under a subway connector: boarding line(s), an
+// optional one-transfer step, and the exit station. Shared by the live trip
+// and the saved-plan view so the two can never phrase a route differently.
+function SubwayLegDetail({ leg }) {
+  if (!leg) return null
+  const Bullets = ({ lines }) => lines.split('·').map((ln, li, arr) => (
+    <React.Fragment key={ln}>
+      {li > 0 && li === arr.length - 1 && <span>or</span>}
+      <SubwayBullet line={ln} />
+    </React.Fragment>
+  ))
+  // Flex rows center the line bullets on the text midline — baseline
+  // vertical-align sat visibly low.
+  const row = { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4 }
+  return (
+    <span style={{ display: 'block', fontWeight: 500, color: 'var(--gray-500)', marginTop: 3, lineHeight: 1.6 }}>
+      <span style={row}>
+        <span>Take the{leg.dir ? ` ${leg.dir.toLowerCase()}` : ''}</span>
+        <Bullets lines={leg.lines} />
+        <span>at {leg.from}</span>
+      </span>
+      {/* No direction word on the transfer leg — the complex's platform label
+          can belong to a DIFFERENT line ("queens 6" at 51 St, where Queens is
+          the E/F label). "Change at X to the 6" is always true. */}
+      {leg.transfer && (
+        <span style={row}>
+          <span>Change at {leg.transfer.at} to the</span>
+          <Bullets lines={leg.transfer.lines} />
+        </span>
+      )}
+      <span style={{ display: 'block' }}>Get off at {leg.to}</span>
+    </span>
   )
 }
 
@@ -10270,21 +10305,7 @@ ${body}
                       <span style={{ lineHeight: '15px' }}>{travel.icon}</span>
                       <span style={{ lineHeight: '15px' }}>
                         ~{travel.mins} min {travel.mode}
-                        {leg && (
-                          <span style={{ display: 'block', fontWeight: 500, color: 'var(--gray-500)', marginTop: 3, lineHeight: 1.6 }}>
-                            <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
-                              <span>Take the{leg.dir ? ` ${leg.dir.toLowerCase()}` : ''}</span>
-                              {leg.lines.split('·').map((ln, li, arr) => (
-                                <React.Fragment key={ln}>
-                                  {li > 0 && li === arr.length - 1 && <span>or</span>}
-                                  <SubwayBullet line={ln} />
-                                </React.Fragment>
-                              ))}
-                              <span>at {leg.from}</span>
-                            </span>
-                            <span style={{ display: 'block' }}>Get off at {leg.to}</span>
-                          </span>
-                        )}
+                        <SubwayLegDetail leg={leg} />
                       </span>
                     </div>
                   ) : null
@@ -12047,23 +12068,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                     <span style={{ lineHeight: '15px' }}>{_travel.icon}</span>
                     <span style={{ lineHeight: '15px' }}>
                       ~{_travel.mins} min {_travel.mode}
-                      {_leg && (
-                        <span style={{ display: 'block', fontWeight: 500, color: 'var(--gray-500)', marginTop: 3, lineHeight: 1.6 }}>
-                          {/* Flex row centers the line bullets on the text midline —
-                              baseline vertical-align sat visibly low. */}
-                          <span style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
-                            <span>Take the{_leg.dir ? ` ${_leg.dir.toLowerCase()}` : ''}</span>
-                            {_leg.lines.split('·').map((ln, li, arr) => (
-                              <React.Fragment key={ln}>
-                                {li > 0 && li === arr.length - 1 && <span>or</span>}
-                                <SubwayBullet line={ln} />
-                              </React.Fragment>
-                            ))}
-                            <span>at {_leg.from}</span>
-                          </span>
-                          <span style={{ display: 'block' }}>Get off at {_leg.to}</span>
-                        </span>
-                      )}
+                      <SubwayLegDetail leg={_leg} />
                     </span>
                   </div>
                 ) : null

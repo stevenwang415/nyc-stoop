@@ -32,16 +32,50 @@ export function findSubwayLeg(a, b) {
     const shared = [...x.s[3]].filter(ch => y.s[3].includes(ch))
     if (shared.length) pairs.push({ x, y, shared, walk: x.d + y.d })
   }
-  if (!pairs.length) return null
-  pairs.sort((p, q) => p.walk - q.walk)
-  const { x, y, shared } = pairs[0]
-  const northbound = y.s[1] > x.s[1]
-  const rawDir = northbound ? x.s[4] : x.s[5]
-  const dir = (rawDir || '').split('&')[0].trim()  // "Uptown & The Bronx" → "Uptown"
+  const dirOf = (from, towardLat) => {
+    const raw = towardLat > from[1] ? from[4] : from[5]
+    return (raw || '').split('&')[0].trim()  // "Uptown & The Bronx" → "Uptown"
+  }
+  if (pairs.length) {
+    pairs.sort((p, q) => p.walk - q.walk)
+    const { x, y, shared } = pairs[0]
+    return {
+      lines: shared.slice(0, 3).join('·'),
+      from: x.s[0],
+      to: y.s[0],
+      dir: dirOf(x.s, y.s[1]),
+    }
+  }
+  // ── ONE-transfer fallback (2026-07-16) — no single line serves both ends,
+  // so look for a transfer STATION T sharing a route with each side (e.g.
+  // LES → UN: F at 2 Av → 5 Av/Bryant Pk → 7 to Grand Central). A detour
+  // guard keeps rides sane; 2+-transfer trips still return null — the caller
+  // shows its generic "~N min subway" rather than an invented route. ──
+  let best = null
+  for (const x of A) for (const y of B) {
+    if (x.s === y.s) continue
+    const xc = { lat: x.s[1], lng: x.s[2] }, yc = { lat: y.s[1], lng: y.s[2] }
+    const direct = _mi(xc, yc)
+    for (const t of SUBWAY_STATIONS) {
+      if (t === x.s || t === y.s) continue
+      const l1 = [...x.s[3]].filter(ch => t[3].includes(ch))
+      if (!l1.length) continue
+      const l2 = [...y.s[3]].filter(ch => t[3].includes(ch) && !l1.includes(ch))
+      if (!l2.length) continue
+      const tc = { lat: t[1], lng: t[2] }
+      const ride = _mi(xc, tc) + _mi(tc, yc)
+      if (ride > direct * 1.7 + 0.6) continue  // absurd detour → not a real route
+      const cost = x.d + y.d + ride * 0.3
+      if (!best || cost < best.cost) best = { x, y, t, l1, l2, cost }
+    }
+  }
+  if (!best) return null
+  const { x, y, t, l1, l2 } = best
   return {
-    lines: shared.slice(0, 3).join('·'),
+    lines: l1.slice(0, 3).join('·'),
     from: x.s[0],
+    dir: dirOf(x.s, t[1]),
+    transfer: { at: t[0], lines: l2.slice(0, 3).join('·'), dir: dirOf(t, y.s[1]) },
     to: y.s[0],
-    dir,
   }
 }
