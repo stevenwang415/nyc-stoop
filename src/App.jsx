@@ -1985,12 +1985,14 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                   sight:      { label: 'Sight',  color: '#0891b2' },
                   figure:     { label: 'Artist', color: '#7c3aed' },
                   work:       { label: 'Work',   color: '#059669' },
-                  user_venue: { label: 'Place',  color: '#b45309' },
+                  user_venue: { label: 'Stoop',  color: '#1a56db' },
                   event:      { label: 'Event',  color: '#a3408c' },
                 }
-                const meta = typeMeta[r.type] || { label: r.type, color: '#666' }
-                // Seed imports aren't the user's own places — badge them honestly.
-                if (r.type === 'user_venue' && !r.seed) meta.label = 'Yours'
+                // Seed imports are OUR catalog (badge: Stoop); only genuinely
+                // user-created places say Yours.
+                const meta = (r.type === 'user_venue' && !r.seed)
+                  ? { label: 'Yours', color: '#b45309' }
+                  : (typeMeta[r.type] || { label: r.type, color: '#666' })
                 const onPress = () => {
                   if (r.type === 'venue')        push({ screen: 'venue', venueId: r.id })
                   else if (r.type === 'sight')   push({ screen: 'sight', sightId: r.id })
@@ -6921,19 +6923,24 @@ function NeighborhoodScreen({ neighborhoodKey, subAreaName, push, savedItems = {
         )
       })()}
 
-      {/* From your list — personal saves for this neighborhood, kept as a clearly
-          labeled layer below the editorial picks (never blended into them). */}
-      {myPlaces.length > 0 && !subAreas && (() => {
+      {/* Two clearly-owned layers below the editorial picks (2026-07-16):
+          seeds are OUR extended catalog — calling them "your list" told every
+          user they'd saved 500 places they'd never seen. */}
+      {!subAreas && [
+        ['stoop', 'More from NYC Stoop', 'Neighborhood spots from our extended list.', myPlaces.filter(v => String(v.id).startsWith('seed_'))],
+        ['mine', 'From your list', 'Your own saved places — not NYC Stoop editorial picks.', myPlaces.filter(v => !String(v.id).startsWith('seed_'))],
+      ].map(([key, title, caption, list]) => {
+        if (list.length === 0) return null
         const CAP = 5
-        const open = !!expanded.mine || myPlaces.length <= CAP
-        const shown = open ? myPlaces : myPlaces.slice(0, CAP)
+        const open = !!expanded[key] || list.length <= CAP
+        const shown = open ? list : list.slice(0, CAP)
         return (
-          <div style={{ padding: '4px 20px 32px', borderTop: '1px solid var(--gray-100)', marginTop: 4 }}>
+          <div key={key} style={{ padding: '4px 20px 32px', borderTop: '1px solid var(--gray-100)', marginTop: 4 }}>
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', margin: '16px 0 2px' }}>
-              <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--ink)' }}><span aria-hidden="true">📌</span> From your list</div>
-              <span style={{ fontSize: 12, color: 'var(--gray-500)', fontWeight: 600 }}>{myPlaces.length}</span>
+              <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--ink)' }}><span aria-hidden="true">{key === 'mine' ? '📌' : '🗽'}</span> {title}</div>
+              <span style={{ fontSize: 12, color: 'var(--gray-500)', fontWeight: 600 }}>{list.length}</span>
             </div>
-            <div style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 12 }}>Your saved places — not NYC Stoop editorial picks.</div>
+            <div style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 12 }}>{caption}</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {shown.map(v => (
                 <UserVenueCard key={v.id}
@@ -6944,16 +6951,16 @@ function NeighborhoodScreen({ neighborhoodKey, subAreaName, push, savedItems = {
               ))}
             </div>
             {!open && (
-              <button onClick={() => setExpanded(e => ({ ...e, mine: true }))} style={{
+              <button onClick={() => setExpanded(e => ({ ...e, [key]: true }))} style={{
                 marginTop: 12, width: '100%', background: 'var(--gray-100)', border: 'none', cursor: 'pointer',
                 borderRadius: 10, padding: '10px', fontSize: 13, fontWeight: 700, color: 'var(--gray-700)',
               }}>
-                Show all {myPlaces.length} from your list →
+                Show all {list.length} →
               </button>
             )}
           </div>
         )
-      })()}
+      })}
 
       {/* Curated sights — only shown in focused sub-area view. Tap a row → opens Google Maps search for that place. */}
       {subAreaInfo && subAreaInfo.sights && subAreaInfo.sights.length > 0 && (
@@ -11022,6 +11029,11 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
       placeLast(item.id)
       setNewlyAddedStopId(item.id)
     } else if (item.type === 'user_venue') {
+      // SEED places (the bundled catalog, seed_* ids) live in userVenues but
+      // are NOT saved — and allVenueIds only admits saved ids, so without
+      // this save the add silently did nothing. Real user-created places are
+      // auto-saved at creation, which is why only seeds failed.
+      if (!savedItems[`user_venue:${item.id}`]) toggleSave('user_venue', item.id)
       ensureInPlan(item.id)
       moveStopToDay(item.id, addStopToDayIdx)
       placeLast(item.id)
@@ -14495,8 +14507,13 @@ function AddStopToDayModal({ onClose, onSelect, userVenues = {}, dayLabel = '' }
         out.push({ type: 'venue', id: v.id, name: v.name, sub: v.neighborhood || '' })
     })
     Object.values(userVenues).forEach(uv => {
-      if ((uv.name || '').toLowerCase().includes(q))
-        out.push({ type: 'user_venue', id: uv.id, name: uv.name, sub: `Your place · ${uv.neighborhood || ''}` })
+      if ((uv.name || '').toLowerCase().includes(q)) {
+        // seed_* entries are OUR bundled catalog (every install has them) —
+        // labeling them "Your place" claimed the user added 500 spots they'd
+        // never seen. Only genuinely user-created places say Yours.
+        const seed = String(uv.id).startsWith('seed_')
+        out.push({ type: 'user_venue', id: uv.id, name: uv.name, seed, sub: seed ? (uv.neighborhood || '') : `Your place · ${uv.neighborhood || ''}` })
+      }
     })
     out.sort((a, b) => {
       const ap = a.name.toLowerCase().startsWith(q) ? 0 : 1
@@ -14666,7 +14683,7 @@ function AddStopToDayModal({ onClose, onSelect, userVenues = {}, dayLabel = '' }
                   }}>From NYC Stoop</div>
                   {results.map(r => {
                     const meta = r.type === 'user_venue'
-                      ? { label: 'Yours', color: '#b45309' }
+                      ? (r.seed ? { label: 'Stoop', color: '#1a56db' } : { label: 'Yours', color: '#b45309' })
                       : { label: 'Venue', color: '#1a56db' }
                     return (
                       <button
