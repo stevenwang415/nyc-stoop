@@ -20,11 +20,19 @@ import { Capacitor } from '@capacitor/core'
 export const PLUS_PRODUCT_ID = 'com.nycstoop.app.lifetime'
 const OWNED_KEY = 'nyc_plus_v1'
 
+// ── MASTER SWITCH (2026-07-16): v1.0 ships FULLY FREE — everything unlocked,
+// no paywall, no Lifetime-unlock row. Apple reviews an IAP together with the
+// app, so gates without a live product are a rejection. Flip to true for the
+// v1.1 update AFTER: ASC product created + Paid Apps agreement signed +
+// sandbox purchase & restore tested (see PUBLISH_IOS.md IAP section).
+export const IAP_ENABLED = false
+
 const isNativeIos = () =>
   Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios'
 
 export function hasPlus() {
   try {
+    if (!IAP_ENABLED) return true // v1.0: everything free
     if (localStorage.getItem(OWNED_KEY) === '1') return true
     if (localStorage.getItem('nyc_iap_gate_test') === '1') return false
     return !isNativeIos() // web: free
@@ -63,6 +71,7 @@ export function openPaywall(reason) {
 let store = null
 
 export function initIap() {
+  if (!IAP_ENABLED) return
   if (!isNativeIos()) return
   const Cdv = window.CdvPurchase
   if (!Cdv) return // plugin not installed — purchase UI will say so

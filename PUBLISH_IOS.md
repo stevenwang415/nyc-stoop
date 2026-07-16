@@ -188,3 +188,26 @@ App Store Connect → app → Promo Codes → pick the "Lifetime unlock" IAP →
 request codes (up to 100/version, expire 28 days after generation — generate
 when ready to send). Friends redeem via App Store → profile → Redeem Gift
 Card or Code. No app code involved.
+
+---
+
+## ⚠️ IAP DEFERRED TO v1.1 (decision 2026-07-16)
+
+**v1.0 ships FULLY FREE** — `IAP_ENABLED = false` in `src/iap.js`. All gates
+open, no paywall, no Lifetime-unlock row. Rationale: Apple reviews an IAP
+together with the app; gated features without a live product risk rejection,
+and this also unblocks device testing of multi-day plans immediately.
+
+**Ignore the IAP setup steps above for THIS submission.** No ASC product, no
+Paid Apps agreement, no sandbox test needed for v1.0. Review notes should
+say: "The app is fully free; no purchases."
+
+**v1.1 launch checklist for the $3.99 unlock:**
+1. Complete the IAP setup steps in the section above (ASC product
+   `com.nycstoop.app.lifetime`, Paid Apps agreement, sandbox purchase +
+   restore test).
+2. Flip `IAP_ENABLED = true` in `src/iap.js` — gates, paywall, and the
+   Settings row all return automatically.
+3. Submit the IAP together with the v1.1 version in ASC.
+Note: v1.0 users who built multi-day plans keep them; gates only apply
+going forward (existing snapshots still open).

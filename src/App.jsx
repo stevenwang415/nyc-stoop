@@ -33,7 +33,7 @@ import { venueImages } from './data/venueImages.js'
 import { seedUserPlaces } from './data/places.js'
 import { t, t2, getLang, setLang, getUnit, setUnit, fmtTemp, unitLabel, dateLocale } from './lib/i18n.js'
 import { findSubwayLeg, findBusLeg } from './data/subway.js'
-import { hasPlus, usePlus, openPaywall, initIap, buyPlus, restorePlus, plusPrice } from './iap.js'
+import { hasPlus, usePlus, openPaywall, initIap, buyPlus, restorePlus, plusPrice, IAP_ENABLED } from './iap.js'
 
 // Safe localStorage write — Safari private mode and WKWebView storage pressure
 // can throw on setItem; a failed persist should never crash the app.
@@ -15964,15 +15964,17 @@ function SettingsModal({
 
         {/* Action rows */}
         <div style={{ borderTop: '1px solid var(--gray-100)' }}>
-          {/* Lifetime unlock — leads the list (the one purchasable thing).
-              Shows the owned state honestly. */}
-          <button onClick={() => openPaywall('settings')} style={rowStyle}>
-            <span style={{ display: 'inline-flex', color: 'var(--gray-500)', fontSize: 15 }}>⭐</span>
-            <span style={labelStyle}>{t('Lifetime unlock')}</span>
-            {hasPlus()
-              ? <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '3px 8px', borderRadius: 20 }}>✓ Unlocked</span>
-              : <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>›</span>}
-          </button>
+          {/* Lifetime unlock — hidden while IAP_ENABLED is false (v1.0 ships
+              fully free; the purchase arrives with v1.1, see iap.js). */}
+          {IAP_ENABLED && (
+            <button onClick={() => openPaywall('settings')} style={rowStyle}>
+              <span style={{ display: 'inline-flex', color: 'var(--gray-500)', fontSize: 15 }}>⭐</span>
+              <span style={labelStyle}>{t('Lifetime unlock')}</span>
+              {hasPlus()
+                ? <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '3px 8px', borderRadius: 20 }}>✓ Unlocked</span>
+                : <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>›</span>}
+            </button>
+          )}
           {/* My saved places — the one row that's the user's own content.
               (Import from Google Maps moved INTO that page — an importer is
               by definition thinking about their saved places.) */}
