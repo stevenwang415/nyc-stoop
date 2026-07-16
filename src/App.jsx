@@ -15232,7 +15232,9 @@ function switchDataProfile(nextId) {
   // 4) Hard re-init — dozens of states seed from localStorage at mount.
   window.location.reload()
 }
-const PRIVACY_URL = 'https://stevenwang415.github.io/nyc-stoop/privacy.html'
+// Hosted on the app's own Vercel site (deploys with every git push). The old
+// GitHub Pages URL went blank when the repo visibility changed (2026-07-16).
+const PRIVACY_URL = 'https://nyc-stoop.vercel.app/privacy.html'
 
 // ── Image credits — CC BY / BY-SA attribution for the Wikimedia Commons
 // photography (license terms ask for attribution WITH the work; a credits
@@ -16231,6 +16233,9 @@ export default function App() {
   const [savedPlacesReq, setSavedPlacesReq] = useState(0)
   const [importOpen, setImportOpen]     = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
+  // Where feedback was opened FROM — its back arrow should return there
+  // (Settings reopens the modal; everywhere else just closes the page).
+  const feedbackOriginRef = React.useRef(null)
   const [creditsOpen, setCreditsOpen]   = useState(false)
   const [planNightOpen, setPlanNightOpen] = useState(false)
 
@@ -16631,11 +16636,15 @@ export default function App() {
           onImportTakeout={() => setImportOpen(true)}
           onPrefsChange={onPrefsChange}
           onOpenSavedPlaces={() => { setSettingsOpen(false); setSavedSel(null); setActiveTab('saved'); setSavedPlacesReq(v => v + 1) }}
-          onOpenFeedback={() => { setSettingsOpen(false); setFeedbackOpen(true) }}
+          onOpenFeedback={() => { feedbackOriginRef.current = 'settings'; setSettingsOpen(false); setFeedbackOpen(true) }}
           onOpenCredits={() => { setSettingsOpen(false); setCreditsOpen(true) }}
         />
       )}
-      {feedbackOpen && <FeedbackPage onClose={() => setFeedbackOpen(false)} user={user} />}
+      {feedbackOpen && <FeedbackPage onClose={() => {
+        setFeedbackOpen(false)
+        if (feedbackOriginRef.current === 'settings') setSettingsOpen(true)
+        feedbackOriginRef.current = null
+      }} user={user} />}
       {creditsOpen && <ImageCreditsPage onClose={() => setCreditsOpen(false)} />}
     </div>
   )
