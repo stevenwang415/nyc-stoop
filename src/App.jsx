@@ -16030,9 +16030,9 @@ function SharedTripView({ trip, onAdopt, onDismiss }) {
 // ── Plan my night — lightweight when/where chooser for the one-tap happy path ──
 function PlanNightSheet({ onClose, onBuild }) {
   const [when, setWhen] = React.useState('tonight')
-  const [area, setArea] = React.useState('surprise')
+  const [area, setArea] = React.useState('nearme')
   const whenOpts = [['tonight', 'Tonight'], ['weekend', 'This weekend']]
-  const areaOpts = [['surprise', '🎲 Surprise me'], ['midtown', 'Midtown'], ['downtown', 'Downtown'], ['uptown', 'Uptown'], ['brooklyn', 'Brooklyn']]
+  const areaOpts = [['nearme', '📍 Near me'], ['manhattan', 'Manhattan'], ['brooklyn', 'Brooklyn'], ['queens', 'Queens']]
   const chip = active => ({
     padding: '9px 14px', borderRadius: 999, border: 'none', cursor: 'pointer',
     fontSize: 14, fontWeight: 700,
@@ -16287,38 +16287,80 @@ export default function App() {
   // One-tap "Plan my night": seed a few editorial attractions for the chosen
   // area, set the trip length/date, and drop the user straight into My Trip with
   // a routed draft (meals auto-fill near the stops). The happy path, ~2 taps.
-  function planNight({ when = 'tonight', areaKey = 'surprise' } = {}) {
+  async function planNight({ when = 'tonight', areaKey = 'nearme' } = {}) {
+    // Four areas (2026-07-16): 📍 Near me · Manhattan · Brooklyn · Queens.
+    // Queens neighborhoods aren't in neighborhoodToArea (they return null so
+    // they never mis-sort into a Manhattan area), so it matches by name.
+    const isQueens = v => /queens|corona|flushing|astoria|long island city|jackson heights|forest hills|ridgewood|rockaway/i.test(v.neighborhood || '')
     const inArea = {
-      midtown:  a => a && ['mw', 'me'].includes(a.areaId),
-      downtown: a => a && a.borough === 'manhattan' && ['wv', 'ev', 'lower', 'chelsea', 'gramercy'].includes(a.areaId),
-      uptown:   a => a && ['uws', 'ues', 'uptown'].includes(a.areaId),
-      brooklyn: a => a && a.borough === 'brooklyn',
-      surprise: () => true,
+      manhattan: v => neighborhoodToArea(v.neighborhood)?.borough === 'manhattan',
+      brooklyn:  v => neighborhoodToArea(v.neighborhood)?.borough === 'brooklyn',
+      queens:    isQueens,
+      nearme:    () => true, // filtered by DISTANCE below, not by borough
     }[areaKey] || (() => true)
+    // "Near me": one geolocation fix (same permission the Eat tab uses).
+    // Denied/unavailable → quietly falls back to the whole city.
+    let userPos = null
+    if (areaKey === 'nearme') {
+      userPos = await new Promise(resolve => {
+        if (!navigator.geolocation) return resolve(null)
+        navigator.geolocation.getCurrentPosition(
+          p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+          () => resolve(null),
+          { timeout: 6000, maximumAge: 300000 }
+        )
+      })
+    }
     // "Tonight" must actually feel like a NIGHT: pick evening venues (jazz /
     // classical / theater) so the itinerary builder routes them into Evening
     // slots and slots a dinner in front. "This weekend" stays daytime sights.
     const EVENING_DOMAINS = new Set(['jazz', 'classical_music', 'theater'])
     const wantEvening = when !== 'weekend'
-    let ids = Object.keys(venues).filter(id => {
+    const candidates = (requireEveningMatch) => Object.keys(venues).filter(id => {
       const v = venues[id]
       if (!v || v.isRestaurant || !v.neighborhood) return false
-      if (!inArea(neighborhoodToArea(v.neighborhood))) return false
+      if (!inArea(v)) return false
+      if (!requireEveningMatch) return true
       const domain = venueCoords[id]?.domain
       return wantEvening ? EVENING_DOMAINS.has(domain) : !EVENING_DOMAINS.has(domain)
     })
-    // Prefer venues with coordinates so routing + meal anchoring work well.
-    ids.sort((x, y) => (venueCoords[y] ? 1 : 0) - (venueCoords[x] ? 1 : 0))
+    // Prefer coordinates (routing + meal anchoring); with a location fix,
+    // nearest wins outright.
+    const rankIds = (arr) => arr.sort((x, y) => {
+      if (userPos) {
+        const dx = venueCoords[x] ? distanceMiles(userPos, venueCoords[x]) : Infinity
+        const dy = venueCoords[y] ? distanceMiles(userPos, venueCoords[y]) : Infinity
+        if (dx !== dy) return dx - dy
+      }
+      return (venueCoords[y] ? 1 : 0) - (venueCoords[x] ? 1 : 0)
+    })
+    let pool = rankIds(candidates(true))
+    // Outer boroughs may lack a true evening venue (Queens has no late rooms
+    // in the data yet) — anchor on the area's best venue rather than silently
+    // teleporting the user to Manhattan. Dinner is guaranteed either way.
+    if (pool.length < 1 && (areaKey === 'brooklyn' || areaKey === 'queens')) {
+      pool = rankIds(candidates(false))
+    }
+    // RANDOM pick from the eligible pool (2026-07-16) — rebuilding gives a
+    // different night, not the same fixed venue every time. Constraints stay:
+    // "Near me" draws from the 6 nearest; boroughs draw from coord-having
+    // venues (routing + dinner anchoring need coordinates).
+    const shuffle = (arr) => {
+      const a = arr.slice()
+      for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]] }
+      return a
+    }
+    const withCoords = pool.filter(id => venueCoords[id])
+    const eligible = userPos ? pool.slice(0, 6) : (withCoords.length ? withCoords : pool)
+    let ids
     if (wantEvening) {
       // ONE evening anchor only. A night is dinner (auto-anchored by the
       // itinerary) + ONE show. Two ticketed showtime venues can't realistically
       // stack — you can't catch a 9:15pm jazz set AND an 11pm concert — and
       // sequencing them produced impossible slots like an 11:25pm Carnegie Hall.
-      // The list is already sorted to prefer a venue with coordinates, so the
-      // top one is the best single pick for routing + dinner anchoring.
-      ids = ids.slice(0, 1)
+      ids = shuffle(eligible).slice(0, 1)
     } else {
-      ids = ids.slice(0, 3)
+      ids = shuffle(eligible).slice(0, 3)
     }
     // Fallback if the chosen area has none of the right kind.
     if (ids.length < 1) {
@@ -16345,6 +16387,17 @@ export default function App() {
     try {
       lsSet('nyc_plan_sel', JSON.stringify(ids))
       lsSet('nyc_plan_known', JSON.stringify(allKnown))
+    } catch {}
+
+    // A fresh night plan must NOT inherit the previous trip's working state —
+    // a dinner ✕'d away last week (nyc_skipped_meals keys by day index) would
+    // silently strip tonight's restaurant, leaving a lone venue card. Same for
+    // stale reorders/day overrides pointing at stops that no longer exist.
+    // This guarantees every Plan-my-night result = 1 place + its dinner.
+    try {
+      localStorage.removeItem('nyc_skipped_meals')
+      localStorage.removeItem('nyc_day_item_orders')
+      localStorage.removeItem('nyc_stop_day_overrides')
     } catch {}
 
     const days = when === 'weekend' ? 2 : 1
