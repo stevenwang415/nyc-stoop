@@ -10470,7 +10470,7 @@ function SavedEventsSection({ hiddenIds = null }) {
   )
 }
 
-function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, setVenueNote = () => {}, userVenues = {}, removeUserVenue = () => {}, addUserVenue = () => null, addPlaceFromHeader = () => {}, weather = null, savedPlacesReq = 0, onBackToSettings = null, onOpenFeedback = () => {} }) {
+function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, setVenueNote = () => {}, userVenues = {}, removeUserVenue = () => {}, addUserVenue = () => null, addPlaceFromHeader = () => {}, weather = null, savedPlacesReq = 0, onBackToSettings = null, onOpenFeedback = () => {}, onImportTakeout = () => {} }) {
   // $3.99 lifetime unlock: free tier gets a FULL 1-day plan + 1 saved plan;
   // multi-day, unlimited plans, and PDF export are Plus (see iap.js).
   const plusOwned = usePlus()
@@ -13110,7 +13110,17 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
               </div>
             )}
 
-            {/* "Imported from Google Maps" list removed from My Trip. */}
+            {/* Import entry point — moved here from Settings (2026-07-16):
+                a one-time power feature belongs with the saved places it fills. */}
+            <button onClick={() => onImportTakeout?.()} style={{
+              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              background: 'none', border: '1px dashed var(--gray-300)', borderRadius: 12,
+              padding: '11px 14px', margin: '6px 0 16px', cursor: 'pointer',
+              fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: 'var(--gray-500)',
+            }}>
+              <span style={{ display: 'inline-flex' }}><NavIcon name="download" size={16} /></span>
+              <span>Import from Google Maps</span>
+            </button>
           </div>
         )
       })()}
@@ -15704,6 +15714,14 @@ function SettingsModal({
                   )}
                 </div>
               </div>
+              {/* Sign out lives IN the card — it's an account action, not an
+                  app setting (its old full-width row was pure list weight). */}
+              <button onClick={handleSignOut} style={{
+                alignSelf: 'flex-start', flexShrink: 0,
+                background: 'none', border: '1px solid var(--gray-300)', borderRadius: 999,
+                padding: '5px 11px', fontSize: 11.5, fontWeight: 600, color: 'var(--gray-500)',
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}>{t('Sign out')}</button>
             </div>
             {avatarError && (
               <div style={{
@@ -15747,37 +15765,14 @@ function SettingsModal({
               ? <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '3px 8px', borderRadius: 20 }}>✓ Unlocked</span>
               : <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>›</span>}
           </button>
-          {user && (
-            <button onClick={handleSignOut} style={rowStyle}>
-              <span style={{ display: 'inline-flex', color: 'var(--gray-500)' }}><NavIcon name="logOut" size={18} /></span>
-              <span style={labelStyle}>{t('Sign out')}</span>
-              <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>›</span>
-            </button>
-          )}
-          {/* My saved places — first row: it's the one item here that's the
-              user's own content (also reachable from My Trip's footer). */}
+          {/* My saved places — the one row that's the user's own content.
+              (Import from Google Maps moved INTO that page — an importer is
+              by definition thinking about their saved places.) */}
           <button onClick={onOpenSavedPlaces} style={rowStyle}>
             <span style={{ display: 'inline-flex', color: 'var(--gray-500)' }}><NavIcon name="bookmark" size={18} /></span>
             <span style={labelStyle}>{t('My saved places')}</span>
             <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>›</span>
           </button>
-          {/* One-time bulk import for places already saved in Google Maps */}
-          <button onClick={() => { onClose?.(); onImportTakeout?.() }} style={rowStyle}>
-            <span style={{ display: 'inline-flex', color: 'var(--gray-500)' }}><NavIcon name="download" size={18} /></span>
-            <span style={labelStyle}>Import from Google Maps</span>
-            <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>›</span>
-          </button>
-          {/* Privacy + Terms — published Notion pages, one source of truth. */}
-          <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer" style={{ ...rowStyle, textDecoration: 'none' }}>
-            <span style={{ display: 'inline-flex', color: 'var(--gray-500)' }}><NavIcon name="lock" size={18} /></span>
-            <span style={labelStyle}>Privacy policy</span>
-            <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>↗</span>
-          </a>
-          <a href={TERMS_URL} target="_blank" rel="noopener noreferrer" style={{ ...rowStyle, textDecoration: 'none' }}>
-            <span style={{ display: 'inline-flex', color: 'var(--gray-500)' }}><NavIcon name="fileText" size={18} /></span>
-            <span style={labelStyle}>Terms of use</span>
-            <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>↗</span>
-          </a>
           <button onClick={() => onOpenFeedback?.()} style={rowStyle}>
             <span style={{ display: 'inline-flex', color: 'var(--gray-500)' }}><NavIcon name="mail" size={18} /></span>
             <span style={labelStyle}>{t('Send feedback')}</span>
@@ -15889,17 +15884,26 @@ function SettingsModal({
           )}
         </div>
 
-        <div style={{ padding: '20px 20px 8px', textAlign: 'center' }}>
+        <div style={{ padding: '18px 20px 8px', textAlign: 'center' }}>
           <div style={{ fontSize: 11, color: 'var(--gray-400)' }}>
             © 2026 NYC Stoop · Built in New York
           </div>
-          {/* CC BY / BY-SA images legally require attribution — the credits
-              page must stay reachable. Demoted from a full row (2026-07-16)
-              to this quiet footer link. */}
-          <button onClick={() => onOpenCredits?.()} style={{
-            background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-            fontSize: 11, color: 'var(--gray-400)', textDecoration: 'underline', padding: '6px 8px',
-          }}>{t('Image credits')}</button>
+          {/* Legal furniture lives here as quiet links, not full rows:
+              Privacy/Terms (Notion) and the CC-required Image credits page. */}
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4, marginTop: 2 }}>
+            <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer" style={{
+              fontSize: 11, color: 'var(--gray-400)', textDecoration: 'underline', padding: '6px 4px',
+            }}>Privacy</a>
+            <span style={{ fontSize: 11, color: 'var(--gray-300)' }}>·</span>
+            <a href={TERMS_URL} target="_blank" rel="noopener noreferrer" style={{
+              fontSize: 11, color: 'var(--gray-400)', textDecoration: 'underline', padding: '6px 4px',
+            }}>Terms</a>
+            <span style={{ fontSize: 11, color: 'var(--gray-300)' }}>·</span>
+            <button onClick={() => onOpenCredits?.()} style={{
+              background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+              fontSize: 11, color: 'var(--gray-400)', textDecoration: 'underline', padding: '6px 4px',
+            }}>{t('Image credits')}</button>
+          </div>
         </div>
       </div>
     </div>
@@ -16600,6 +16604,7 @@ export default function App() {
               savedPlacesReq={savedPlacesReq}
               onBackToSettings={() => setSettingsOpen(true)}
               onOpenFeedback={() => setFeedbackOpen(true)}
+              onImportTakeout={() => setImportOpen(true)}
             />
           </PlanErrorBoundary>
         )
