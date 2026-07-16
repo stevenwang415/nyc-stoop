@@ -7812,14 +7812,45 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
   const [areaSheet, setAreaSheet]   = useState(_schemC?.areaSheet || null)  // { areaId, label, picks } | null — schematic tap payoff
   const [areaDetail, setAreaDetail] = useState(null)  // pick from the sheet → in-sheet detail card (not a page)
   useEffect(() => { _mapSchemCache = { view, schemArea, schemBorough, areaSheet } }, [view, schemArea, schemBorough, areaSheet])
+
+  // Swipe-down-to-close for the area-picks sheet (same pattern as Settings):
+  // the handle + header are the grab zone, the sheet follows the finger, and
+  // >90px of pull dismisses; anything less springs back.
+  const areaSheetRef = React.useRef(null)
+  const areaDrag = React.useRef({ y: null, d: 0 })
+  const areaTouchStart = (e) => { areaDrag.current = { y: e.touches[0].clientY, d: 0 } }
+  const areaTouchMove = (e) => {
+    const st = areaDrag.current
+    if (st.y == null || !areaSheetRef.current) return
+    st.d = Math.max(0, e.touches[0].clientY - st.y)
+    areaSheetRef.current.style.transition = 'none'
+    areaSheetRef.current.style.transform = `translateY(${st.d}px)`
+  }
+  const areaTouchEnd = () => {
+    const el = areaSheetRef.current
+    const { d } = areaDrag.current
+    areaDrag.current = { y: null, d: 0 }
+    if (!el) return
+    el.style.transition = 'transform 200ms ease'
+    if (d > 90) {
+      el.style.transform = 'translateY(100%)'
+      setTimeout(() => { handleSchemSelect(null); if (el) el.style.transform = '' }, 180)
+    } else {
+      el.style.transform = 'translateY(0)'
+    }
+  }
   const [userLoc, setUserLoc]       = useState(null)   // {lat,lng} | null
   const [geoStatus, setGeoStatus]   = useState('idle') // idle | locating | denied
   const userMarkerRef = useRef(null)
   const savedVenueCount = Object.keys(savedItems || {}).filter(k => k.startsWith('venue:') && savedItems[k]).length
+  // Plan-my-night picks are plan-only (not saves, 2026-07-16) — the pill must
+  // also key on the PLAN, or a freshly built night showed no way to reach it.
+  const planStopCount = (() => { try { return (JSON.parse(localStorage.getItem('nyc_plan_sel') || '[]') || []).length } catch { return 0 } })()
+  const hasTripToShow = savedVenueCount > 0 || planStopCount > 0
   // Legend defaults open only while the Go-to-My-Trip pill is absent — once
   // anything is saved the pill occupies bottom-center, and an expanded legend
   // collides with it on ≤375pt screens (review S-1). Users can still expand.
-  const [legendOpen, setLegendOpen] = useState(savedVenueCount === 0)
+  const [legendOpen, setLegendOpen] = useState(!hasTripToShow)
   // One-time coach card for first-time Map visitors (dismiss = never again).
   const [showMapTut, setShowMapTut] = useState(() => {
     try { return !localStorage.getItem('nyc_map_tut_v1') } catch { return false }
@@ -8081,14 +8112,20 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
             {areaSheet && (
               <>
                 <div onClick={() => handleSchemSelect(null)} style={{ position: 'absolute', inset: 0, background: 'rgba(15,23,42,0.28)' }} />
-                <div style={{
+                <div ref={areaSheetRef} style={{
                   position: 'absolute', left: 0, right: 0, bottom: 0,
                   background: 'var(--card)', borderRadius: '18px 18px 0 0',
                   boxShadow: '0 -10px 30px rgba(15,23,42,0.22)',
-                  padding: '14px 18px calc(14px + env(safe-area-inset-bottom, 0px))',
+                  padding: '0 18px calc(14px + env(safe-area-inset-bottom, 0px))',
                   maxHeight: '70%', overflowY: 'auto',
                 }}>
-                  <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--gray-200)', margin: '0 auto 12px' }} />
+                  {/* Grab zone — generous padding so the swipe target isn't a
+                      4px sliver; touchAction none keeps the browser's scroll
+                      claim off the gesture. */}
+                  <div onTouchStart={areaTouchStart} onTouchMove={areaTouchMove} onTouchEnd={areaTouchEnd}
+                    style={{ padding: '14px 0 10px', touchAction: 'none' }}>
+                    <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--gray-200)', margin: '0 auto' }} />
+                  </div>
                   {areaDetail ? (
                     <AreaPickCard
                       pick={areaDetail}
@@ -8100,7 +8137,8 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
                     />
                   ) : (
                     <>
-                      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
+                      <div onTouchStart={areaTouchStart} onTouchMove={areaTouchMove} onTouchEnd={areaTouchEnd}
+                        style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 10, touchAction: 'none' }}>
                         <div style={{ fontFamily: 'var(--serif)', fontSize: 20, fontWeight: 600, color: 'var(--ink)' }}>{areaSheet.label}</div>
                         <button onClick={() => handleSchemSelect(null)} aria-label="Close" style={{ border: 'none', background: 'var(--gray-100)', borderRadius: 999, width: 28, height: 28, cursor: 'pointer', color: 'var(--gray-500)', fontSize: 14, lineHeight: 1 }}>✕</button>
                       </div>
@@ -8142,7 +8180,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
 
       {/* Go to My Trip — the payoff path: once anything is saved, the schedule
           is one tap away instead of a secret. Hidden while a pin card is open. */}
-      {view === 'real' && !selVenue && savedVenueCount > 0 && (
+      {view === 'real' && !selVenue && hasTripToShow && (
         <button onClick={onGoToMyTrip} style={{
           position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)',
           zIndex: 1000, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
