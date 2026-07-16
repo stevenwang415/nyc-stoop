@@ -15717,41 +15717,6 @@ function SettingsModal({
               <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>›</span>
             </button>
           )}
-          {/* Delete account — in-app deletion is required by App Review
-              5.1.1(v). Two-tap confirm; local trip data is kept. */}
-          {user && !confirmDeleteAccount && (
-            <button onClick={() => setConfirmDeleteAccount(true)} style={{ ...rowStyle, color: '#b91c1c' }}>
-              <span style={{ display: 'inline-flex' }}><NavIcon name="trash" size={18} /></span>
-              <span style={labelStyle}>{t('Delete account')}</span>
-              <span style={{ fontSize: 14, color: '#fca5a5' }}>›</span>
-            </button>
-          )}
-          {user && confirmDeleteAccount && (
-            <div style={{ padding: '16px 20px 18px', background: '#fef2f2', borderTop: '1px solid #fecaca' }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#7f1d1d', marginBottom: 4 }}>
-                {t('Delete your account?')}
-              </div>
-              <div style={{ fontSize: 12, color: '#991b1b', lineHeight: 1.5, marginBottom: 14 }}>
-                {t('This permanently deletes your account and sign-in from our servers. It cannot be undone. Your saves and trip plan stay on this device.')}
-              </div>
-              {deleteAccountError && (
-                <div style={{ fontSize: 12, color: '#7f1d1d', background: '#fee2e2', padding: '8px 12px', borderRadius: 10, marginBottom: 10 }}>{deleteAccountError}</div>
-              )}
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => { setConfirmDeleteAccount(false); setDeleteAccountError('') }} style={{
-                  flex: 1, padding: '10px 14px', background: 'var(--white)',
-                  border: '1px solid var(--gray-300)', borderRadius: 10,
-                  fontSize: 14, fontWeight: 600, color: 'var(--gray-700)', cursor: 'pointer', fontFamily: 'inherit',
-                }}>{t('Cancel')}</button>
-                <button onClick={handleDeleteAccount} disabled={deletingAccount} style={{
-                  flex: 1, padding: '10px 14px', background: '#dc2626',
-                  border: 'none', borderRadius: 10, color: '#fff',
-                  fontSize: 14, fontWeight: 700, cursor: deletingAccount ? 'default' : 'pointer', fontFamily: 'inherit',
-                  opacity: deletingAccount ? 0.7 : 1,
-                }}>{deletingAccount ? t('Deleting…') : t('Yes, delete it')}</button>
-              </div>
-            </div>
-          )}
           {/* My saved places — first row: it's the one item here that's the
               user's own content (also reachable from My Trip's footer). */}
           <button onClick={onOpenSavedPlaces} style={rowStyle}>
@@ -15840,6 +15805,42 @@ function SettingsModal({
                   border: 'none', borderRadius: 10, color: '#fff',
                   fontSize: 14, fontWeight: 700, cursor: 'pointer',
                 }}>Yes, clear everything</button>
+              </div>
+            </div>
+          )}
+          {/* Delete account — in-app deletion is required by App Review
+              5.1.1(v). Two-tap confirm; local trip data is kept. Lives with
+              the other destructive action (Clear local data) at the bottom. */}
+          {user && !confirmDeleteAccount && (
+            <button onClick={() => setConfirmDeleteAccount(true)} style={{ ...rowStyle, color: '#b91c1c' }}>
+              <span style={{ display: 'inline-flex' }}><NavIcon name="trash" size={18} /></span>
+              <span style={labelStyle}>{t('Delete account')}</span>
+              <span style={{ fontSize: 14, color: '#fca5a5' }}>›</span>
+            </button>
+          )}
+          {user && confirmDeleteAccount && (
+            <div style={{ padding: '16px 20px 18px', background: '#fef2f2', borderTop: '1px solid #fecaca' }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#7f1d1d', marginBottom: 4 }}>
+                {t('Delete your account?')}
+              </div>
+              <div style={{ fontSize: 12, color: '#991b1b', lineHeight: 1.5, marginBottom: 14 }}>
+                {t('This permanently deletes your account and sign-in from our servers. It cannot be undone. Your saves and trip plan stay on this device.')}
+              </div>
+              {deleteAccountError && (
+                <div style={{ fontSize: 12, color: '#7f1d1d', background: '#fee2e2', padding: '8px 12px', borderRadius: 10, marginBottom: 10 }}>{deleteAccountError}</div>
+              )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => { setConfirmDeleteAccount(false); setDeleteAccountError('') }} style={{
+                  flex: 1, padding: '10px 14px', background: 'var(--white)',
+                  border: '1px solid var(--gray-300)', borderRadius: 10,
+                  fontSize: 14, fontWeight: 600, color: 'var(--gray-700)', cursor: 'pointer', fontFamily: 'inherit',
+                }}>{t('Cancel')}</button>
+                <button onClick={handleDeleteAccount} disabled={deletingAccount} style={{
+                  flex: 1, padding: '10px 14px', background: '#dc2626',
+                  border: 'none', borderRadius: 10, color: '#fff',
+                  fontSize: 14, fontWeight: 700, cursor: deletingAccount ? 'default' : 'pointer', fontFamily: 'inherit',
+                  opacity: deletingAccount ? 0.7 : 1,
+                }}>{deletingAccount ? t('Deleting…') : t('Yes, delete it')}</button>
               </div>
             </div>
           )}
