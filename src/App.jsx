@@ -1221,6 +1221,20 @@ function toggleEventSaved(ev) {
   const arr = loadSavedEvents()
   const i = arr.findIndex(e => e && e.id === ev.id)
   if (i >= 0) { arr.splice(i, 1); persistSavedEvents(arr); return false }
+  // Anchor an undated trip to the event (2026-07-16): with no trip start date
+  // a dated event couldn't pin into any day and sank to the "Saved events"
+  // section — which users read as "Add didn't work". If the trip has no dates
+  // yet, the event's date becomes Day 1, so the event lands IN the plan.
+  try {
+    if (ev.date instanceof Date && !isNaN(ev.date) && !localStorage.getItem('nyc_trip_start_date')) {
+      const d = new Date(ev.date)
+      const today = new Date(); today.setHours(0, 0, 0, 0)
+      if (d >= today) {
+        const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        lsSet('nyc_trip_start_date', iso)
+      }
+    }
+  } catch {}
   arr.push({
     id: ev.id, source: ev.source, kind: ev.kind, kindLabel: ev.kindLabel, color: ev.color,
     title: ev.title, date: ev.date instanceof Date ? ev.date.toISOString() : null,
@@ -1231,6 +1245,13 @@ function toggleEventSaved(ev) {
     savedAt: Date.now(),
   })
   persistSavedEvents(arr)
+  // Hand-off for My Trip's ephemeral "ADDED EVENT" pill (read-and-cleared on
+  // the trip page's next mount — same visit-scoped lifetime as the NEW badge).
+  try {
+    const recent = JSON.parse(localStorage.getItem('nyc_recent_event_adds') || '[]')
+    recent.push(ev.id)
+    lsSet('nyc_recent_event_adds', JSON.stringify(recent))
+  } catch {}
   return true
 }
 // Stored ISO date → Date, so a saved event can re-render through EventDetail.
@@ -1925,7 +1946,7 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
             <span style={{ color: 'var(--gray-400)', flexShrink: 0, display: 'inline-flex' }}><NavIcon name="search" size={17} /></span>
             <input
               type="search"
-              placeholder={t('Search venues, sights, artists…')}
+              placeholder={t('What are you looking for?')}
               value={query}
               onChange={e => setQuery(e.target.value)}
               style={{
@@ -2054,9 +2075,12 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                     <div style={{ position: 'absolute', right: -28, top: -28, width: 130, height: 130, borderRadius: 999, background: 'rgba(255,255,255,0.07)' }} />
                     <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                       <div>
-                        <div style={{ fontSize: 9.5, letterSpacing: '0.26em', color: 'rgba(255,255,255,0.72)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>{t('Tonight, curated')}</div>
+                        {/* Copy covers BOTH modes the sheet offers (tonight or
+                            weekend) — the old "Tonight, curated" eyebrow
+                            over-promised night-only. */}
+                        <div style={{ fontSize: 9.5, letterSpacing: '0.26em', color: 'rgba(255,255,255,0.72)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>{t('One tap, curated')}</div>
                         <div style={{ fontFamily: 'var(--serif)', fontSize: 27, fontWeight: 500, color: '#fff', lineHeight: 1.05 }}>{t('Plan my night')}</div>
-                        <div style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.82)', marginTop: 6, maxWidth: 220, lineHeight: 1.35 }}>{t('A routed plan with food, in a couple of taps.')}</div>
+                        <div style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.82)', marginTop: 6, maxWidth: 220, lineHeight: 1.35 }}>{t('Tonight or this weekend — routed, with food.')}</div>
                       </div>
                       <span style={{ flexShrink: 0, width: 44, height: 44, borderRadius: 999, background: 'rgba(255,255,255,0.16)', border: '1px solid rgba(255,255,255,0.28)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M3 9h11M10 4.5L14.5 9 10 13.5" stroke="#fff" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -2121,7 +2145,11 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                     Covers are hand-drawn SVG scenes (see MoodCoverArt), one per mood. ── */}
                 <div style={{ padding: '22px 0 0' }}>
                   <div style={{ padding: '0 20px' }}>
-                    <h2 style={{ fontFamily: 'var(--serif)', fontWeight: 500, fontSize: 20, margin: 0, letterSpacing: '0.01em', color: 'var(--ink)' }}>{t('Feeling something specific?')}</h2>
+                    {/* Renamed from "Feeling something specific?" (2026-07-16):
+                        it read as a synonym of "What do you feel like?" above.
+                        These are SITUATIONS (Date night, Rainy day, First time
+                        in NYC…), so the header now says occasions. */}
+                    <h2 style={{ fontFamily: 'var(--serif)', fontWeight: 500, fontSize: 20, margin: 0, letterSpacing: '0.01em', color: 'var(--ink)' }}>{t('For the occasion')}</h2>
                   </div>
                   <div style={{ display: 'flex', gap: 11, overflowX: 'auto', padding: '12px 20px 4px', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }} className="hide-scrollbar">
                     {moods.map(m => (
@@ -7658,7 +7686,10 @@ function BottomNav({ activeTab, onTabPress, savedCount, onAddPlace }) {
     }}>
       {tabs.map(({ id, icon, label, accent }) => {
         const active = activeTab === id
-        const badge = id === 'saved' && savedCount > 0 ? savedCount : null
+        // Count badge retired (2026-07-16) — the number restated the saved
+        // count without adding meaning, and read like an unread-notification
+        // nag on every screen.
+        const badge = null
         // The ACTIVE tab is the only one that reads as selected: accent color +
         // bold label + filled icon. Tonight keeps a subtle accent icon tint when
         // inactive (its signature), but its label goes gray/normal like the other
@@ -9346,6 +9377,14 @@ function buildItinerary(venueIds, userVenuesLookup = {}) {
         duration: 1.5,
         area: getAreaCluster(uv.neighborhood),
         isCustom: true, blurb: uv.blurb, address: uv.address,
+        // Category + price ride along: isRestaurantStop() needs the category
+        // (name-regex alone missed "A Taste of Katz's"), and the day's
+        // ≈$/person estimate needs the tier.
+        category: uv.category, price: uv.price ?? null,
+        // Coords ride along so cluster-merging (below) and travel estimates
+        // can locate user-added stops that aren't in venueCoords.
+        lat: typeof uv.lat === 'number' ? uv.lat : undefined,
+        lng: typeof uv.lng === 'number' ? uv.lng : undefined,
       }
     }
     return null
@@ -9369,9 +9408,61 @@ function buildItinerary(venueIds, userVenuesLookup = {}) {
   const days = []
   const usedEveningIds = new Set()
 
-  // Build one day per area cluster (merge small clusters into nearby days)
-  const areas = Object.entries(areaMap)
-  areas.forEach(([area, dayVenues]) => {
+  // ── Merge small clusters (2026-07-16) — one-day-per-area made 4 saves in 4
+  // neighborhoods into FOUR one-stop days ("summary always says 1 stop"), and
+  // a 6-place sample weekend into 4 days. Any 1-stop cluster folds into its
+  // geographically nearest cluster (centroid distance, ≤8 mi guard so a lone
+  // Bronx Zoo doesn't get chained to a Brooklyn day) until days carry ≥2
+  // stops — or only one day remains. ──
+  const clusters = Object.entries(areaMap).map(([area, list]) => ({ area, list }))
+  const centroidOf = (c) => {
+    const pts = c.list
+      .map(v => venueCoords[v.id] || (typeof v.lat === 'number' && typeof v.lng === 'number' ? { lat: v.lat, lng: v.lng } : null))
+      .filter(Boolean)
+    if (!pts.length) return null
+    return { lat: pts.reduce((s, p) => s + p.lat, 0) / pts.length, lng: pts.reduce((s, p) => s + p.lng, 0) / pts.length }
+  }
+  while (clusters.length > 1) {
+    clusters.sort((a, b) => a.list.length - b.list.length)
+    const small = clusters[0]
+    if (small.list.length >= 2) break
+    const sc = centroidOf(small)
+    let best = null
+    for (let i = 1; i < clusters.length; i++) {
+      const oc = centroidOf(clusters[i])
+      const d = sc && oc ? distanceMiles(sc, oc) : 999
+      if (!best || d < best.d) best = { i, d }
+    }
+    // 4-mile guard: Manhattan neighborhoods merge with each other, but
+    // Brooklyn/Queens/Bronx keep their own day (8 mi chained Brooklyn Museum
+    // onto a Manhattan museum day — the "3 museums + a river crossing" bug).
+    if (!best || best.d > 4) break
+    clusters[best.i].list.push(...small.list)
+    clusters[best.i].list.sort((a, b) => (DOMAIN_ORDER[a.domain] ?? 9) - (DOMAIN_ORDER[b.domain] ?? 9))
+    clusters.shift()
+  }
+
+  // ── Day-capacity taste rules (2026-07-16) — clustering alone produced days
+  // like "MoMA → Guggenheim → Brooklyn Museum": geographically mergeable,
+  // humanly absurd. A day carries at most 2 museums (visual_art) and ~7 hours
+  // of stops; overflow starts a sibling day in the same area. ──
+  const MAX_MUSEUMS_PER_DAY = 2
+  const MAX_DAY_HOURS = 7
+  const sized = []
+  clusters.forEach(({ area, list }) => {
+    let cur = [], hours = 0, museums = 0
+    list.forEach(v => {
+      const h = (v.duration || 1.5) + 0.5
+      const isMuseum = v.domain === 'visual_art'
+      if (cur.length > 0 && (hours + h > MAX_DAY_HOURS || (isMuseum && museums >= MAX_MUSEUMS_PER_DAY))) {
+        sized.push({ area, list: cur }); cur = []; hours = 0; museums = 0
+      }
+      cur.push(v); hours += h; if (isMuseum) museums += 1
+    })
+    if (cur.length) sized.push({ area, list: cur })
+  })
+
+  sized.forEach(({ area, list: dayVenues }) => {
     // Time slots: 10am start, 30min travel between stops
     let hour = 10
     const stops = dayVenues.map(v => {
@@ -10223,7 +10314,8 @@ ${body}
             {/* Trip's first day (falls back to saved-date for undated plans) —
                 showing savedAt here made two different trips look identical. */}
             {planDefaultName(snapshot)}
-            {' · '}{venueIds.length} stop{venueIds.length !== 1 ? 's' : ''}
+            {/* Meals count as stops (2026-07-16) — matches the live summary. */}
+            {' · '}{(() => { const m = Object.values(lunchRestaurants || {}).filter(Boolean).length + Object.values(dinnerRestaurants || {}).filter(Boolean).length; const n = venueIds.length + m; return `${n} stop${n !== 1 ? 's' : ''}` })()}
             {snapTripDays ? ` · ${snapTripDays} day${snapTripDays !== 1 ? 's' : ''}` : ''}
             {(() => {
               const count = mealCuisines ? Object.keys(mealCuisines).length : ((lunchCuisine ? 1 : 0) + (dinnerCuisine ? 1 : 0))
@@ -10535,6 +10627,11 @@ function SavedEventsSection({ hiddenIds = null }) {
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
         <h2 style={{ fontFamily: 'var(--serif)', fontWeight: 500, fontSize: 22, margin: 0, letterSpacing: '0.01em', color: 'var(--ink)' }}>Saved events</h2>
         <span style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--field-clay)', fontWeight: 600 }}>{evs.length}</span>
+      </div>
+      {/* Why an event is HERE and not in a day: it falls outside the trip's
+          dates. Without this line, "Add to My Trip" looked broken. */}
+      <div style={{ fontSize: 12, color: 'var(--gray-500)', lineHeight: 1.5, margin: '-4px 0 12px' }}>
+        Events pin into a trip day automatically when their date falls inside your trip.
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {evs.map(e => {
@@ -11074,6 +11171,16 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
   // Saved events (from the Events tab) — kept in sync so dated ones can render
   // pinned inside their trip day (see eventsByDay below).
   const [savedEvts, setSavedEvts] = React.useState(() => loadSavedEvents())
+  // "ADDED EVENT" pill — same lifetime as the NEW badge: shows on this visit
+  // only. The Events tab writes recently-added ids; we read-and-clear on
+  // mount, so leaving My Trip retires the pill.
+  const [recentEventAdds] = React.useState(() => {
+    try {
+      const v = new Set(JSON.parse(localStorage.getItem('nyc_recent_event_adds') || '[]'))
+      localStorage.removeItem('nyc_recent_event_adds')
+      return v
+    } catch { return new Set() }
+  })
   React.useEffect(() => {
     const refresh = () => setSavedEvts(loadSavedEvents())
     window.addEventListener('nyc-saved-events', refresh)
@@ -11374,6 +11481,12 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
         if (i !== -1) defaultItemIds.splice(i, 1)
       }
     }
+    // ── Pinned events join the day's ITEM FLOW (2026-07-16) — same card
+    // grammar, route number, and reorder arrows as every other stop, instead
+    // of a special block stuck after the day. Default slot: appended (events
+    // are usually evening); the saved order remembers wherever users move them.
+    const dayEvents = (eventsByDay[dayIdx] || [])
+    dayEvents.forEach(ev => defaultItemIds.push('__event_' + ev.id))
     const isDraggingThisDay = dragId !== null && dragDayIdx === dayIdx
     let activeItemIds
     if (isDraggingThisDay) {
@@ -11390,9 +11503,11 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
       activeItemIds = defaultItemIds
     }
     const stopMap = {}; sortedDayStops.forEach(s => { stopMap[s.id] = s })
+    const eventMap = {}; dayEvents.forEach(ev => { eventMap['__event_' + ev.id] = ev })
     const reorderedItems = activeItemIds
       .map(id => id === '__lunch__'  ? { type: 'restaurant', meal: 'lunch' }
                : id === '__dinner__' ? { type: 'restaurant', meal: 'dinner' }
+               : eventMap[id]        ? { type: 'event', event: eventMap[id] }
                : stopMap[id]         ? { type: 'stop', stop: stopMap[id] }
                : null)
       .filter(Boolean)
@@ -11410,6 +11525,7 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
       const periodFloor = { Morning: 0, Afternoon: 12, Evening: 17 }
       reorderedItems.forEach(it => {
         if (it.type === 'restaurant') { clock += 1.25; return }
+        if (it.type === 'event') return // fixed showtime — doesn't consume clock
         const s = it.stop
         if (prevId) {
           const t = estimateTravel(prevId, s.id)
@@ -11776,6 +11892,9 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                   const SAMPLE = ['moma', 'guggenheim', 'village_vanguard', 'carnegie_hall', 'brooklyn', 'central_park']
                   const savedIds = new Set(Object.values(safeItems).filter(i => i?.type === 'venue').map(i => i.id))
                   SAMPLE.forEach(id => { if (!savedIds.has(id) && venues[id]) toggleSave('venue', id) })
+                  // A WEEKEND is two days — without this, Auto clustered the
+                  // six samples into four (bug report 2026-07-16).
+                  setAndStoreTripDays(2)
                 }}
                 style={{
                   background: 'var(--gray-900)', color: '#fff', border: 'none',
@@ -11947,10 +12066,13 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
 
         // Day summary strip — start/end from the sequenced clock so it matches the
         // card times; meal label reflects which meals actually render.
-        const dayStops = day.stops
         const summaryBits = []
         if (dayPlan.dayStart != null && dayPlan.dayEnd != null) summaryBits.push(`${fmtHour(dayPlan.dayStart)} – ${fmtHour(dayPlan.dayEnd)}`)
-        summaryBits.push(t2(dayStops.length === 1 ? '1 stop' : '{N} stops', { N: dayStops.length }))
+        // Stops = every card in the day, MEALS INCLUDED (2026-07-16) — a
+        // restaurant is a stop on your route; counting only places made the
+        // number disagree with what's visibly on screen.
+        const _cardCount = dayPlan.reorderedItems.filter(it => it.type === 'stop' || it.type === 'restaurant').length
+        summaryBits.push(t2(_cardCount === 1 ? '1 stop' : '{N} stops', { N: _cardCount }))
         // Meal label reflects the meals ACTUALLY in the plan (✕-removed ones out).
         const _hasLunchItem = dayPlan.reorderedItems.some(it => it.type === 'restaurant' && it.meal === 'lunch')
         const _hasDinnerItem = dayPlan.reorderedItems.some(it => it.type === 'restaurant' && it.meal === 'dinner')
@@ -11971,6 +12093,10 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
             if (c) return c
             const uv = userVenues[it.stop.id]
             return (typeof uv?.lat === 'number' && typeof uv?.lng === 'number') ? { lat: uv.lat, lng: uv.lng } : null
+          }
+          if (it.type === 'event') {
+            const ev = it.event
+            return (typeof ev?.lat === 'number' && typeof ev?.lng === 'number') ? { lat: ev.lat, lng: ev.lng } : null
           }
           return restaurantCoords(it.meal === 'lunch' ? lunchRestaurants[dayIdx] : dinnerRestaurants[dayIdx])
         }
@@ -12007,6 +12133,9 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                 if (uv && !googleSourced && typeof uv.lat === 'number' && typeof uv.lng === 'number') c = { lat: uv.lat, lng: uv.lng }
               }
               if (c) { _n += 1; _routeNum['stop:' + it.stop.id] = _n }
+            } else if (it.type === 'event') {
+              const ev = it.event
+              if (typeof ev?.lat === 'number' && typeof ev?.lng === 'number') { _n += 1; _routeNum['event:' + ev.id] = _n }
             } else {
               c = restaurantCoords(it.meal === 'lunch' ? lunchRestaurants[dayIdx] : dinnerRestaurants[dayIdx])
               if (c) { _n += 1; _routeNum['meal:' + it.meal] = _n }
@@ -12026,6 +12155,18 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
         let _mealLo = 0, _mealHi = 0
         ;[_hasLunchItem ? lunchRestaurants[dayIdx] : null, _hasDinnerItem ? dinnerRestaurants[dayIdx] : null].forEach(r => {
           const rng = r && MEAL_PRICE_RANGE[r.price]
+          if (rng) { _mealLo += rng[0]; _mealHi += rng[1] }
+        })
+        // USER-ADDED food stops with a known price tier count too (2026-07-16)
+        // — adding Katz's to the day should move ≈$/person, not just the
+        // auto-suggested meals. Tiers arrive as "$$" strings (seeds) or 1–4
+        // numbers (unified restaurant adds); both normalize to the ranges.
+        dayPlan.reorderedItems.forEach(it => {
+          if (it.type !== 'stop' || !isRestaurantStop(it.stop)) return
+          const uv = userVenues[it.stop.id]
+          const raw = uv?.price ?? it.stop.price
+          const tier = typeof raw === 'number' ? '$'.repeat(Math.max(1, Math.min(4, raw))) : raw
+          const rng = MEAL_PRICE_RANGE[tier]
           if (rng) { _mealLo += rng[0]; _mealHi += rng[1] }
         })
         if (_mealHi > 0) summaryBits.push(`≈$${Math.round((_mealLo + _mealHi) / 2 / 5) * 5}${t('/person')}`)
@@ -12112,6 +12253,10 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                     const uv = userVenues[it.stop.id]
                     return (typeof uv?.lat === 'number' && typeof uv?.lng === 'number') ? { lat: uv.lat, lng: uv.lng } : null
                   }
+                  if (it.type === 'event') {
+                    const ev = it.event
+                    return (typeof ev?.lat === 'number' && typeof ev?.lng === 'number') ? { lat: ev.lat, lng: ev.lng } : null
+                  }
                   return restaurantCoords(it.meal === 'lunch' ? lunchRestaurants[dayIdx] : dinnerRestaurants[dayIdx])
                 }
                 const _myCoord = coordsOf(item)
@@ -12150,6 +12295,88 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                     </span>
                   </div>
                 ) : null
+
+                if (item.type === 'event') {
+                  // ── Event as a first-class stop (2026-07-16) — same card
+                  // grammar, route badge, and ▲▼ reorder as places. The
+                  // "ADDED EVENT" pill is visit-scoped, like the NEW badge. ──
+                  const ev = item.event
+                  const evId = '__event_' + ev.id
+                  const d = ev.date
+                  const hasTime = d instanceof Date && !isNaN(d) && (d.getHours() || d.getMinutes())
+                  const time = hasTime ? `${(d.getHours() % 12) || 12}${d.getMinutes() ? ':' + String(d.getMinutes()).padStart(2, '0') : ''}${d.getHours() < 12 ? 'am' : 'pm'}` : ''
+                  return (
+                    <React.Fragment key={evId}>
+                    {travelConnector}
+                    <div
+                      ref={el => { if (el) stopCardRefs.current[evId] = el; else delete stopCardRefs.current[evId] }}
+                      style={{
+                        background: dragId === evId ? 'var(--gray-100)' : 'var(--card)',
+                        border: dragId === evId ? '2px solid var(--gray-400)' : '1px solid var(--gray-200)',
+                        borderRadius: 14, overflow: 'hidden',
+                        position: 'relative',
+                        opacity: dragId !== null && dragId !== evId ? 0.55 : 1,
+                        transform: dragId === evId ? 'scale(1.025)' : 'scale(1)',
+                        boxShadow: dragId === evId ? '0 8px 24px rgba(0,0,0,0.18)' : '0 4px 14px rgba(33,27,20,0.05)',
+                        transition: dragId ? 'opacity 0.1s' : 'transform 0.18s, opacity 0.18s, box-shadow 0.18s',
+                        userSelect: 'none', WebkitUserSelect: 'none',
+                        zIndex: dragId === evId ? 10 : 'auto',
+                      }}>
+                      {/* Neutral strip — same grammar as stop cards */}
+                      <div style={{ background: 'var(--gray-50)', borderBottom: '1px solid var(--gray-100)', padding: '7px 14px 7px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {routeNumBadge(_routeNum['event:' + ev.id])}
+                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                          🎟 {t('Event')}{time ? ` · ${time}` : ''}
+                        </span>
+                        {recentEventAdds.has(ev.id) && (
+                          <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', color: '#fff', background: 'var(--accent)', padding: '2px 7px', borderRadius: 999 }}>{t('ADDED EVENT')}</span>
+                        )}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); toggleEventSaved(ev) }}
+                          aria-label="Remove event from trip"
+                          style={{
+                            marginLeft: 'auto', flexShrink: 0, background: 'none', border: 'none',
+                            cursor: 'pointer', color: 'var(--gray-400)', fontSize: 14,
+                            lineHeight: 1, padding: '0 2px', fontFamily: 'inherit',
+                          }}
+                        >✕</button>
+                      </div>
+                      <div style={{ padding: '10px 14px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                        {/* ▲⠿▼ rail — full drag parity with stop/meal cards */}
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, paddingTop: 2, flexShrink: 0 }}>
+                          <button onClick={() => nudgeItem(dayIdx, evId, -1, defaultItemIds)} aria-label="Move up" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray-400)', fontSize: 10, lineHeight: 1, padding: '3px 6px' }}>▲</button>
+                          <div
+                            onTouchStart={e => { e.stopPropagation(); onItemTouchStart(e, evId, dayIdx, defaultItemIds) }}
+                            onTouchMove={e => onItemTouchMove(e, evId)}
+                            onTouchEnd={() => onItemTouchEnd(evId, dayIdx)}
+                            onTouchCancel={() => onItemTouchEnd(evId, dayIdx)}
+                            onMouseDown={e => { e.stopPropagation(); e.preventDefault(); onItemTouchStart(e, evId, dayIdx, defaultItemIds) }}
+                            style={{
+                              color: dragId === evId ? 'var(--gray-700)' : 'var(--gray-300)',
+                              fontSize: 18, userSelect: 'none', WebkitUserSelect: 'none',
+                              letterSpacing: '-1px', cursor: dragId === evId ? 'grabbing' : 'grab',
+                              touchAction: 'none', padding: '2px 6px',
+                            }}
+                            aria-label="Drag to reorder"
+                          >⠿</div>
+                          <button onClick={() => nudgeItem(dayIdx, evId, 1, defaultItemIds)} aria-label="Move down" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gray-400)', fontSize: 10, lineHeight: 1, padding: '3px 6px' }}>▼</button>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontFamily: 'var(--serif)', fontSize: 17, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.25 }}>{ev.title}</div>
+                          {(ev.location || ev.kindLabel) && (
+                            <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 3 }}>{[ev.kindLabel, ev.location].filter(Boolean).join(' · ')}</div>
+                          )}
+                          {ev.ticketUrl && (
+                            <a href={ev.ticketUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', marginTop: 8, fontSize: 12.5, fontWeight: 700, color: 'var(--accent-text, var(--accent))', textDecoration: 'none' }}>
+                              🎟 {t('Get tickets')} →
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    </React.Fragment>
+                  )
+                }
 
                 if (item.type === 'restaurant') {
                   const isLunch = item.meal === 'lunch'
@@ -12667,37 +12894,8 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
               )
             })()}
 
-            {/* ── Pinned events — saved events dated on this trip day. Date-fixed,
-                so no drag handle: the planner works around them. ── */}
-            {!isCollapsed && (eventsByDay[dayIdx] || []).map(ev => {
-              const d = ev.date
-              const hasTime = d instanceof Date && !isNaN(d) && (d.getHours() || d.getMinutes())
-              const time = hasTime ? `${(d.getHours() % 12) || 12}${d.getMinutes() ? ':' + String(d.getMinutes()).padStart(2, '0') : ''}${d.getHours() < 12 ? 'am' : 'pm'}` : 'Evening'
-              return (
-                <div key={'ev-' + ev.id} style={{
-                  margin: '0 0 10px', borderRadius: 14, overflow: 'hidden',
-                  border: '1px solid rgba(190,77,43,0.25)', background: 'var(--card)',
-                  boxShadow: '0 4px 14px rgba(33,27,20,0.05)',
-                }}>
-                  <div style={{ background: 'rgba(190,77,43,0.10)', padding: '7px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 12 }}>🎟</span>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-text)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                      {t('Your event')} · {time}
-                    </span>
-                    <button onClick={() => toggleEventSaved(ev)} aria-label="Remove event from trip" style={{
-                      marginLeft: 'auto', border: 'none', background: 'none', cursor: 'pointer',
-                      color: 'var(--accent-text)', fontSize: 13, lineHeight: 1, padding: 2, opacity: 0.7,
-                    }}>✕</button>
-                  </div>
-                  <div style={{ padding: '10px 14px' }}>
-                    <div style={{ fontFamily: 'var(--serif)', fontSize: 16, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.25 }}>{ev.title}</div>
-                    {(ev.location || ev.kindLabel) && (
-                      <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 3 }}>{[ev.kindLabel, ev.location].filter(Boolean).join(' · ')}</div>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
+            {/* (Pinned events now render INSIDE the day's item flow above —
+                same cards, route numbers, and reorder as places, 2026-07-16.) */}
 
             {/* Inline "Add a place" — Wanderlog-style. Appears at the bottom of each
                 expanded day so users can search-and-insert a venue without first having
@@ -12807,7 +13005,12 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                 // the old single slot silently overwrote plan #1 with plan #2).
                 // Identical plan already saved? Open it instead of duplicating.
                 const list = readPlanSnapshots()
-                const sig = JSON.stringify([venueIds, tripDays, tripStartDate || null])
+                // WYSIWYG guarantee (2026-07-16): snapshot the ids of the
+                // stops the user is LOOKING AT (the rendered days), not the
+                // raw selection set — a stale selection id that wasn't
+                // rendering could sneak a phantom place into the saved plan.
+                const snapIds = [...new Set(days.flatMap(d => (d.stops || []).map(s => s.id)))]
+                const sig = JSON.stringify([snapIds, tripDays, tripStartDate || null])
                 const dup = list.find(sn => JSON.stringify([sn.venueIds, sn.tripDays, sn.tripStartDate || null]) === sig)
                 if (dup) { setViewSnapId(dup.id); return }
                 // Free tier keeps 1 saved plan; the 2nd opens the paywall.
@@ -12817,7 +13020,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                   id: 'snap_' + Date.now(),
                   savedAt: Date.now(),
                   tripStartDate: tripStartDate || null,
-                  venueIds,
+                  venueIds: snapIds,
                   // Snapshot the EXACT days the user arranged (incl. trip-length
                   // padding + drag reassignments) so the saved view matches 1:1
                   // instead of re-deriving a different itinerary.
@@ -13511,7 +13714,8 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                   </div>
                 )}
                 <div style={{ fontSize: 12, color: 'var(--gray-500)', lineHeight: 1.5 }}>
-                  {snap.venueIds?.length} stop{snap.venueIds?.length !== 1 ? 's' : ''}
+                  {/* Meals count as stops — matches the live day summary. */}
+                  {(() => { const m = Object.values(snap.lunchRestaurants || {}).filter(Boolean).length + Object.values(snap.dinnerRestaurants || {}).filter(Boolean).length; const n = (snap.venueIds?.length || 0) + m; return `${n} stop${n !== 1 ? 's' : ''}` })()}
                   {snap.tripDays ? ` · ${snap.tripDays} day${snap.tripDays !== 1 ? 's' : ''}` : ''}
                   {/* Show count of meals with cuisine set (new mealCuisines shape) or fall back to old format */}
                   {(() => {
@@ -13521,7 +13725,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                   })()}
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 3, lineHeight: 1.4 }}>
-                  {(snap.venueIds || []).map(id => venues[id]?.name).filter(Boolean).join(' · ')}
+                  {(snap.venueIds || []).map(id => venues[id]?.name || userVenues[id]?.name).filter(Boolean).join(' · ')}
                 </div>
                 {/* Trip-level estimates — same estimators as the day headers:
                     per-mode travel mins (legs between consecutive stops of each
@@ -16570,7 +16774,9 @@ export default function App() {
       // sequencing them produced impossible slots like an 11:25pm Carnegie Hall.
       ids = shuffle(eligible).slice(0, 1)
     } else {
-      ids = shuffle(eligible).slice(0, 3)
+      // Weekend: 5 places over 2 days + auto meals ≈ 4–5 stops per day
+      // (restaurants count as stops — 3 places spread thin, 2026-07-16).
+      ids = shuffle(eligible).slice(0, 5)
     }
     // Fallback if the chosen area has none of the right kind.
     if (ids.length < 1) {
@@ -16760,11 +16966,15 @@ export default function App() {
     switch (current.screen) {
       case 'home':      return (
         <>
-          <TabTutorial key="nyc_tut_explore_v1" tutKey="nyc_tut_explore_v1" title="Start here" rows={[
+          {/* Tutorial waits for onboarding to finish — without this gate it
+              stacked ON TOP of the onboarding overlay (z 3000 vs 1000) and
+              swallowed its taps on a fresh install. Mounting only after
+              dismissal also makes it re-read its localStorage key then. */}
+          {!showOnboarding && <TabTutorial key="nyc_tut_explore_v1" tutKey="nyc_tut_explore_v1" title="Start here" rows={[
             ['✨', <>Pick a mood — <b>Eat, Drink…</b> — and get a short, curated list.</>],
             ['🗽', <>Or browse by <b>neighborhood</b> and <b>topic</b> to go deeper.</>],
             ['🔖', <>Save anything you like — it all lands in <b>My Trip</b>.</>],
-          ]} />
+          ]} />}
           <HomeScreen push={push} savedItems={savedItems} toggleSave={toggleSave} onSeeAllTonight={() => setActiveTab('tonight')} onOpenSettings={() => setSettingsOpen(true)} onPlanNight={() => setPlanNightOpen(true)} userVenues={userVenues} weather={weather} user={user} />
         </>
       )
