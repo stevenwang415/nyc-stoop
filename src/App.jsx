@@ -9648,6 +9648,9 @@ function fmtHour(h) {
 
 // ── Restaurant Data ──────────────────────────────────────────────────────────
 const CUISINE_OPTIONS = [
+  // Budget is a PRICE filter wearing the cuisine picker's clothes (2026-07-21):
+  // ≤ ~$20/person (the '$' tier). restaurantPool special-cases the id.
+  { id: 'budget',     label: 'Budget',      emoji: '💸', color: '#0d9488' },
   { id: 'japanese',   label: 'Japanese',    emoji: '🍣', color: '#e11d48' },
   { id: 'korean',     label: 'Korean',      emoji: '🍲', color: '#ea580c' },
   { id: 'italian',    label: 'Italian',     emoji: '🍝', color: '#16a34a' },
@@ -9775,7 +9778,11 @@ const AREA_TO_RESTAURANT_AREA = {
 // no day (incl. evening-only "Evening Out" plans) loses its meal suggestion.
 function restaurantPool(area, cuisineId) {
   const byArea = a => RESTAURANT_DATA.filter(r => r.area === a)
-  const narrow = list => cuisineId ? list.filter(r => r.cuisines && r.cuisines.includes(cuisineId)) : list
+  const narrow = list => {
+    // "Budget" = the '$' tier (≈$20/person and under), not a cuisine.
+    if (cuisineId === 'budget') return list.filter(r => r.price === '$')
+    return cuisineId ? list.filter(r => r.cuisines && r.cuisines.includes(cuisineId)) : list
+  }
   let pool = narrow(byArea(area))
   if (pool.length === 0 && AREA_TO_RESTAURANT_AREA[area]) pool = narrow(byArea(AREA_TO_RESTAURANT_AREA[area]))
   if (pool.length === 0) pool = narrow(RESTAURANT_DATA)   // that cuisine, anywhere
@@ -10928,10 +10935,29 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
   const [mealCuisines, setMealCuisines] = React.useState(() => {
     try { return JSON.parse(localStorage.getItem('nyc_meal_cuisines') || '{}') } catch { return {} }
   })
+  // ── Pinned meal picks (2026-07-20) ────────────────────────────────────────
+  // The suggestion the user is LOOKING AT is theirs — it must not silently
+  // change because a stop was removed (the nearest-anchor re-rank used to
+  // swap the restaurant under them). Once shown, a pick is pinned by id and
+  // only changes on explicit intent: "↻ Change", a cuisine switch, or a reset.
+  const [mealPicks, setMealPicks] = React.useState(() => {
+    try { return JSON.parse(localStorage.getItem('nyc_meal_picks') || '{}') } catch { return {} }
+  })
+  const clearMealPick = (dayIdx, meal) => {
+    setMealPicks(prev => {
+      const key = `${dayIdx}:${meal}`
+      if (!(key in prev)) return prev
+      const { [key]: _, ...rest } = prev
+      try { lsSet('nyc_meal_picks', JSON.stringify(rest)) } catch {}
+      return rest
+    })
+  }
   function getMealCuisine(dayIdx, meal) {
     return mealCuisines[`${dayIdx}:${meal}`] || null
   }
   function setMealCuisine(dayIdx, meal, cuisineId) {
+    // Cuisine switch = explicit intent for a NEW suggestion.
+    clearMealPick(dayIdx, meal)
     setMealCuisines(prev => {
       const next = { ...prev }
       const key = `${dayIdx}:${meal}`
@@ -11010,6 +11036,8 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
   // Per-(meal, dayIdx) offset for "show me another" — keys like 'lunch:0'. Per-day so each day cycles independently.
   const [restaurantOffsets, setRestaurantOffsets] = React.useState({})
   function bumpRestaurantOffset(meal, dayIdx) {
+    // "Show another" = explicit intent — unpin so the memo recomputes.
+    clearMealPick(dayIdx, meal)
     setRestaurantOffsets(prev => ({ ...prev, [`${meal}:${dayIdx}`]: (prev[`${meal}:${dayIdx}`] || 0) + 1 }))
   }
   const _storedTripDays = (() => { try { return JSON.parse(localStorage.getItem('nyc_trip_days') || 'null') } catch { return null } })()
@@ -11126,9 +11154,19 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
   }
 
   function getSwapCandidates(domain, excludeIds) {
+    // Cheapest first (2026-07-20) — price is the axis people compare
+    // alternatives on. Unpriced venues sort last (unknown ≠ free).
+    const priceKey = (id) => {
+      const v = venues[id]
+      const adm = admissionAvgFromCost(v?.admissionCost)
+      if (adm != null) return adm
+      if (v?.price) return v.price * 25
+      return Infinity
+    }
     return Object.entries(venueCoords)
       .filter(([id, info]) => info.domain === domain && !excludeIds.has(id) && venues[id])
       .map(([id]) => id)
+      .sort((a, b) => priceKey(a) - priceKey(b))
       .slice(0, 6)
   }
 
@@ -11337,30 +11375,35 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     return block[block.length - 1].c
   }
 
+  // Resolve a pinned pick id back to its RESTAURANT_DATA row.
+  const _restById = React.useMemo(() => { const m = {}; RESTAURANT_DATA.forEach(r => { m[r.id] = r }); return m }, [])
+
   const lunchRestaurants = React.useMemo(() => {
     const map = {}
     days.forEach((day, di) => {
-      // Auto-fill the nearest good spot by default (cuisine optional). The
-      // smoothest flow: a complete plan with zero taps; the user can refine
-      // cuisine or "show another" if they care.
+      // PINNED pick wins (2026-07-20): the shown restaurant never changes
+      // because the day's stops changed — only Change/cuisine/reset unpin.
+      const pinned = _restById[mealPicks[`${di}:lunch`]]
+      if (pinned) { map[di] = pinned; return }
       const cuisine = mealCuisines[`${di}:lunch`] || null
       const off = restaurantOffsets[`lunch:${di}`] || 0
       map[di] = getRestaurantSuggestionNear(day.area, cuisine, off, mealAnchor(day, 'lunch', di))
     })
     return map
-  }, [mealCuisines, restaurantOffsets, days, savedEvts, tripStartDate])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mealCuisines, restaurantOffsets, days, savedEvts, tripStartDate, mealPicks])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const dinnerRestaurants = React.useMemo(() => {
     const map = {}
     days.forEach((day, di) => {
+      const pinned = _restById[mealPicks[`${di}:dinner`]]
+      if (pinned) { map[di] = pinned; return }
       const cuisine = mealCuisines[`${di}:dinner`] || null
       const off = restaurantOffsets[`dinner:${di}`] || 0
       const anchor = mealAnchor(day, 'dinner', di)
       let pick = getRestaurantSuggestionNear(day.area, cuisine, off, anchor)
       // Don't suggest the same restaurant for lunch and dinner on the same day.
-      // (Compute the lunch pick regardless of whether a lunch cuisine is set —
-      // otherwise the no-cuisine default gave lunch and dinner the same spot.)
-      const lunchPick = getRestaurantSuggestionNear(day.area, mealCuisines[`${di}:lunch`] || null, restaurantOffsets[`lunch:${di}`] || 0, mealAnchor(day, 'lunch', di))
+      const lunchPick = _restById[mealPicks[`${di}:lunch`]]
+        || getRestaurantSuggestionNear(day.area, mealCuisines[`${di}:lunch`] || null, restaurantOffsets[`lunch:${di}`] || 0, mealAnchor(day, 'lunch', di))
       if (pick && lunchPick && pick.name === lunchPick.name) {
         const alt = getRestaurantSuggestionNear(day.area, cuisine, off + 1, anchor)
         if (alt && alt.name !== lunchPick.name) pick = alt
@@ -11368,7 +11411,30 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
       map[di] = pick
     })
     return map
-  }, [mealCuisines, restaurantOffsets, days, savedEvts, tripStartDate])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mealCuisines, restaurantOffsets, days, savedEvts, tripStartDate, mealPicks])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pin whatever is currently DISPLAYED — runs after render, so the first
+  // suggestion a user sees becomes the stable one.
+  React.useEffect(() => {
+    const next = { ...mealPicks }
+    let changed = false
+    days.forEach((d, di) => {
+      // Pin only meals that are actually ON SCREEN — the memos compute picks
+      // for every day, but an evening-only day never shows lunch and must not
+      // pin one (a phantom pin would later force the card into the day).
+      const items = computeDayPlan(d, di).reorderedItems
+      const hasL = items.some(it => it.type === 'restaurant' && it.meal === 'lunch')
+      const hasD = items.some(it => it.type === 'restaurant' && it.meal === 'dinner')
+      const l = lunchRestaurants[di]
+      if (hasL && l && next[`${di}:lunch`] !== l.id) { next[`${di}:lunch`] = l.id; changed = true }
+      const dn = dinnerRestaurants[di]
+      if (hasD && dn && next[`${di}:dinner`] !== dn.id) { next[`${di}:dinner`] = dn.id; changed = true }
+    })
+    if (changed) {
+      setMealPicks(next)
+      try { lsSet('nyc_meal_picks', JSON.stringify(next)) } catch {}
+    }
+  }, [lunchRestaurants, dinnerRestaurants])  // eslint-disable-line react-hooks/exhaustive-deps
 
 
 
@@ -11820,7 +11886,7 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     setPlanSelection(new Set()); lsSet('nyc_plan_sel', '[]')
     // NB: nyc_plan_known is deliberately KEPT — clearing it would make the
     // auto-add effect re-select every save, undoing the reset.
-    setDayItemOrders({}); setStopDayOverrides({}); setSkippedMeals({}); setMealOptIns({})
+    setDayItemOrders({}); setStopDayOverrides({}); setSkippedMeals({}); setMealOptIns({}); setMealPicks({})
     setMealCuisines({}); setVenueSwaps({}); setRestaurantOffsets({})
     setCheckedStops(new Set()); setCollapsedDays(new Set()); setStopOrderOverride(null)
     // Collected events go too (2026-07-20) — they belong to the plan that was
@@ -11841,6 +11907,7 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
       localStorage.removeItem('nyc_stop_day_overrides')
       localStorage.removeItem('nyc_skipped_meals')
       localStorage.removeItem('nyc_meal_optins')
+      localStorage.removeItem('nyc_meal_picks')
       localStorage.removeItem('nyc_plan_extra_ids')
       localStorage.removeItem('nyc_meal_cuisines')
       localStorage.removeItem('nyc_venue_swaps')
@@ -11875,8 +11942,19 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     // generated flows (Plan-my-night, sample weekend), which SEED the opt-in
     // because "routed, with food" is their promise. Own food stops still
     // silence the matching slot even after opt-in.
-    const wantLunch2 = hasDaytime2 && !_foodDay && !!mealOptIns[dayIdx]
-    const wantDinner2 = hasEvening2 && !_foodEve && !!mealOptIns[dayIdx]
+    // Lunch also survives stop removals once it's on screen (pinned pick =
+    // proof it was displayed) — daytime-ness only gates its FIRST appearance.
+    // `_foodEve` joins the gate (2026-07-21): when the user's own restaurant
+    // occupies the evening, "Add a restaurant" offers the OTHER meal — two
+    // meals a day, theirs + ours.
+    const wantLunch2 = (hasDaytime2 || !!mealPicks[`${dayIdx}:lunch`] || _foodEve)
+      && (sortedDayStops.length > 0 || dayEvents.length > 0)
+      && !_foodDay && !!mealOptIns[dayIdx]
+    // Dinner must SURVIVE stop removals (bug 2026-07-20: ✕ing the only
+    // evening place silently took the restaurant card with it). Once opted
+    // in, dinner stays as long as the day has anything at all — the stops'
+    // periods only decide WHERE it slots, not WHETHER it exists.
+    const wantDinner2 = (sortedDayStops.length > 0 || dayEvents.length > 0) && !_foodEve && !!mealOptIns[dayIdx]
     const defaultItemIds = []
     let li2 = false, di2 = false
     sortedDayStops.forEach(stop => {
@@ -11895,10 +11973,12 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     // restore chips gone, a vanished dinner is unrecoverable). Scoped to
     // single-day trips only: multi-day padding creates empty days that must
     // NOT sprout phantom dinner cards.
-    // Stop-less single days (event-only nights, or ✕'d the last place after
-    // opting in) hang their dinner on the same opt-in flag.
+    // Stop-less single days (✕'d the very last item after opting in) hang
+    // their dinner on the same opt-in flag. Guarded against double-insertion
+    // now that wantDinner2 also covers event-only days.
     if (sortedDayStops.length === 0 && days.length === 1 && dinnerRestaurants[dayIdx]
-        && mealOptIns[dayIdx] && !skippedMeals[dayIdx]?.dinner) {
+        && mealOptIns[dayIdx] && !skippedMeals[dayIdx]?.dinner
+        && !defaultItemIds.includes('__dinner__')) {
       defaultItemIds.push('__dinner__')
     }
     // ✕-removed meals: filter ONCE here, after every insertion path (meals get
@@ -12055,6 +12135,26 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
   // the one thing the planner can't move). Without a date, events stay in the
   // "Saved events" section as before. Plain computation, no hooks — safe here.
   const plannedEventIds = new Set(Object.values(eventsByDay).flat().map(e => e.id))
+
+  // ── Auto-reset when the plan empties out (2026-07-20) ─────────────────────
+  // Removing the last card used to leave hollow DAY 1 / DAY 2 frames behind
+  // (trip-length padding). Zero rendered cards across all days → clear the
+  // scaffolding so the page returns to its first-open empty state on its own.
+  const _totalCards = days.reduce((n, d, di) => n + computeDayPlan(d, di).reorderedItems.length, 0)
+  React.useEffect(() => {
+    if (days.length === 0 || _totalCards > 0) return
+    setTripDays(null)
+    setDayItemOrders({}); setStopDayOverrides({}); setSkippedMeals({}); setMealOptIns({}); setMealPicks({})
+    setCollapsedDays(new Set()); setDayFilter(null)
+    try {
+      localStorage.removeItem('nyc_trip_days')
+      localStorage.removeItem('nyc_day_item_orders')
+      localStorage.removeItem('nyc_stop_day_overrides')
+      localStorage.removeItem('nyc_skipped_meals')
+      localStorage.removeItem('nyc_meal_optins')
+      localStorage.removeItem('nyc_meal_picks')
+    } catch {}
+  }, [_totalCards, days.length])  // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="screen">
@@ -13258,6 +13358,10 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                              stop.isEvening ? '🎟 Get tickets →' : '🌐 Visit website →'}
                           </a>
                         )}
+                        {/* Restaurant stops drop "⋯ Options" (2026-07-21, product
+                            call): meal adjustments live in ONE place — the
+                            suggestion card's cuisine + Change controls. */}
+                        {!isRestaurantStop(stop) && (
                         <button
                           onClick={e => { e.stopPropagation(); setExpandedStopId(prev => prev === stop.id ? null : stop.id) }}
                           style={{
@@ -13268,6 +13372,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                         >
                           {expandedStopId === stop.id ? '× ' + t('Done') : '⋯ ' + t('Options')}
                         </button>
+                        )}
                       </div>
                     </div>
 
@@ -13282,11 +13387,15 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                       }}>
                         {/* Row 1: swap */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-                          <button onClick={() => setSwapModal({ venueId: stop.id, domain: stop.domain })} style={{
+                          {/* Swap candidates must match the stop's KIND (2026-07-21):
+                              a restaurant swaps against food venues, not whatever
+                              domain the itinerary guessed (museums, previously).
+                              Hotels have no swap pool → no swap button. */}
+                          {!isHotelStop(stop) && <button onClick={() => setSwapModal({ venueId: stop.id, domain: isRestaurantStop(stop) ? 'food' : stop.domain })} style={{
                             fontSize: 11, fontWeight: 600, padding: '4px 10px',
                             borderRadius: 8, border: '1px solid var(--gray-200)', cursor: 'pointer',
                             background: 'var(--white)', color: 'var(--gray-600)',
-                          }}>⇄ Swap this spot</button>
+                          }}>⇄ Swap this spot</button>}
                         </div>
                         {/* Row 2: move-to-day buttons (only when 2+ days exist) */}
                         {days.length > 1 && (
@@ -13347,7 +13456,11 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
             {!isCollapsed
               && !computeDayPlan(day, dayIdx).reorderedItems.some(it => it.type === 'restaurant')
               && (day.stops.length > 0
-                    ? !day.stops.some(s => isRestaurantStop(s))
+                    // Own restaurants no longer hide the button (2026-07-21:
+                    // two meals a day) — it only hides once BOTH slots are
+                    // covered by the user's own food stops.
+                    ? !(day.stops.some(s => isRestaurantStop(s) && s.period === 'Evening')
+                        && day.stops.some(s => isRestaurantStop(s) && s.period !== 'Evening'))
                     : ((eventsByDay[dayIdx] || []).length > 0 && days.length === 1 && !!dinnerRestaurants[dayIdx]))
               && (
               <button
@@ -13581,7 +13694,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
       {swapModal && (() => {
         const currentPlanIds = new Set(days.flatMap(d => d.stops.map(s => s.id)))
         const candidates = getSwapCandidates(swapModal.domain, currentPlanIds)
-        const currentVenue = venues[swapModal.venueId]
+        const currentVenue = venues[swapModal.venueId] || userVenues[swapModal.venueId]
         const activeSwap = venueSwaps[swapModal.venueId]
         return (
           <div
@@ -13596,7 +13709,10 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
               onClick={e => e.stopPropagation()}
               style={{
                 background: 'var(--white)', borderRadius: '20px 20px 0 0',
-                padding: '20px 20px 40px', width: '100%', maxHeight: '72vh', overflowY: 'auto',
+                // Bottom padding clears the nav bar + home indicator — the last
+                // option used to hide underneath them (device report 2026-07-20).
+                padding: '20px 20px calc(84px + env(safe-area-inset-bottom, 0px))',
+                width: '100%', maxHeight: '78vh', overflowY: 'auto',
                 boxSizing: 'border-box',
               }}
             >
@@ -17463,6 +17579,7 @@ export default function App() {
       localStorage.removeItem('nyc_skipped_meals')
       localStorage.removeItem('nyc_day_item_orders')
       localStorage.removeItem('nyc_stop_day_overrides')
+      localStorage.removeItem('nyc_meal_picks')
     } catch {}
 
     const days = when === 'weekend' ? 2 : 1
