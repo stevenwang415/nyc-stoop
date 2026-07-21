@@ -16,6 +16,10 @@ import {
   resizeImageFile,
 } from './auth/api'
 import { AuthModal, ResetPasswordScreen } from './auth/components.jsx'
+import { Capacitor } from '@capacitor/core'
+import { jsPDF } from 'jspdf'
+import { Share } from '@capacitor/share'
+import { Filesystem, Directory } from '@capacitor/filesystem'
 // Google Places search — used by AddStopToDayModal to let users add places
 // that aren't in our curated catalog. Falls back gracefully if the key is unset.
 import { isGooglePlacesAvailable, searchGooglePlaces, getGooglePlaceDetails, getPlacePhotoByName } from './lib/googlePlaces'
@@ -10109,7 +10113,37 @@ const MEAL_PRICE_RANGE = { '$': [15, 25], '$$': [25, 50], '$$$': [50, 90], '$$$$
 // a hidden iframe in THIS webview instead, which brings up the native iOS
 // print sheet (with its own Save-to-Files / share options). (2026-07-20 —
 // device testing hit the "allow pop-ups" dead end.)
-function printHtmlDoc(html) {
+async function printHtmlDoc(html, plainText = null) {
+  // Native iOS (2026-07-21): WKWebView implements NEITHER window.open('')
+  // NOR window.print() — both fallbacks were silent no-ops on device. The
+  // path that actually works: build a real PDF (jsPDF) and hand it to the
+  // iOS SHARE SHEET, where Save-to-Files / AirDrop / Print all live.
+  const _isNative = (() => { try { return Capacitor.isNativePlatform() } catch { return false } })()
+  if (_isNative && plainText) {
+    try {
+      const doc = new jsPDF({ unit: 'pt', format: 'letter' })
+      const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight()
+      const M = 54; let y = M
+      const lines = String(plainText).split('\n')
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(20)
+      doc.text(lines[0] || 'My NYC Trip', M, y); y += 30
+      for (const raw of lines.slice(1)) {
+        const isDay = /^Day \d/.test(raw.trim())
+        doc.setFont('helvetica', isDay ? 'bold' : 'normal')
+        doc.setFontSize(isDay ? 13 : 11)
+        const wrapped = doc.splitTextToSize(raw || ' ', W - M * 2)
+        for (const wl of wrapped) {
+          if (y > H - M) { doc.addPage(); y = M }
+          doc.text(wl, M, y); y += isDay ? 20 : 16
+        }
+        if (isDay) y += 2
+      }
+      const b64 = doc.output('datauristring').split(',')[1]
+      const f = await Filesystem.writeFile({ path: 'nyc-stoop-plan.pdf', data: b64, directory: Directory.Cache })
+      await Share.share({ title: 'My NYC Trip', url: f.uri })
+      return
+    } catch (e) { /* cancelled share throws — treat as done; real failures fall through */ if (/cancel/i.test(String(e?.message || e))) return }
+  }
   let w = null
   try { w = window.open('', '_blank') } catch {}
   if (w) { w.document.open(); w.document.write(html); w.document.close(); return }
@@ -10461,7 +10495,7 @@ ${body}
 <div class="foot">Made with NYC Stoop</div>
 <script>window.addEventListener('load',function(){setTimeout(function(){try{window.print()}catch(e){}},350)})</script>
 </body></html>`
-    printHtmlDoc(html)
+    printHtmlDoc(html, buildShareText())
   }
 
   return (
@@ -12122,7 +12156,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
 <div class="foot">Made with NYC Stoop</div>
 <script>window.addEventListener('load',function(){setTimeout(function(){try{window.print()}catch(e){}},350)})</script>
 </body></html>`
-    printHtmlDoc(html)
+    printHtmlDoc(html, buildShareText())
   }
 
   // All saved plans (legacy single-slot migrates into the list on read).
