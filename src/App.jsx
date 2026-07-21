@@ -10341,7 +10341,7 @@ function PaywallSheet({ onClose }) {
 }
 
 // ── SavedPlanSummary: read-only view of the plan the user just saved ──────────
-function SavedPlanSummary({ snapshot, onBack }) {
+function SavedPlanSummary({ snapshot, onBack, onEdit = null }) {
   const plusOwned = usePlus() // PDF export is a Plus feature
   const [shareCopied, setShareCopied] = React.useState(false)
   // Land at the TOP of the plan — this view replaces a page the user had
@@ -10884,17 +10884,26 @@ ${body}
           // ONE action color (clay); Share is a quiet white-bordered
           // secondary. Maps routing moved INTO each day ("Open this day in
           // Maps →") — a bottom chip row broke at 4+ days.
+          const secondary = {
+            flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+            padding: '13px 10px', borderRadius: 12,
+            background: 'var(--white)', border: '1px solid var(--gray-200)',
+            color: 'var(--gray-800)', fontSize: 13.5, fontWeight: 700,
+            fontFamily: 'inherit', cursor: 'pointer',
+          }
           return (
-            <button onClick={handleShare} style={{
-              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-              padding: '13px 10px', borderRadius: 12,
-              background: 'var(--white)', border: '1px solid var(--gray-200)',
-              color: 'var(--gray-800)', fontSize: 13.5, fontWeight: 700,
-              fontFamily: 'inherit', cursor: 'pointer',
-            }}>
-              <span style={{ fontSize: 15, color: 'var(--accent)' }}>{shareCopied ? '✓' : '↑'}</span>
-              <span>{shareCopied ? 'Copied!' : 'Share'}</span>
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {onEdit && (
+                <button onClick={onEdit} style={secondary}>
+                  <span style={{ fontSize: 14, color: 'var(--accent)' }}>✎</span>
+                  <span>{t('Edit in Planner')}</span>
+                </button>
+              )}
+              <button onClick={handleShare} style={secondary}>
+                <span style={{ fontSize: 15, color: 'var(--accent)' }}>{shareCopied ? '✓' : '↑'}</span>
+                <span>{shareCopied ? 'Copied!' : 'Share'}</span>
+              </button>
+            </div>
           )
         })()}
       </div>
@@ -11999,6 +12008,7 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
       localStorage.removeItem('nyc_meal_optins')
       localStorage.removeItem('nyc_meal_picks')
       localStorage.removeItem('nyc_plan_extra_ids')
+      localStorage.removeItem('nyc_plan_editing_id')
       localStorage.removeItem('nyc_meal_cuisines')
       localStorage.removeItem('nyc_venue_swaps')
       localStorage.removeItem('nyc_checked_stops')
@@ -12247,6 +12257,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
       localStorage.removeItem('nyc_skipped_meals')
       localStorage.removeItem('nyc_meal_optins')
       localStorage.removeItem('nyc_meal_picks')
+      localStorage.removeItem('nyc_plan_editing_id')
     } catch {}
   }, [_totalCards, days.length])  // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -13581,6 +13592,12 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                 const snapIds = [...new Set(days.flatMap(d => (d.stops || []).map(s => s.id)))]
                 const sig = JSON.stringify([snapIds, tripDays, tripStartDate || null])
                 const dup = list.find(sn => JSON.stringify([sn.venueIds, sn.tripDays, sn.tripStartDate || null]) === sig)
+                // Edit-in-place (2026-07-21): arriving via "Edit in Planner"
+                // marks the session with the plan's id — saving then UPDATES
+                // that plan (same id, same name) instead of forking a second
+                // copy. New-plan actions (Start fresh, Plan it!, empty reset)
+                // clear the mark.
+                const editingId = (() => { try { return localStorage.getItem('nyc_plan_editing_id') } catch { return null } })()
                 // Landing rule (2026-07-16): Save switches to the MY PLANS
                 // TAB — the nav lights up, the fresh copy sits highlighted on
                 // top. No "did anything happen?" possible.
@@ -13592,10 +13609,10 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                   setShowSavedBanner(true)
                   onOpenPlansTab?.()
                 }
-                if (dup) { goToPlans(dup.id); return }
+                if (!editingId && dup) { goToPlans(dup.id); return }
                 // Free tier keeps 1 saved plan; the 2nd opens the paywall.
-                // (Dup check runs first so re-opening the existing plan stays free.)
-                if (!plusOwned && list.length >= 1) { openPaywall('plans'); return }
+                // (Dup check runs first; edit-in-place never adds a plan.)
+                if (!editingId && !plusOwned && list.length >= 1) { openPaywall('plans'); return }
                 const snap = {
                   id: 'snap_' + Date.now(),
                   savedAt: Date.now(),
@@ -13625,6 +13642,16 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                     : it.type === 'event' ? { t: 'e', id: it.event.id }
                     : { t: 'm', meal: it.meal })),
                 }
+                const editIdx = editingId ? list.findIndex(sn => sn.id === editingId) : -1
+                if (editIdx !== -1) {
+                  const updated = { ...snap, id: editingId, name: list[editIdx].name }
+                  const next = [...list]; next[editIdx] = updated
+                  writePlanSnapshots(next)
+                  try { localStorage.removeItem('nyc_plan_editing_id') } catch {}
+                  bumpSnaps()
+                  goToPlans(editingId)
+                  return
+                }
                 writePlanSnapshots([snap, ...list])   // newest first
                 bumpSnaps()
                 goToPlans(snap.id)
@@ -13637,8 +13664,9 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
               }}
             >
               {/* "Save copy" not "Save" — the trip already auto-saves; this
-                  keeps a NAMED VERSION under Saved plans. */}
-              <span>💾</span><span>{t('Save copy')}</span>
+                  keeps a NAMED VERSION under Saved plans. When editing an
+                  existing plan, it reads "Save changes" (updates in place). */}
+              <span>💾</span><span>{t((() => { try { return localStorage.getItem('nyc_plan_editing_id') ? 'Save changes' : 'Save copy' } catch { return 'Save copy' } })())}</span>
             </button>
             {/* Open route in Maps — context-aware: filtered to one day, it routes
                 THAT day (the standing-on-the-sidewalk moment); All days routes
@@ -14372,7 +14400,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
 // share, delete. First visit with nothing saved = one button + one line,
 // pointing at Build. "Save copy" lands here with the fresh card highlighted
 // (flash id handed off via nyc_plan_flash, read-and-cleared on mount).
-function MyPlansScreen({ userVenues = {}, onStartBuilding = () => {} }) {
+function MyPlansScreen({ userVenues = {}, onStartBuilding = () => {}, onEditPlan = null }) {
   const [, bump] = React.useReducer(x => x + 1, 0)
   const [viewSnapId, setViewSnapId] = React.useState(null)
   const [confirmDelete, setConfirmDelete] = React.useState(false)
@@ -14383,7 +14411,7 @@ function MyPlansScreen({ userVenues = {}, onStartBuilding = () => {} }) {
   })
   const snaps = readPlanSnapshots()
   const viewSnap = viewSnapId ? snaps.find(sn => sn.id === viewSnapId) : null
-  if (viewSnap) return <SavedPlanSummary snapshot={viewSnap} onBack={() => setViewSnapId(null)} />
+  if (viewSnap) return <SavedPlanSummary snapshot={viewSnap} onBack={() => setViewSnapId(null)} onEdit={onEditPlan ? () => onEditPlan(viewSnap) : null} />
   return (
     <div className="screen" style={{ paddingBottom: 90 }}>
       <div className="home-header">
@@ -17637,6 +17665,7 @@ export default function App() {
       localStorage.removeItem('nyc_day_item_orders')
       localStorage.removeItem('nyc_stop_day_overrides')
       localStorage.removeItem('nyc_meal_picks')
+      localStorage.removeItem('nyc_plan_editing_id')
       // Budget answer → meal engine (2026-07-21): Under $25 seeds the 💸
       // Budget cuisine (the ≤$25 tier) on every meal; other tiers clear any
       // stale cuisine so the default nearest-good-spot logic runs fresh.
@@ -17766,6 +17795,73 @@ export default function App() {
       if (sharedTrip.start) lsSet('nyc_trip_start_date', sharedTrip.start)
     } catch {}
     dismissSharedTrip()
+    setActiveTab('saved')
+  }
+
+  // ── Edit a saved plan (2026-07-21): rehydrate the Planner's working state
+  // from the snapshot — stops, day assignments, card order, meals (opt-in +
+  // skips + pinned picks + cuisines), dates — then land on the Planner.
+  // Saved plans were read-only dead ends; "Save copy" afterwards keeps a new
+  // version (identical → the dup-check reopens the original).
+  function editPlanInPlanner(snap) {
+    if (!snap) return
+    try {
+      // 1. Places: make sure every stop in the snapshot exists + is saved
+      //    (a stop unsaved since saving would otherwise silently vanish).
+      const nextUv = { ...userVenues }
+      const nextSaved = { ...savedItems }
+      ;(snap.days || []).forEach(d => (d.stops || []).forEach(s => {
+        if (s.isCustom) {
+          if (!nextUv[s.id]) nextUv[s.id] = { ...s, savedAt: Date.now() }
+          if (!nextSaved[`user_venue:${s.id}`]) nextSaved[`user_venue:${s.id}`] = { type: 'user_venue', id: s.id, savedAt: Date.now() }
+        } else if (venues[s.id] && !nextSaved[`venue:${s.id}`]) {
+          nextSaved[`venue:${s.id}`] = { type: 'venue', id: s.id, savedAt: Date.now() }
+        }
+      }))
+      setUserVenues(nextUv); lsSet('nyc_user_venues', JSON.stringify(nextUv))
+      setSavedItems(nextSaved); lsSet('nyc_saved', JSON.stringify(nextSaved))
+      // 2. Selection = exactly the snapshot's stops; mark everything known so
+      //    the brand-new auto-select can't smuggle other saves in.
+      const ids = [...new Set((snap.days || []).flatMap(d => (d.stops || []).map(s => s.id)))]
+      lsSet('nyc_plan_sel', JSON.stringify(ids))
+      const known = new Set(ids)
+      Object.values(nextSaved).forEach(i => { if (i?.id) known.add(i.id) })
+      lsSet('nyc_plan_known', JSON.stringify([...known]))
+      // 3. Day assignment + trip shape
+      const overrides = {}
+      ;(snap.days || []).forEach((d, di) => (d.stops || []).forEach(s => { overrides[s.id] = di }))
+      lsSet('nyc_stop_day_overrides', JSON.stringify(overrides))
+      const dCount = snap.tripDays || (snap.days || []).length || null
+      if (dCount && dCount > 0) lsSet('nyc_trip_days', JSON.stringify(dCount)); else localStorage.removeItem('nyc_trip_days')
+      if (snap.tripStartDate) lsSet('nyc_trip_start_date', snap.tripStartDate); else localStorage.removeItem('nyc_trip_start_date')
+      // 4. Card order replay (itemOrder → the Planner's order store)
+      if (Array.isArray(snap.itemOrder)) {
+        const orders = {}
+        snap.itemOrder.forEach((ord, di) => {
+          if (Array.isArray(ord) && ord.length) orders[di] = ord.map(o => o.t === 's' ? o.id : o.t === 'e' ? '__event_' + o.id : `__${o.meal}__`)
+        })
+        lsSet('nyc_day_item_orders', JSON.stringify(orders))
+      } else localStorage.removeItem('nyc_day_item_orders')
+      // 5. Meals: reproduce exactly the meal cards the snapshot shows
+      const optIns = {}, skips = {}, picks = {}
+      ;(snap.itemOrder || []).forEach((ord, di) => {
+        const meals = new Set((ord || []).filter(o => o.t === 'm').map(o => o.meal))
+        if (!meals.size) return
+        optIns[di] = true
+        if (!meals.has('lunch')) skips[di] = { ...(skips[di] || {}), lunch: true }
+        if (!meals.has('dinner')) skips[di] = { ...(skips[di] || {}), dinner: true }
+        const l = snap.lunchRestaurants?.[di]; if (meals.has('lunch') && l?.id) picks[`${di}:lunch`] = l.id
+        const dn = snap.dinnerRestaurants?.[di]; if (meals.has('dinner') && dn?.id) picks[`${di}:dinner`] = dn.id
+      })
+      lsSet('nyc_meal_optins', JSON.stringify(optIns))
+      lsSet('nyc_skipped_meals', JSON.stringify(skips))
+      lsSet('nyc_meal_picks', JSON.stringify(picks))
+      if (snap.mealCuisines) lsSet('nyc_meal_cuisines', JSON.stringify(snap.mealCuisines)); else localStorage.removeItem('nyc_meal_cuisines')
+      localStorage.removeItem('nyc_plan_extra_ids')
+      localStorage.removeItem('nyc_plan_saved_flag')
+      lsSet('nyc_plan_editing_id', snap.id)
+    } catch (e) { console.warn('editPlanInPlanner failed', e) }
+    setSavedSel(null)
     setActiveTab('saved')
   }
 
@@ -17928,7 +18024,7 @@ export default function App() {
               ['📁', <>Every plan you <b>Save copy</b> in the Planner lands here — ready to reopen anytime.</>],
               ['📄', <>Open one for the full itinerary: directions, notes, tickets, and the <b>PDF download</b>.</>],
             ]} />
-            <MyPlansScreen userVenues={userVenues} onStartBuilding={() => setActiveTab('saved')} />
+            <MyPlansScreen userVenues={userVenues} onStartBuilding={() => setActiveTab('saved')} onEditPlan={editPlanInPlanner} />
           </>
         )
 
