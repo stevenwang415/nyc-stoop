@@ -19,6 +19,7 @@ const SOCRATA = 'https://data.cityofnewyork.us/resource'
 
 // Coverage: the app only maps Manhattan + Brooklyn, so we drop events in the
 // other boroughs (Queens, the Bronx, Staten Island) — they read as "too far".
+// (Queens scope planned for the next version — widen this then.)
 const COVERED_BOROUGH = /manhattan|brooklyn/i
 
 // Consumer-facing permitted-event types we keep (everything else — Sport - Youth,

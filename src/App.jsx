@@ -1893,7 +1893,7 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
               safe-area inset, which made the wordmark ride high on device. */}
           <div style={{ position: 'absolute', left: '50%', top: 'calc(env(safe-area-inset-top, 0px) + 10px + 20px)', transform: 'translate(-50%, -50%)', textAlign: 'center', lineHeight: 1, pointerEvents: 'none' }}>
             <div style={{ fontSize: 9, letterSpacing: '0.28em', color: 'var(--field-clay)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 3 }}>{t('The City Guide')}</div>
-            <div style={{ fontFamily: 'var(--serif)', fontSize: 25, fontWeight: 500, letterSpacing: '0.01em', color: 'var(--ink)' }}>
+            <div style={{ fontFamily: 'var(--serif)', fontSize: 30, fontWeight: 500, letterSpacing: '0.01em', color: 'var(--ink)' }}>
               NYC <span style={{ fontStyle: 'italic', color: 'var(--accent)' }}>Stoop</span>
             </div>
           </div>
@@ -1951,15 +1951,8 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
 
       {/* ── Scrollable content area ── */}
       <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-      {/* Weather × time-of-day line — scrolls away with the content. */}
-      {!query.trim() && (() => {
-        const line = weatherLine(weather, now.getHours())
-        return line ? (
-          <div style={{ textAlign: 'center', fontFamily: 'var(--serif)', fontStyle: 'italic', fontSize: 14.5, color: 'var(--ink-2)', padding: '10px 24px 0', lineHeight: 1.35 }}>
-            {line}
-          </div>
-        ) : null
-      })()}
+      {/* (Weather mood line removed 2026-07-21 — the header temp already
+          covers conditions; the italic sentence was decoration.) */}
       {query.trim() ? (
         <div style={{ padding: '8px 20px 40px' }}>
           {searchResults.length === 0 ? (
@@ -2069,12 +2062,10 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                     <div style={{ position: 'absolute', right: -28, top: -28, width: 130, height: 130, borderRadius: 999, background: 'rgba(255,255,255,0.07)' }} />
                     <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                       <div>
-                        {/* Copy covers BOTH modes the sheet offers (tonight or
-                            weekend) — the old "Tonight, curated" eyebrow
-                            over-promised night-only. */}
-                        <div style={{ fontSize: 9.5, letterSpacing: '0.26em', color: 'rgba(255,255,255,0.72)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 6 }}>{t('One tap, curated')}</div>
-                        <div style={{ fontFamily: 'var(--serif)', fontSize: 27, fontWeight: 500, color: '#fff', lineHeight: 1.05 }}>{t('Plan my night')}</div>
-                        <div style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.82)', marginTop: 6, maxWidth: 220, lineHeight: 1.35 }}>{t('Tonight or this weekend — routed, with food.')}</div>
+                        {/* Eyebrow removed + one-line subtitle (2026-07-21) —
+                            title and one plain promise, nothing else. */}
+                        <div style={{ fontFamily: 'var(--serif)', fontSize: 27, fontWeight: 500, color: '#fff', lineHeight: 1.05 }}>{t('Plan it!')}</div>
+                        <div style={{ fontSize: 13.5, color: 'rgba(255,255,255,0.82)', marginTop: 6, whiteSpace: 'nowrap', lineHeight: 1.35 }}>{t('Your day or night, planned in one tap.')}</div>
                       </div>
                       <span style={{ flexShrink: 0, width: 44, height: 44, borderRadius: 999, background: 'rgba(255,255,255,0.16)', border: '1px solid rgba(255,255,255,0.28)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M3 9h11M10 4.5L14.5 9 10 13.5" stroke="#fff" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -2143,7 +2134,7 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                         it read as a synonym of "What do you feel like?" above.
                         These are SITUATIONS (Date night, Rainy day, First time
                         in NYC…), so the header now says occasions. */}
-                    <h2 style={{ fontFamily: 'var(--serif)', fontWeight: 500, fontSize: 20, margin: 0, letterSpacing: '0.01em', color: 'var(--ink)' }}>{t('For the occasion')}</h2>
+                    <h2 style={{ fontFamily: 'var(--serif)', fontWeight: 500, fontSize: 25, margin: 0, letterSpacing: '0.01em', color: 'var(--ink)' }}>{t('For the occasion')}</h2>
                   </div>
                   <div style={{ display: 'flex', gap: 11, overflowX: 'auto', padding: '12px 20px 4px', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none' }} className="hide-scrollbar">
                     {moods.map(m => (
@@ -8612,7 +8603,7 @@ function rankLiveEvents(events) {
 // sheet (tickets · directions · add to calendar). ──
 function EventsBrowser({ onNavigate = () => {} }) {
   const [range, setRange] = React.useState('tonight')   // 'tonight' | 'weekend' | 'week'
-  const [category, setCategory] = React.useState('picks')   // 'picks' (curated 20) | music | comedy | ...
+  const [category, setCategory] = React.useState(null)   // null = ALL events (chips are optional filters, 2026-07-21) | music | comedy | ...
   // "Where are you?" borough scope — 'all' | 'Manhattan' | 'Brooklyn' | ...
   // Always defaults to All NYC (the full feed); the user opts into a borough
   // per visit. Events carry a borough (from the venue city).
@@ -8658,7 +8649,9 @@ function EventsBrowser({ onNavigate = () => {} }) {
     return 'other'
   }
   const CATS = [
-    { key: 'picks', label: '★ Stoop picks' }, { key: 'music', label: 'Music' }, { key: 'comedy', label: 'Comedy' },
+    // ('★ Stoop picks' chip removed 2026-07-21 — the default view IS the full
+    // list now; chips are pure filters you can toggle off.)
+    { key: 'music', label: 'Music' }, { key: 'comedy', label: 'Comedy' },
     { key: 'theater', label: 'Theater' }, { key: 'sports', label: 'Sports' }, { key: 'family', label: 'Family' },
     { key: 'free', label: 'Free' },
   ]
@@ -8677,13 +8670,19 @@ function EventsBrowser({ onNavigate = () => {} }) {
   // Borough scope. The catalog is Manhattan-heavy, so we surface live per-borough
   // counts (hiding empties) and let the user pick "where they are"; downstream
   // counts/picks/list all run off the scoped set.
-  const BOROUGHS = ['Manhattan', 'Brooklyn']   // the boroughs we cover
+  // v1.0 scope: Manhattan + Brooklyn (product call 2026-07-21 — Queens ships
+  // as a scope in the next version; the picker's "Coming soon" row says so).
+  const BOROUGHS = ['Manhattan', 'Brooklyn']
   const boroughCount = {}
   inRangeAll.forEach(e => { if (e.borough) boroughCount[e.borough] = (boroughCount[e.borough] || 0) + 1 })
   const inScope = areaScope === 'all' ? inRangeAll : inRangeAll.filter(e => e.borough === areaScope)
   const catCount = {}
   inScope.forEach(e => { const c = catOf(e); catCount[c] = (catCount[c] || 0) + 1 })
-  const visibleCats = CATS.filter(c => c.key === 'picks' || (catCount[c.key] || 0) > 0)
+  const visibleCats = CATS.filter(c => (catCount[c.key] || 0) > 0)
+  // A leftover selection with ZERO results in the new range/borough scope
+  // used to blank the list with no visibly-active chip (bug 2026-07-21:
+  // This weekend + Manhattan). An empty selection demotes to All.
+  const activeCat = category && (catCount[category] || 0) > 0 ? category : null
 
   // "Stoop picks" — a curated ~20 instead of the overwhelming full list: dedupe
   // multi-night runs by title, prefer notable + image-rich events, then a
@@ -8716,15 +8715,32 @@ function EventsBrowser({ onNavigate = () => {} }) {
     }
     return [...byTitle.values()]
   }
-  let filtered = category === 'picks' ? [...stoopPicks] : dedupeByTitle(inScope.filter(e => catOf(e) === category))
+  let filtered = activeCat == null ? dedupeByTitle(inScope) : dedupeByTitle(inScope.filter(e => catOf(e) === activeCat))
   filtered.sort((a, b) => {
     const ad = isDate(a.date) ? a.date.getTime() : 8.64e15
     const bd = isDate(b.date) ? b.date.getTime() : 8.64e15
     return ad - bd || (liveEventScore(b) - liveEventScore(a))
   })
+  // "All" = one of EACH kind, round-robin (2026-07-21): bucket by category,
+  // rank each bucket by the old Stoop-picks quality score, then interleave —
+  // so the top of All reads music · theater · sports · comedy · free…, never
+  // five music cards in a row. Chips stay honest soonest-first filters.
+  if (activeCat == null) {
+    const _q = (e) => liveEventScore(e) + eventImagePick(e).tier * 12
+    const buckets = {}
+    filtered.forEach(e => { const c = catOf(e); (buckets[c] = buckets[c] || []).push(e) })
+    Object.values(buckets).forEach(list => list.sort((a, b) => _q(b) - _q(a)))
+    const keys = Object.keys(buckets).sort((a, b) => _q(buckets[b][0]) - _q(buckets[a][0]))
+    const out = []
+    for (let i = 0, more = true; more; i++) {
+      more = false
+      for (const k of keys) { if (buckets[k][i]) { out.push(buckets[k][i]); more = true } }
+    }
+    filtered = out
+  }
   // Free can be long, so (like Stoop picks) cap it at a curated 20 — the soonest /
   // strongest free things — rather than every market in the city.
-  if (category === 'free') filtered = filtered.slice(0, 20)
+  if (activeCat === 'free') filtered = filtered.slice(0, 20)
   // Every tab leads with a tight top 5 and folds the rest behind "Show all".
   const cap = 5
   const shown = showAll ? filtered : filtered.slice(0, cap)
@@ -8788,10 +8804,12 @@ function EventsBrowser({ onNavigate = () => {} }) {
       {/* Category chips — hidden on first load so we never flash "All 0" */}
       {!loading && (
       <div className="hide-scrollbar" style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '12px 20px 4px', scrollbarWidth: 'none' }}>
-        {visibleCats.map(c => {
-          const active = category === c.key
+        {/* Explicit "All" chip (2026-07-21) — the default state deserves a
+            visible, selected home, not an absence of selection. */}
+        {[{ key: null, label: 'All' }, ...visibleCats].map(c => {
+          const active = activeCat === c.key
           return (
-            <button key={c.key} onClick={() => setCategory(c.key)} style={{
+            <button key={c.key ?? 'all'} onClick={() => setCategory(c.key)} style={{
               flexShrink: 0, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
               padding: '7px 14px', borderRadius: 999, fontSize: 13, fontWeight: active ? 700 : 600,
               background: active ? 'var(--accent)' : 'var(--card)',
@@ -9027,16 +9045,9 @@ function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onV
     <div className="screen" style={{ paddingBottom: 80 }}>
       <div className="home-header">
         <div className="section-row">
+          {/* Title only (2026-07-21) — day/time + tagline lines removed. */}
           <div className="home-wordmark">Events</div>
-          {onViewMap && (<button className="see-all" onClick={onViewMap}>Map view</button>)}
         </div>
-        <div className="home-subtitle">{`${dayName} · ${displayHour}:${minute} ${ampm}`}</div>
-        <div style={{ fontSize: 11, color: 'var(--gray-500)', marginTop: 6, lineHeight: 1.4 }}>Live shows &amp; events across NYC</div>
-        {savedCount > 0 && (
-          <button onClick={onViewSaved} style={{ marginTop: 10, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 999, background: 'rgba(190,77,43,0.12)', border: '1px solid rgba(190,77,43,0.35)', color: 'var(--accent-text)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-            <span>{savedCount} saved · Plan your trip →</span>
-          </button>
-        )}
       </div>
       <EventsBrowser onNavigate={onNavigate} />
     </div>
@@ -12140,6 +12151,10 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
   // Removing the last card used to leave hollow DAY 1 / DAY 2 frames behind
   // (trip-length padding). Zero rendered cards across all days → clear the
   // scaffolding so the page returns to its first-open empty state on its own.
+  // (Trailing-empty-day auto-fold reverted 2026-07-21 — the Days selector in
+  // trip basics IS the intentional trip length; empty day frames are the
+  // user's chosen scaffolding, not residue. Only the all-empty reset below
+  // clears the page.)
   const _totalCards = days.reduce((n, d, di) => n + computeDayPlan(d, di).reorderedItems.length, 0)
   React.useEffect(() => {
     if (days.length === 0 || _totalCards > 0) return
@@ -12197,7 +12212,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
       <div style={{ padding: '4px 20px 14px', borderBottom: '1px solid var(--gray-100)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-400)' }}>{t('Auto-saves as you edit')}</div>
+            {/* <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-400)' }}>{t('Auto-saves as you edit')}</div> */}
             <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {(() => {
                 if (!tripStartDate) return <span style={{ color: 'var(--gray-400)', fontWeight: 500 }}>{t('No dates yet — planning by day')}</span>
@@ -12263,119 +12278,10 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
       </div>
 
 
-      {/* ══ SECTION 2: Trip Settings drawer — collapsed by default so the plan leads ══ */}
-      <div ref={schedulingRef} style={{ borderBottom: '1px solid var(--gray-100)' }}>
-        <button onClick={() => setSettingsOpen(o => !o)} style={{
-          width: '100%', background: 'none', border: 'none', cursor: 'pointer',
-          padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 10,
-          textAlign: 'left',
-        }}>
-          <span style={{ fontSize: 16 }}>✓</span>
-          <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-600)' }}>
-            {t('Choose stops')}
-          </span>
-          <span style={{ fontSize: 11, color: 'var(--gray-400)', marginLeft: 4 }}>
-            {t2('{A} of {B} in plan', { A: venueIds.length, B: allVenueIds.length })}
-          </span>
-          <span style={{ marginLeft: 'auto', fontSize: 16, color: 'var(--gray-400)', transition: 'transform 200ms', transform: settingsOpen ? 'rotate(180deg)' : 'rotate(0)' }}>
-            ⌄
-          </span>
-        </button>
-
-        {settingsOpen && (
-          <div style={{ padding: '4px 20px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {/* Length + Arrival moved to the visible "Trip basics" strip at the top of
-                the page — they define the trip and shouldn't hide in a drawer. */}
-            {/* Cuisine selection moved to each meal card — every meal can have its own cuisine now. */}
-
-            {/* Stops — TWO labeled groups (2026-07-16). One flat grid of
-                checked/unchecked chips made ✕-removed places read as ghosts
-                ("I removed it, why is it still here?"). The groups make the
-                model legible: ✕ takes a place out of the PLAN; it stays in
-                your saves, parked below, one tap from coming back. */}
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-400)', flexShrink: 0, width: 78, paddingTop: 6 }}>
-                Stops <span style={{ color: 'var(--gray-300)' }}>{venueIds.length}/{allVenueIds.length}</span>
-              </span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                {(() => {
-                  const chipFor = (id) => {
-                    const v = venues[id] || userVenues[id]
-                    if (!v) return null
-                    const isUser = !venues[id] && !!userVenues[id]
-                    const selected = planSelection.has(id)
-                    const domainId = Object.keys(domains).find(d => domains[d].venues?.includes(id))
-                    const userCatIcon = { food:'🍴', coffee:'☕', drink:'🍷', drinks:'🍷', art:'🎨', music:'🎵', history:'📜', sports:'🏆', shopping:'🛍️', other:'📍' }
-                    const icon = isUser
-                      ? (userCatIcon[v.category] || '📍')
-                      : ({ visual_art:'🎨', jazz:'🎷', classical_music:'🎼', theater:'🎭', history:'📜', architecture:'🏛️', sports:'🏆', hip_hop:'🎤' }[domainId] || '📍')
-                    return (
-                      <button
-                        key={id}
-                        onClick={() => toggleVenueInPlan(id)}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 5,
-                          padding: '6px 10px', borderRadius: 999, cursor: 'pointer',
-                          fontSize: 11, fontWeight: 600,
-                          background: selected ? 'var(--gray-900)' : 'var(--white)',
-                          color: selected ? '#fff' : 'var(--gray-500)',
-                          border: selected ? '1px solid var(--gray-900)' : '1px dashed var(--gray-300)',
-                          transition: 'all 0.15s ease',
-                          minWidth: 0,
-                        }}
-                      >
-                        {!selected && <span style={{ flexShrink: 0, fontWeight: 700 }}>+</span>}
-                        <span style={{ flexShrink: 0 }}>{icon}</span>
-                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{v.name}</span>
-                      </button>
-                    )
-                  }
-                  const groupLabel = { fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--gray-400)', margin: '0 0 6px' }
-                  const grid = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }
-                  const inPlan  = allVenueIds.filter(id => planSelection.has(id))
-                  const offPlan = allVenueIds.filter(id => !planSelection.has(id))
-                  return (
-                    <>
-                      {inPlan.length > 0 && (
-                        <>
-                          <div style={groupLabel}>In your plan</div>
-                          <div style={grid}>{inPlan.map(chipFor)}</div>
-                        </>
-                      )}
-                      {offPlan.length > 0 && (
-                        <>
-                          <div style={{ ...groupLabel, marginTop: inPlan.length > 0 ? 12 : 0 }}>Saved — not in this plan ({offPlan.length})</div>
-                          {/* Cap the parked group at 8 chips — with 30 saves this
-                              group is the overwhelm risk; the fold keeps the
-                              drawer scannable while everything stays reachable. */}
-                          <div style={grid}>{(offPlanExpanded ? offPlan : offPlan.slice(0, 8)).map(chipFor)}</div>
-                          {offPlan.length > 8 && (
-                            <button onClick={() => setOffPlanExpanded(e => !e)} style={{
-                              fontSize: 11, fontWeight: 600, color: 'var(--gray-500)', background: 'none',
-                              border: 'none', cursor: 'pointer', padding: '8px 0 0', textDecoration: 'underline',
-                            }}>
-                              {offPlanExpanded ? 'Show fewer' : `Show all ${offPlan.length}`}
-                            </button>
-                          )}
-                          <div style={{ fontSize: 10.5, color: 'var(--gray-400)', lineHeight: 1.5, marginTop: 6 }}>
-                            Tap + to add one back. Removing a card only takes it out of this plan — your saves stay in My saved places.
-                          </div>
-                        </>
-                      )}
-                      {allVenueIds.length > 1 && venueIds.length < allVenueIds.length && (
-                        <button onClick={() => { const s = new Set(allVenueIds); setPlanSelection(s); lsSet('nyc_plan_sel', JSON.stringify([...s])) }}
-                          style={{ fontSize: 11, color: 'var(--gray-400)', background: 'none', border: 'none', cursor: 'pointer', padding: '8px 0 0', textDecoration: 'underline' }}>
-                          Add all back
-                        </button>
-                      )}
-                    </>
-                  )
-                })()}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* (Choose Stops drawer removed 2026-07-21, product call: every job
+          it did now lives elsewhere — re-adding in My saved places ("+ Add
+          to plan") and explicit adds from Explore/Map, new stops in
+          "+ Add a place to this day", removal on the card ✕.) */}
 
 
 
@@ -12390,7 +12296,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--gray-800)', marginBottom: 8 }}>Nothing to plan yet</div>
           <div style={{ fontSize: 14, color: 'var(--gray-500)', lineHeight: 1.6, maxWidth: 280, margin: '0 auto 20px' }}>
             {allVenueIds.length > 0
-              ? 'Tap a saved chip in Choose stops above, or “+ Add to Planner” in Explore — or start with a sample weekend.'
+              ? 'Re-add a spot from My saved places below, tap “+ Add to Planner” in Explore — or start with a sample weekend.'
               : 'Tap “+ Add to Planner” on any venue in Explore to add it here — or start with a sample weekend.'}
           </div>
           <button
@@ -16199,6 +16105,23 @@ function OnboardingArt({ slide }) {
       </g>
     </svg>
   )
+  if (slide === 3) return ( // the Planner — numbered day cards building a trip
+    <svg {...svgProps}>
+      <rect width="280" height="170" fill="#EFE6D4" />
+      <rect x="36" y="16" width="92" height="20" rx="10" fill="#B7472A" />
+      <rect x="48" y="23" width="68" height="6" rx="3" fill="#F3EBDC" opacity="0.9" />
+      <rect x="36" y="48" width="208" height="44" rx="10" fill="#FBF6EC" stroke="#E2D6C0" />
+      <circle cx="58" cy="70" r="10" fill="#B7472A" /><text x="58" y="74.5" textAnchor="middle" fontSize="12" fontWeight="700" fill="#F3EBDC" fontFamily="Georgia, serif">1</text>
+      <rect x="78" y="60" width="98" height="8" rx="4" fill="#5C5142" />
+      <rect x="78" y="74" width="64" height="6" rx="3" fill="#B4A78F" />
+      <rect x="36" y="102" width="208" height="44" rx="10" fill="#FBF6EC" stroke="#E2D6C0" />
+      <circle cx="58" cy="124" r="10" fill="#475A66" /><text x="58" y="128.5" textAnchor="middle" fontSize="12" fontWeight="700" fill="#F3EBDC" fontFamily="Georgia, serif">2</text>
+      <rect x="78" y="114" width="84" height="8" rx="4" fill="#5C5142" />
+      <rect x="78" y="128" width="110" height="6" rx="3" fill="#B4A78F" />
+      <path d="M58 82v30" stroke="#C9BBA0" strokeWidth="2.5" strokeDasharray="1 7" strokeLinecap="round" />
+      <path d="M224 120l7 8 12-15" stroke="#6F7A45" strokeWidth="3.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
   if (slide === 1) return ( // a place card, saved — the + pill on plum night
     <svg {...svgProps}>
       <rect width="280" height="170" fill="#5C3A4F" />
@@ -16242,23 +16165,27 @@ function OnboardingArt({ slide }) {
 // ── Onboarding Modal — three-slide welcome flow shown on first app open ──
 function OnboardingModal({ onDismiss }) {
   const [slide, setSlide] = React.useState(0)
-  // Three verbs, three slides: what you can DO here → how SAVING works →
-  // what the app does FOR you. Art is hand-drawn (OnboardingArt above).
+  // ONE content model, in the product's own words (2026-07-21):
+  // Save → Build a trip → Generate itinerary. Every noun here appears
+  // verbatim in the app ("+ Add to Planner", Planner, My Plans).
   const slides = [
     {
-      eyebrow: 'WELCOME TO NYC STOOP',
-      title: 'Explore. Learn.\nPlan your days.',
-      body: 'A curated New York guide — browse what’s worth doing, read the story behind every place, and turn it all into a schedule.',
+      eyebrow: 'STEP 1 · SAVE',
+      title: 'Save what\ncatches your eye.',
+      body: 'Places, restaurants, shows — one button everywhere: “+ Add to Planner.” Your saves collect in My saved places.',
+      art: 1,
     },
     {
-      eyebrow: 'ADD ANYTHING',
-      title: 'Tap + on what\ncatches your eye.',
-      body: 'Places, restaurants, shows — one button everywhere: “+ Add to Planner.” Your picks collect in one place.',
+      eyebrow: 'STEP 2 · BUILD A TRIP',
+      title: 'Build your trip\nin the Planner.',
+      body: 'Pick your dates and days, arrange your saves, add a restaurant when you want one — it auto-saves as you edit.',
+      art: 3,
     },
     {
-      eyebrow: 'WE DO THE PLANNING',
-      title: 'Your picks become\na routed itinerary.',
-      body: 'My Trip groups your picks by neighborhood, adds lunch and dinner, checks the weather, and routes you door to door.',
+      eyebrow: 'STEP 3 · GENERATE ITINERARY',
+      title: 'Generate your\nrouted itinerary.',
+      body: 'Each day grouped by neighborhood with subway directions door to door — save a copy to My Plans and go.',
+      art: 2,
     },
   ]
   const isLast = slide === slides.length - 1
@@ -16306,7 +16233,7 @@ function OnboardingModal({ onDismiss }) {
           border: '1px solid rgba(33,27,20,0.10)', boxShadow: '0 10px 30px rgba(33,27,20,0.12)',
           flexShrink: 0,
         }}>
-          <OnboardingArt slide={slide} />
+          <OnboardingArt slide={current.art} />
         </div>
         <div style={{
           fontSize: 11, fontWeight: 700, letterSpacing: '0.16em',
@@ -16358,7 +16285,7 @@ function OnboardingModal({ onDismiss }) {
           boxShadow: '0 10px 22px rgba(224,85,44,.45)',
           letterSpacing: '-0.005em',
         }}>
-          {isLast ? "Let's go →" : 'Next'}
+          {isLast ? 'Start Exploring!' : 'Next'}
         </button>
       </div>
     </div>
@@ -16382,7 +16309,7 @@ const FEEDBACK_EMAIL = 'stevenwang.nycstoop@gmail.com'
 const PROFILE_GLOBAL_KEYS = new Set([
   'nyc_token', 'nyc_user', 'nyc_active_profile',
   'nyc_onboarded_v2', 'nyc_map_tut_v1', 'nyc_temp_unit', 'nyc_lang',
-  'nyc_tut_explore_v1', 'nyc_tut_tonight_v1', 'nyc_tut_trip_v1',
+  'nyc_tut_explore_v1', 'nyc_tut_tonight_v1', 'nyc_tut_trip_v1', 'nyc_tut_plans_v1',
   // Entitlement is per-device/Apple-ID, NOT per app account — switching
   // accounts must never lock a purchase the person paid for.
   'nyc_plus_v1',
@@ -17209,7 +17136,14 @@ function SharedTripView({ trip, onAdopt, onDismiss }) {
 function PlanNightSheet({ onClose, onBuild }) {
   const [when, setWhen] = React.useState('tonight')
   const [area, setArea] = React.useState('nearme')
-  const whenOpts = [['tonight', 'Tonight'], ['weekend', 'This weekend']]
+  // Start time + budget (2026-07-21) — "Plan it!" covers whole days now,
+  // not just nights. Start drives venue mix + meal slots; budget filters
+  // admissions and (low tier) seeds the Budget meal cuisine.
+  const [start, setStart] = React.useState('night')
+  const [budget, setBudget] = React.useState('mid')
+  const whenOpts = [['tonight', 'Today'], ['weekend', 'This weekend']]
+  const startOpts = [['morning', 'Morning'], ['afternoon', 'Afternoon'], ['night', 'Night']]
+  const budgetOpts = [['low', 'Under $25'], ['mid', '$25–50'], ['high', '$50+']]
   const areaOpts = [['nearme', '📍 Near me'], ['manhattan', 'Manhattan'], ['brooklyn', 'Brooklyn'], ['queens', 'Queens']]
   const chip = active => ({
     padding: '9px 14px', borderRadius: 999, border: 'none', cursor: 'pointer',
@@ -17223,8 +17157,8 @@ function PlanNightSheet({ onClose, onBuild }) {
       <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: 'var(--card)', borderTop: '1px solid rgba(33,27,20,0.08)', borderRadius: '20px 20px 0 0', padding: '18px 20px calc(20px + env(safe-area-inset-bottom, 0px))' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <div>
-            <div style={{ fontSize: 9.5, letterSpacing: '0.24em', color: 'var(--field-clay)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 3 }}>Tonight, curated</div>
-            <div style={{ fontFamily: 'var(--serif)', fontSize: 26, fontWeight: 500, color: 'var(--ink)', lineHeight: 1.05 }}>{t('Plan my night')}</div>
+            <div style={{ fontSize: 9.5, letterSpacing: '0.24em', color: 'var(--field-clay)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 3 }}>Curated, routed</div>
+            <div style={{ fontFamily: 'var(--serif)', fontSize: 26, fontWeight: 500, color: 'var(--ink)', lineHeight: 1.05 }}>{t('Plan it!')}</div>
           </div>
           <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--gray-400)', cursor: 'pointer' }}>✕</button>
         </div>
@@ -17232,11 +17166,19 @@ function PlanNightSheet({ onClose, onBuild }) {
         <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
           {whenOpts.map(([k, l]) => <button key={k} onClick={() => setWhen(k)} style={chip(when === k)}>{l}</button>)}
         </div>
+        <div style={label}>When do you want to start?</div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+          {startOpts.map(([k, l]) => <button key={k} onClick={() => setStart(k)} style={chip(start === k)}>{l}</button>)}
+        </div>
+        <div style={label}>Budget per person</div>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+          {budgetOpts.map(([k, l]) => <button key={k} onClick={() => setBudget(k)} style={chip(budget === k)}>{l}</button>)}
+        </div>
         <div style={label}>Where</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 22 }}>
           {areaOpts.map(([k, l]) => <button key={k} onClick={() => setArea(k)} style={chip(area === k)}>{l}</button>)}
         </div>
-        <button onClick={() => onBuild({ when, areaKey: area })} style={{
+        <button onClick={() => onBuild({ when, areaKey: area, start, budget })} style={{
           width: '100%', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 14,
           padding: '15px', fontSize: 16, fontWeight: 800, cursor: 'pointer', boxShadow: '0 6px 16px rgba(190,77,43,.35)',
         }}>
@@ -17465,7 +17407,7 @@ export default function App() {
   // One-tap "Plan my night": seed a few editorial attractions for the chosen
   // area, set the trip length/date, and drop the user straight into My Trip with
   // a routed draft (meals auto-fill near the stops). The happy path, ~2 taps.
-  async function planNight({ when = 'tonight', areaKey = 'nearme' } = {}) {
+  async function planNight({ when = 'tonight', areaKey = 'nearme', start = 'night', budget = 'mid' } = {}) {
     // Four areas (2026-07-16): 📍 Near me · Manhattan · Brooklyn · Queens.
     // Queens neighborhoods aren't in neighborhoodToArea (they return null so
     // they never mis-sort into a Manhattan area), so it matches by name.
@@ -17493,11 +17435,36 @@ export default function App() {
     // classical / theater) so the itinerary builder routes them into Evening
     // slots and slots a dinner in front. "This weekend" stays daytime sights.
     const EVENING_DOMAINS = new Set(['jazz', 'classical_music', 'theater'])
-    const wantEvening = when !== 'weekend'
+    // Start time decides the venue mix (2026-07-21): Night = evening rooms
+    // (show + dinner); Morning/Afternoon = daytime places (+ lunch/dinner
+    // via the meal engine). Weekend trips follow the same mix.
+    const wantEvening = start === 'night'
+    // Budget = TOTAL per person for the outing (2026-07-21 — "$25 cover +
+    // $20 pizza + burger" summed to $65 on an Under-$25 answer; per-item caps
+    // are a lie). Allocation: low & mid seed the 💸 Budget meal tier (≈$20),
+    // and venue ADMISSIONS must fit in what's left — summed across all picks,
+    // enforced at pick time below. Unknown admissions are excluded for
+    // low/mid (an unknown cover charge is exactly how budgets blow up).
+    // Allowance = cap − ≈$20 per PLANNED MEAL (a daytime start has two meal
+    // slots; two budget meals alone are ~$40 — the venue side must absorb
+    // that). Low keeps exactly ONE meal (seeded below) so ≤$25 stays honest.
+    const _mealsPlanned = budget === 'low' ? 1 : (wantEvening ? 1 : 2)
+    const ADM_ALLOWANCE = budget === 'high' ? Infinity
+      : Math.max((budget === 'low' ? 25 : 50) - 20 * _mealsPlanned, budget === 'low' ? 2 : 5)
+    const admOf = (v) => admissionAvgFromCost(v.admissionCost)
+    const admOk = (v) => {
+      if (budget === 'high') return true
+      const adm = admOf(v)
+      return adm != null && adm <= ADM_ALLOWANCE
+    }
     const candidates = (requireEveningMatch) => Object.keys(venues).filter(id => {
       const v = venues[id]
       if (!v || v.isRestaurant || !v.neighborhood) return false
-      if (!inArea(v)) return false
+      // Food/coffee-domain venues can't be "places" here — the plan already
+      // guarantees a meal, and Corner-Bistro-as-a-stop made two restaurants.
+      const _dom = venueCoords[id]?.domain
+      if (_dom === 'food' || _dom === 'coffee') return false
+      if (!inArea(v) || !admOk(v)) return false
       if (!requireEveningMatch) return true
       const domain = venueCoords[id]?.domain
       return wantEvening ? EVENING_DOMAINS.has(domain) : !EVENING_DOMAINS.has(domain)
@@ -17530,23 +17497,30 @@ export default function App() {
     }
     const withCoords = pool.filter(id => venueCoords[id])
     const eligible = userPos ? pool.slice(0, 6) : (withCoords.length ? withCoords : pool)
-    let ids
-    if (wantEvening) {
-      // ONE evening anchor only. A night is dinner (auto-anchored by the
-      // itinerary) + ONE show. Two ticketed showtime venues can't realistically
-      // stack — you can't catch a 9:15pm jazz set AND an 11pm concert — and
-      // sequencing them produced impossible slots like an 11:25pm Carnegie Hall.
-      ids = shuffle(eligible).slice(0, 1)
-    } else {
-      // Weekend: 5 places over 2 days + auto meals ≈ 4–5 stops per day
-      // (restaurants count as stops — 3 places spread thin, 2026-07-16).
-      ids = shuffle(eligible).slice(0, 5)
+    const isWeekend = when === 'weekend'
+    // Take up to `count` picks whose admissions SUM inside the allowance
+    // (free venues always fit; high budget = no cap).
+    const takeWithinBudget = (arr, count, totalAllowance) => {
+      if (budget === 'high') return arr.slice(0, count)
+      const out = []; let spent = 0
+      for (const id of arr) {
+        if (out.length >= count) break
+        const a = admOf(venues[id]) ?? Infinity
+        if (spent + a <= totalAllowance) { out.push(id); spent += a }
+      }
+      return out
     }
-    // Fallback if the chosen area has none of the right kind.
+    const _days = isWeekend ? 2 : 1
+    const _count = wantEvening ? (isWeekend ? 2 : 1) : isWeekend ? 5 : (start === 'morning' ? 3 : 2)
+    let ids = takeWithinBudget(shuffle(eligible), _count, ADM_ALLOWANCE * _days)
+    // Fallback if the chosen area has none of the right kind — budget-aware:
+    // low/mid fall back to free classics, never a $30 museum or $25 cover.
     if (ids.length < 1) {
-      const fb = wantEvening
-        ? ['village_vanguard', 'carnegie_hall', 'blue_note', 'apollo_theater_hh', 'smalls']
-        : ['moma', 'met', 'guggenheim', 'empire_state']
+      const fb = budget !== 'high'
+        ? ['central_park', 'high_line', 'brooklyn_bridge_promenade', 'grand_central', 'staten_island_ferry', 'chelsea_market']
+        : wantEvening
+          ? ['village_vanguard', 'carnegie_hall', 'blue_note', 'apollo_theater_hh', 'smalls']
+          : ['moma', 'met', 'guggenheim', 'empire_state']
       ids = fb.filter(id => venues[id]).slice(0, wantEvening ? 1 : 3)
     }
 
@@ -17561,8 +17535,12 @@ export default function App() {
     // as "known" so the auto-add effect doesn't re-add the user's other saves),
     // "Plan my night" yields one coherent outing instead of merging the whole
     // saved set into a multi-day daytime plan.
+    // Known-set must cover EVERY saved id (2026-07-21): it only listed
+    // 'venue' saves, so user-added places (map/Google adds are 'user_venue')
+    // read as brand-new and auto-joined the fresh plan — a second restaurant
+    // and a blown budget on an Under-$25 night.
     const allKnown = [...new Set([
-      ...Object.values(savedItems || {}).filter(i => i?.type === 'venue' && i.id).map(i => i.id),
+      ...Object.values(savedItems || {}).filter(i => (i?.type === 'venue' || i?.type === 'user_venue') && i.id).map(i => i.id),
       ...ids,
     ])]
     try {
@@ -17580,6 +17558,28 @@ export default function App() {
       localStorage.removeItem('nyc_day_item_orders')
       localStorage.removeItem('nyc_stop_day_overrides')
       localStorage.removeItem('nyc_meal_picks')
+      // Budget answer → meal engine (2026-07-21): Under $25 seeds the 💸
+      // Budget cuisine (the ≤$25 tier) on every meal; other tiers clear any
+      // stale cuisine so the default nearest-good-spot logic runs fresh.
+      if (budget !== 'high') {
+        // Low AND mid seed 💸 Budget meals (≈$20) — the allocation only adds
+        // up if the meal side is pinned cheap; mid's headroom goes to the
+        // venue ($25 covers, museum admission).
+        const cuisines = {}
+        const dCount = when === 'weekend' ? 2 : 1
+        for (let di = 0; di < dCount; di++) { cuisines[`${di}:lunch`] = 'budget'; cuisines[`${di}:dinner`] = 'budget' }
+        lsSet('nyc_meal_cuisines', JSON.stringify(cuisines))
+        // Under $25 = ONE meal only: morning starts keep lunch, afternoon/
+        // night keep dinner. (Two meals can't fit a $25 day; the ✕'d slot
+        // stays restorable via "Add a restaurant".)
+        if (budget === 'low') {
+          const skips = {}
+          for (let di = 0; di < dCount; di++) skips[di] = start === 'morning' ? { dinner: true } : { lunch: true }
+          lsSet('nyc_skipped_meals', JSON.stringify(skips))
+        }
+      } else {
+        localStorage.removeItem('nyc_meal_cuisines')
+      }
     } catch {}
 
     const days = when === 'weekend' ? 2 : 1
@@ -17843,7 +17843,15 @@ export default function App() {
       }
 
       case 'plans':
-        return <MyPlansScreen userVenues={userVenues} onStartBuilding={() => setActiveTab('saved')} />
+        return (
+          <>
+            <TabTutorial key="nyc_tut_plans_v1" tutKey="nyc_tut_plans_v1" title="Your saved plans" rows={[
+              ['📁', <>Every plan you <b>Save copy</b> in the Planner lands here — ready to reopen anytime.</>],
+              ['📄', <>Open one for the full itinerary: directions, notes, tickets, and the <b>PDF download</b>.</>],
+            ]} />
+            <MyPlansScreen userVenues={userVenues} onStartBuilding={() => setActiveTab('saved')} />
+          </>
+        )
 
       case 'saved':
         if (savedSel) {
