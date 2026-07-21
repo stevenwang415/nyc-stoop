@@ -11683,8 +11683,9 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
       try { lsSet('nyc_meal_optins', JSON.stringify(next)) } catch {}
       return next
     })
-    // Also clear a previous ✕ so the dinner actually reappears.
+    // Also clear previous ✕s so the meals actually reappear.
     setMealSkipped(dayIdx, 'dinner', false)
+    setMealSkipped(dayIdx, 'lunch', false)
   }
   function setMealSkipped(dayIdx, meal, on) {
     setSkippedMeals(prev => {
@@ -11760,30 +11761,42 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     // on an evening-only night out (that gets dinner only). Dinner shows whenever
     // the day has an Evening stop.
     const hasDaytime2 = sortedDayStops.some(s => s.period === 'Morning' || s.period === 'Afternoon')
+    // The user's OWN eateries beat our suggestions (2026-07-20): adding a
+    // restaurant from the map must not ALSO conjure a random auto-suggested
+    // meal beside it. A user food stop in the evening slot silences the
+    // dinner suggestion; one in the daytime slot silences lunch.
+    const _userFood = sortedDayStops.filter(s => isRestaurantStop(s))
+    const _foodEve = _userFood.some(s => s.period === 'Evening')
+    const _foodDay = _userFood.some(s => s.period !== 'Evening')
+    // Meals are OPT-IN per day (2026-07-20, product call): suggestions never
+    // appear until the user taps "🍴 Add a restaurant" (mealOptIns) — except
+    // generated flows (Plan-my-night, sample weekend), which SEED the opt-in
+    // because "routed, with food" is their promise. Own food stops still
+    // silence the matching slot even after opt-in.
+    const wantLunch2 = hasDaytime2 && !_foodDay && !!mealOptIns[dayIdx]
+    const wantDinner2 = hasEvening2 && !_foodEve && !!mealOptIns[dayIdx]
     const defaultItemIds = []
     let li2 = false, di2 = false
     sortedDayStops.forEach(stop => {
-      if (hasDaytime2 && !li2 && (stop.period === 'Afternoon' || stop.period === 'Evening')) {
+      if (wantLunch2 && !li2 && (stop.period === 'Afternoon' || stop.period === 'Evening')) {
         defaultItemIds.push('__lunch__'); li2 = true
       }
-      if (!di2 && hasEvening2 && stop.period === 'Evening') {
+      if (!di2 && wantDinner2 && stop.period === 'Evening') {
         defaultItemIds.push('__dinner__'); di2 = true
       }
       defaultItemIds.push(stop.id)
     })
-    if (hasDaytime2 && !li2) defaultItemIds.push('__lunch__')
-    if (!di2 && hasEvening2) defaultItemIds.push('__dinner__')
+    if (wantLunch2 && !li2) defaultItemIds.push('__lunch__')
+    if (!di2 && wantDinner2) defaultItemIds.push('__dinner__')
     // Orphan-dinner rule: ✕ing the LAST place of a 1-day trip keeps the dinner
     // — "I don't want this venue" shouldn't also cancel the meal (and with
     // restore chips gone, a vanished dinner is unrecoverable). Scoped to
     // single-day trips only: multi-day padding creates empty days that must
     // NOT sprout phantom dinner cards.
-    // Event-only days are OPT-IN for the meal (2026-07-20): a user who added
-    // just a show sees just the show — the "+ Add a restaurant for tonight"
-    // button below the cards flips mealOptIns. Days with no events keep the
-    // original orphan rule unconditionally.
+    // Stop-less single days (event-only nights, or ✕'d the last place after
+    // opting in) hang their dinner on the same opt-in flag.
     if (sortedDayStops.length === 0 && days.length === 1 && dinnerRestaurants[dayIdx]
-        && (dayEvents.length === 0 || mealOptIns[dayIdx])) {
+        && mealOptIns[dayIdx] && !skippedMeals[dayIdx]?.dinner) {
       defaultItemIds.push('__dinner__')
     }
     // ✕-removed meals: filter ONCE here, after every insertion path (meals get
@@ -12195,6 +12208,10 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
               // A WEEKEND is two days — without this, Auto clustered the
               // six samples into four (bug report 2026-07-16).
               setAndStoreTripDays(2)
+              // Generated flows PROMISE food (product call 2026-07-20):
+              // seed the per-day meal opt-in that manual days leave off.
+              setMealOptIns({ 0: true, 1: true })
+              try { lsSet('nyc_meal_optins', JSON.stringify({ 0: true, 1: true })) } catch {}
             }}
             style={{
               background: 'var(--gray-900)', color: '#fff', border: 'none',
@@ -13221,12 +13238,16 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
             {/* (Pinned events now render INSIDE the day's item flow above —
                 same cards, route numbers, and reorder as places, 2026-07-16.) */}
 
-            {/* Event-only day: the meal is invitation-first (2026-07-20) — a
-                show-only plan shows only the show, with dinner one tap away. */}
-            {!isCollapsed && day.stops.length === 0 && days.length === 1
-              && (eventsByDay[dayIdx] || []).length > 0
+            {/* Meals are invitation-first on EVERY day (2026-07-20): the plan
+                shows only what the user added, with a restaurant one tap
+                away. Hidden when the day already has a meal card or the user
+                brought their own food stop. */}
+            {!isCollapsed
               && !computeDayPlan(day, dayIdx).reorderedItems.some(it => it.type === 'restaurant')
-              && dinnerRestaurants[dayIdx] && (
+              && (day.stops.length > 0
+                    ? !day.stops.some(s => isRestaurantStop(s))
+                    : ((eventsByDay[dayIdx] || []).length > 0 && days.length === 1 && !!dinnerRestaurants[dayIdx]))
+              && (
               <button
                 onClick={() => optIntoMeal(dayIdx)}
                 style={{
@@ -17348,6 +17369,9 @@ export default function App() {
     try {
       lsSet('nyc_trip_days', JSON.stringify(days))
       lsSet('nyc_trip_start_date', d.toISOString().slice(0, 10))
+      // Meals are opt-in per day since 2026-07-20 — but Plan-my-night's whole
+      // promise is "routed, with food", so it opts its days in itself.
+      lsSet('nyc_meal_optins', JSON.stringify(days === 2 ? { 0: true, 1: true } : { 0: true }))
     } catch {}
 
     // Open the freshly-built plan in the Full plan view (not the day-of
