@@ -1,4 +1,4 @@
-# App Store listing — v1.0 (final, as entered in App Store Connect)
+# App Store listing — v1.0 (updated 2026-07-21 for the Planner/My Plans build)
 
 ## Promotional Text (170 max)
 
@@ -12,13 +12,15 @@ EXPLORE — Browse by what you feel like doing: eat, drink, see art, hear live m
 
 EAT & DRINK — Restaurants, cafés, and bars across the city, sorted by what's near you when you're in town and by our recommendations when you're planning from home.
 
-EVENTS — Live listings — concerts, shows, games — that you can pin straight into your trip days.
+EVENTS — Live listings — concerts, shows, games, free events — save one and it drops straight into your schedule, no dates required.
 
-MY TRIP — Tap + on anything that catches your eye, and NYC Stoop turns your saves into a routed day: grouped by neighborhood, with walking times and transit directions between stops — which train or bus to take, where to board, where to get off, and how far the walk is on the other end.
+PLANNER — Tap "+ Add to Planner" on anything that catches your eye and build your trip: your saves become a routed day-by-day itinerary, grouped by neighborhood, with walking times and transit directions between stops — which train or bus to take, where to board, where to get off, and how far the walk is on the other end. Want a restaurant? One tap suggests a good one nearby; your own picks always come first.
 
-PLAN MY NIGHT — One tap picks a show and a dinner near you, routed and ready.
+MY PLANS — Save a copy of any trip you build. Reopen it on the sidewalk with per-day Google Maps routes, your notes, and a PDF you can share or print.
 
-Plus: neighborhood maps, weather-aware suggestions, and a design that feels like a beautiful field guide, not an app full of ads.
+PLAN IT! — Tell us when you're starting, your budget, and where — one tap builds a routed outing that actually fits the budget you picked.
+
+Plus: neighborhood maps, live weather, and a design that feels like a beautiful field guide, not an app full of ads.
 
 NYC Stoop is free to download and explore, with no ads — ever. Made for travelers who want one great trip, planned in minutes.
 

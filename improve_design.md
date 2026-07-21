@@ -42,6 +42,8 @@ where it IS that page's identity.
 
 | 11 | Saved-plan stop cards match the meal-card grammar | ✅ done 07-15 | The stop cards were a mostly-empty gray strip holding one right-aligned duration, over a name. Now they speak the exact language of the meal cards beside them: leading domain icon (🎨 MoMA, 🎷 Birdland — same vocabulary as the live trip; 🏨/🍽️ for detected hotels/eateries), serif name, ONE quiet meta line ("Midtown · ~2.5 hrs"), and the same 📍 maps chip the restaurants carry (Google Maps search by address). `DOMAIN_ICONS` lifted to module scope — one icon vocabulary for both views. |
 
+| 12 | Saved-plan action stack de-blued (S4) | ✅ done 07-21 | Four stacked slabs (clay PDF + two full-width Google-blue route buttons + gray Share) competed for primacy; #1a56db is nobody's wayfinding color. Now: PDF keeps the ONE action color (clay), per-day routes are half-width white-bordered secondaries ("Day 1 · Maps") with the pin icon in clay, Share matches — the same quiet grammar as the Planner's "Save copy". (Same pass: dinner cards' 🌙 → 🍴 so all restaurants share one icon, and route URLs moved to Google's documented ?api=1 form, per-day, ≤9 waypoints.) |
+
 ## Backlog (next pages to upgrade, same discipline)
 
 - Explore Topic/Domain heroes → FlowHero treatment (carried from v1.1 list).

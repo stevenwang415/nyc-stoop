@@ -10830,6 +10830,21 @@ ${body}
                   )
                 })}
               </div>
+              {/* Per-day Maps link (2026-07-21) — lives WITH its day, so the
+                  design scales to any trip length (a bottom row of chips broke
+                  at 4+ days). Quiet clay text link, right-aligned. */}
+              {(() => {
+                const _u = buildRouteUrl(dayIdx)
+                return _u ? (
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
+                    <a href={_u} target="_blank" rel="noopener noreferrer"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, color: 'var(--accent-text, var(--accent))', textDecoration: 'none' }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{NAV_ICON_PATHS.mapPin}</svg>
+                      <span>{t('Open this day in Maps')}</span><span>→</span>
+                    </a>
+                  </div>
+                ) : null
+              })()}
               {dayIdx < days.length - 1 && (
                 <div style={{ textAlign: 'center', color: 'var(--gray-300)', fontSize: 20, marginTop: 16 }}>···</div>
               )}
@@ -10856,49 +10871,21 @@ ${body}
           // ONE ROUTE PER DAY on multi-day plans (2026-07-21): a whole
           // weekend crammed into a single Maps URL exceeded Google's waypoint
           // limit and broke on handoff — and nobody walks two days at once.
-          const multi = days.length > 1
-          const routeBtnStyle = {
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            padding: '14px', borderRadius: 12, background: '#1a56db', color: '#fff',
-            fontSize: 15, fontWeight: 700, textDecoration: 'none', flex: 1,
-          }
-          const pinSvg = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{NAV_ICON_PATHS.mapPin}</svg>
-          const shareBtn = (
-            <button
-              onClick={handleShare}
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                padding: '14px 18px', borderRadius: 12, background: 'var(--gray-100)', color: 'var(--gray-800)',
-                border: 'none', cursor: 'pointer', fontSize: 15, fontWeight: 700, flexShrink: 0, fontFamily: 'inherit',
-              }}
-            >
-              <span style={{ fontSize: 18 }}>{shareCopied ? '✓' : '↑'}</span>
+          // House grammar (improve_design.md #12, 2026-07-21): PDF keeps the
+          // ONE action color (clay); Share is a quiet white-bordered
+          // secondary. Maps routing moved INTO each day ("Open this day in
+          // Maps →") — a bottom chip row broke at 4+ days.
+          return (
+            <button onClick={handleShare} style={{
+              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+              padding: '13px 10px', borderRadius: 12,
+              background: 'var(--white)', border: '1px solid var(--gray-200)',
+              color: 'var(--gray-800)', fontSize: 13.5, fontWeight: 700,
+              fontFamily: 'inherit', cursor: 'pointer',
+            }}>
+              <span style={{ fontSize: 15, color: 'var(--accent)' }}>{shareCopied ? '✓' : '↑'}</span>
               <span>{shareCopied ? 'Copied!' : 'Share'}</span>
             </button>
-          )
-          if (!multi) {
-            const url = buildRouteUrl(0)
-            return url ? (
-              <div style={{ display: 'flex', gap: 10 }}>
-                <a href={url} target="_blank" rel="noopener noreferrer" style={routeBtnStyle}>
-                  {pinSvg}<span>Open route in Maps</span>
-                </a>
-                {shareBtn}
-              </div>
-            ) : null
-          }
-          return (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {days.map((_, di) => {
-                const url = buildRouteUrl(di)
-                return url ? (
-                  <a key={di} href={url} target="_blank" rel="noopener noreferrer" style={routeBtnStyle}>
-                    {pinSvg}<span>Day {di + 1} route in Maps</span>
-                  </a>
-                ) : null
-              })}
-              <div style={{ display: 'flex' }}>{React.cloneElement(shareBtn, { style: { ...shareBtn.props.style, flex: 1 } })}</div>
-            </div>
           )
         })()}
       </div>
