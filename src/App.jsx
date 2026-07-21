@@ -1207,7 +1207,7 @@ function eventHeroImage(e) { return eventImagePick(e).url }
 
 // ── Saved events store ──────────────────────────────────────────────────────
 // Events (concerts, shows, street fairs) are dated, fixed-location objects, not
-// routable venues — so "Add to My Trip" stores them in their own localStorage
+// routable venues — so "Add to Planner" stores them in their own localStorage
 // list, which My Trip renders as a chronological "Saved events" section.
 const SAVED_EVENTS_KEY = 'nyc_saved_events'
 function loadSavedEvents() { try { return JSON.parse(localStorage.getItem(SAVED_EVENTS_KEY) || '[]') } catch { return [] } }
@@ -1221,20 +1221,11 @@ function toggleEventSaved(ev) {
   const arr = loadSavedEvents()
   const i = arr.findIndex(e => e && e.id === ev.id)
   if (i >= 0) { arr.splice(i, 1); persistSavedEvents(arr); return false }
-  // Anchor an undated trip to the event (2026-07-16): with no trip start date
-  // a dated event couldn't pin into any day and sank to the "Saved events"
-  // section — which users read as "Add didn't work". If the trip has no dates
-  // yet, the event's date becomes Day 1, so the event lands IN the plan.
-  try {
-    if (ev.date instanceof Date && !isNaN(ev.date) && !localStorage.getItem('nyc_trip_start_date')) {
-      const d = new Date(ev.date)
-      const today = new Date(); today.setHours(0, 0, 0, 0)
-      if (d >= today) {
-        const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-        lsSet('nyc_trip_start_date', iso)
-      }
-    }
-  } catch {}
+  // DELIBERATELY no date side-effects (2026-07-16): adding an event is
+  // COLLECTING it — users grab what interests them before dates are known,
+  // and auto-anchoring/growing the trip warped their dates behind their
+  // back. Saved events wait in a visible shelf at the top of Build and pin
+  // into their day automatically once the trip's dates cover them.
   arr.push({
     id: ev.id, source: ev.source, kind: ev.kind, kindLabel: ev.kindLabel, color: ev.color,
     title: ev.title, date: ev.date instanceof Date ? ev.date.toISOString() : null,
@@ -1364,7 +1355,7 @@ function EventDetail({ event }) {
       )}
       <button onClick={() => setEvSaved(toggleEventSaved(e))}
         style={{ width: '100%', marginTop: 18, border: 'none', borderRadius: 999, padding: '14px', background: evSaved ? 'var(--ink)' : 'var(--accent)', color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', boxShadow: evSaved ? 'none' : 'var(--shadow-accent)' }}>
-        {evSaved ? '✓ In My Trip' : '+ Add to My Trip'}
+        {evSaved ? '✓ In Planner' : '+ Add to Planner'}
       </button>
       {primaryUrl && (
         <button onClick={() => open(primaryUrl)}
@@ -1885,7 +1876,7 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
         {/* ── Header — weather (top-left) · serif wordmark (centered) · avatar ── */}
         <div style={{
           position: 'relative',
-          padding: 'calc(env(safe-area-inset-top, 0px) + 12px) 20px 10px',
+          padding: 'calc(env(safe-area-inset-top, 0px) + 10px) 20px 6px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--canvas)',
         }}>
           <div style={{ minWidth: 40, height: 40, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5, zIndex: 1 }} aria-label={weather ? `${weather.temp} degrees` : undefined}>
@@ -1900,7 +1891,7 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
               off-center. Vertical anchor = the CONTENT row's center (padding-top +
               half the 40px row), NOT 50% of the box — the box includes the iPhone
               safe-area inset, which made the wordmark ride high on device. */}
-          <div style={{ position: 'absolute', left: '50%', top: 'calc(env(safe-area-inset-top, 0px) + 12px + 20px)', transform: 'translate(-50%, -50%)', textAlign: 'center', lineHeight: 1, pointerEvents: 'none' }}>
+          <div style={{ position: 'absolute', left: '50%', top: 'calc(env(safe-area-inset-top, 0px) + 10px + 20px)', transform: 'translate(-50%, -50%)', textAlign: 'center', lineHeight: 1, pointerEvents: 'none' }}>
             <div style={{ fontSize: 9, letterSpacing: '0.28em', color: 'var(--field-clay)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 3 }}>{t('The City Guide')}</div>
             <div style={{ fontFamily: 'var(--serif)', fontSize: 25, fontWeight: 500, letterSpacing: '0.01em', color: 'var(--ink)' }}>
               NYC <span style={{ fontStyle: 'italic', color: 'var(--accent)' }}>Stoop</span>
@@ -1928,20 +1919,14 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
             )
           })()}
         </div>
-        <div style={{ padding: '6px 20px 12px', background: 'var(--canvas)' }}>
-          {/* Contextual lead — weather × time of day, one line. */}
-          {(() => {
-            const line = weatherLine(weather, now.getHours())
-            return line ? (
-              <div style={{ textAlign: 'center', fontFamily: 'var(--serif)', fontStyle: 'italic', fontSize: 14.5, color: 'var(--ink-2)', padding: '0 4px 10px', lineHeight: 1.35 }}>
-                {line}
-              </div>
-            ) : null
-          })()}
+        {/* Compacted (2026-07-16): the italic weather line moved into the
+            SCROLLABLE area — a poetic flourish shouldn't cost permanent
+            browse height. Pinned = brand row + search, nothing else. */}
+        <div style={{ padding: '2px 20px 10px', background: 'var(--canvas)' }}>
           <div style={{
             display: 'flex', alignItems: 'center', gap: 11,
             background: 'var(--card)', border: '1px solid rgba(33,27,20,0.12)',
-            borderRadius: 14, padding: '13px 16px',
+            borderRadius: 14, padding: '10px 16px',
           }}>
             <span style={{ color: 'var(--gray-400)', flexShrink: 0, display: 'inline-flex' }}><NavIcon name="search" size={17} /></span>
             <input
@@ -1966,6 +1951,15 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
 
       {/* ── Scrollable content area ── */}
       <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      {/* Weather × time-of-day line — scrolls away with the content. */}
+      {!query.trim() && (() => {
+        const line = weatherLine(weather, now.getHours())
+        return line ? (
+          <div style={{ textAlign: 'center', fontFamily: 'var(--serif)', fontStyle: 'italic', fontSize: 14.5, color: 'var(--ink-2)', padding: '10px 24px 0', lineHeight: 1.35 }}>
+            {line}
+          </div>
+        ) : null
+      })()}
       {query.trim() ? (
         <div style={{ padding: '8px 20px 40px' }}>
           {searchResults.length === 0 ? (
@@ -2912,7 +2906,7 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
         paddingTop: 6,
         zIndex: 3,
       }}>
-        {/* Heart removed — saving happens via the "+ Add to My Trip" button below. */}
+        {/* Heart removed — saving happens via the "+ Add to Planner" button below. */}
       </div>
 
       {/* ── Facts row — 3 equal light-gray tiles ── */}
@@ -2950,7 +2944,7 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
               }}
               style={isSaved ? { background: 'var(--ink)', boxShadow: 'none', opacity: 0.85 } : {}}
             >
-              {isSaved ? '✓ Saved to My Trip' : justAdded ? '✓ Added to My Trip!' : '+ Add to My Trip'}
+              {isSaved ? '✓ In Planner' : justAdded ? '✓ Added to Planner!' : '+ Add to Planner'}
             </button>
           )
         })()}
@@ -3239,7 +3233,7 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
       <div className="section">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
 
-          {/* (Primary "Add to My Trip" now lives near the top, under the facts.) */}
+          {/* (Primary "Add to Planner" now lives near the top, under the facts.) */}
 
           {/* ── Buy tickets (paid venues only; skip if the now-playing card above
                  already shows a "Book tickets" button, to avoid a double CTA) ── */}
@@ -4775,7 +4769,7 @@ function EatScreen({ push, savedItems = {}, userVenues = {}, toggleSave = () => 
 
       {/* In-app detail sheet for non-editorial restaurants — replaces the old
           "open Google Maps" dump. Reuses MoodPlaceSheet (photo, open-now, hours,
-          website, Add to My Trip), keeping a Google Maps button as a secondary. */}
+          website, Add to Planner), keeping a Google Maps button as a secondary. */}
       <BottomSheet open={!!eatSheet} onClose={() => setEatSheet(null)} fit>
         {eatSheet && (
           <MoodPlaceSheet place={eatSheet}
@@ -5689,7 +5683,7 @@ function MoodPlaceSheet({ place = {}, onFull = null, savedItems = {}, toggleSave
   const g = useGooglePhoto(place)
   const [imgFailed, setImgFailed] = React.useState(false)
   const [added, setAdded] = React.useState(false)
-  // "Add to My Trip" wiring. Imports already live in userVenues, so we just
+  // "Add to Planner" wiring. Imports already live in userVenues, so we just
   // toggle their `user_venue` save (which flows into the itinerary). Everything
   // else (restaurant DB rows, curated names, sights) has no persistent record,
   // so we create a user venue from `place.addData`. A name match guards against
@@ -5769,7 +5763,7 @@ function MoodPlaceSheet({ place = {}, onFull = null, savedItems = {}, toggleSave
       ) : null}
       {canAdd && (
         <button onClick={handleAddToTrip} style={btn(!inTrip)}>
-          {inTrip ? '✓ In My Trip' : '+ Add to My Trip'}
+          {inTrip ? '✓ In Planner' : '+ Add to Planner'}
         </button>
       )}
       {onFull && <button onClick={onFull} style={btn(false)}>Full details →</button>}
@@ -6199,7 +6193,7 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
       )}
 
       {/* Every pick opens this same in-app bottom sheet, so tapping is consistent:
-          editorial venues get the rich sheet (Add to My Trip / Full details),
+          editorial venues get the rich sheet (Add to Planner / Full details),
           everything else gets a compact sheet with an explicit Google Maps button. */}
       <BottomSheet open={!!moodSheet} onClose={() => setMoodSheet(null)} fit>
         {moodSheet?.kind === 'venue' && (
@@ -6753,7 +6747,7 @@ function NeighborhoodScreen({ neighborhoodKey, subAreaName, push, savedItems = {
   const [catFilter, setCatFilter] = React.useState('all')
   const [expanded, setExpanded] = React.useState({})
   // In-app sheet for "From your list" cards — consistent with the mood flow, so
-  // these open a detail sheet with "Add to My Trip" rather than jumping to Maps.
+  // these open a detail sheet with "Add to Planner" rather than jumping to Maps.
   const [nbSheet, setNbSheet] = React.useState(null)
   const group = NEIGHBORHOOD_GROUPS.find(g => g.key === neighborhoodKey)
   if (!group) return null
@@ -7126,7 +7120,7 @@ function NeighborhoodScreen({ neighborhoodKey, subAreaName, push, savedItems = {
       )}
 
       {/* "From your list" cards open this in-app sheet (consistent with the mood
-          flow) with an "Add to My Trip" action, rather than jumping to Maps. */}
+          flow) with an "Add to Planner" action, rather than jumping to Maps. */}
       <BottomSheet open={!!nbSheet} onClose={() => setNbSheet(null)} fit>
         {nbSheet && (
           <MoodPlaceSheet place={nbSheet}
@@ -7192,7 +7186,7 @@ function SightScreen({ sightId, push, savedItems = {}, toggleSave = () => {} }) 
         <div style={{ position: 'absolute', top: 18, right: 16, display: 'flex', gap: 6 }}>
           <button
             onClick={() => toggleSave('sight', sight.id)}
-            aria-label={isSaved ? 'Remove from My Trip' : 'Add to My Trip'}
+            aria-label={isSaved ? 'Remove from Planner' : 'Add to Planner'}
             style={{
               background: isSaved ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.22)',
               backdropFilter: isSaved ? 'none' : 'blur(6px)', border: 'none',
@@ -7202,7 +7196,7 @@ function SightScreen({ sightId, push, savedItems = {}, toggleSave = () => {} }) 
               transition: 'background 120ms ease, color 120ms ease',
             }}
           >
-            {isSaved ? '✓ Saved' : '+ Add to Trip'}
+            {isSaved ? '✓ Saved' : '+ Add to Planner'}
           </button>
         </div>
       </div>
@@ -7261,7 +7255,7 @@ function SightScreen({ sightId, push, savedItems = {}, toggleSave = () => {} }) 
 
       {/* Action buttons — primary save-to-trip + secondary helpers */}
       <div style={{ padding: '20px 20px 10px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {/* + Add to My Trip — main CTA */}
+        {/* + Add to Planner — main CTA */}
         <button onClick={() => toggleSave('sight', sight.id)} style={{
           background: isSaved ? '#dcfce7' : 'var(--gray-900)',
           color: isSaved ? '#15803d' : '#fff',
@@ -7270,7 +7264,7 @@ function SightScreen({ sightId, push, savedItems = {}, toggleSave = () => {} }) 
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           transition: 'background 120ms ease, color 120ms ease',
         }}>
-          {isSaved ? <>✓ Added to My Trip</> : <>+ Add to My Trip</>}
+          {isSaved ? <>✓ Added to Planner</> : <>+ Add to Planner</>}
         </button>
 
         {/* Official site (if URL is known) */}
@@ -7348,7 +7342,7 @@ function DetailRow({ icon, label, body, bodyStyle }) {
 // Render inside any card whose wrapper has position:relative (or add it). Returns null when not saved.
 function SavedDot() {
   // Heart/favorite indicators were removed app-wide — saving now happens only via
-  // the explicit "Add to My Trip" buttons. Kept as a no-op so existing call sites
+  // the explicit "Add to Planner" buttons. Kept as a no-op so existing call sites
   // don't need touching.
   return null
 }
@@ -7622,6 +7616,8 @@ function VenueCard({ venue }) {
 const NAV_ICON_PATHS = {
   compass:  <><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></>,
   fileText: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></>,
+  tool:     <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>,
+  folder:   <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>,
   mapPin:   <><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></>,
   utensils: <><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></>,
   moon:     <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>,
@@ -7662,11 +7658,14 @@ function BottomNav({ activeTab, onTabPress, savedCount, onAddPlace }) {
   // lives inside the mood flow's "Eat" category), and Tonight — the
   // un-Google-able signature feature — is promoted as the accent-colored
   // hero of the bar instead of the old "Eat" center button.
+  // 5 tabs (2026-07-16): the workbench/shelf split — Build assembles the
+  // trip, My Plans keeps the copies. The bar itself teaches the model.
   const tabs = [
     { id: 'explore', icon: 'compass',  label: 'Explore' },
     { id: 'tonight', icon: 'moon',     label: 'Events', accent: true },
     { id: 'map',     icon: 'mapPin',   label: 'Map' },
-    { id: 'saved',   icon: 'bookmark', label: 'My Trip' },
+    { id: 'saved',   icon: 'tool',     label: 'Planner' },
+    { id: 'plans',   icon: 'folder',   label: 'My Plans' },
   ]
   return (
     <div style={{
@@ -7814,7 +7813,7 @@ function AreaPickCard({ pick: p, onBack, onShowMap, onFull = null, savedItems = 
         background: saved ? 'var(--ink)' : 'var(--accent)', color: '#fff', borderRadius: 12,
         padding: '12px 16px', fontSize: 13.5, fontWeight: 700, marginBottom: 8,
         opacity: saved ? 0.85 : 1,
-      }}>{saved ? '✓ In My Trip' : '+ Add to My Trip'}</button>
+      }}>{saved ? '✓ In Planner' : '+ Add to Planner'}</button>
       <button onClick={onShowMap} style={{
         width: '100%', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
         background: 'var(--gray-900)', color: '#fff', borderRadius: 12,
@@ -7885,10 +7884,9 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
   // also key on the PLAN, or a freshly built night showed no way to reach it.
   const planStopCount = (() => { try { return (JSON.parse(localStorage.getItem('nyc_plan_sel') || '[]') || []).length } catch { return 0 } })()
   const hasTripToShow = savedVenueCount > 0 || planStopCount > 0
-  // Legend defaults open only while the Go-to-My-Trip pill is absent — once
-  // anything is saved the pill occupies bottom-center, and an expanded legend
-  // collides with it on ≤375pt screens (review S-1). Users can still expand.
-  const [legendOpen, setLegendOpen] = useState(!hasTripToShow)
+  // Legend defaults OPEN (product call 2026-07-16) — first-time visitors
+  // should see what the colors mean without hunting; folding is manual.
+  const [legendOpen, setLegendOpen] = useState(true)
   // One-time coach card for first-time Map visitors (dismiss = never again).
   const [showMapTut, setShowMapTut] = useState(() => {
     try { return !localStorage.getItem('nyc_map_tut_v1') } catch { return false }
@@ -8216,7 +8214,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
         )}
       </div>
 
-      {/* Go to My Trip — the payoff path: once anything is saved, the schedule
+      {/* Go to Planner — the payoff path: once anything is saved, the schedule
           is one tap away instead of a secret. Hidden while a pin card is open. */}
       {view === 'real' && !selVenue && hasTripToShow && (
         <button onClick={onGoToMyTrip} style={{
@@ -8228,7 +8226,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
           display: 'inline-flex', alignItems: 'center', gap: 7,
         }}>
           <NavIcon name="bookmark" size={14} />
-          <span>Go to My Trip</span>
+          <span>Go to Planner</span>
         </button>
       )}
 
@@ -8247,9 +8245,9 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
               Your map of the city
             </div>
             {[
-              ['📍', <>Tap any pin — a card pops up with <b>+ Add to Trip</b>.</>],
+              ['📍', <>Tap any pin — a card pops up with <b>+ Add to Planner</b>.</>],
               ['🎨', <>Filter by category with the chips above the map, or tap a color in the legend.</>],
-              ['🗓️', <>Done exploring? <b>Go to My Trip</b> turns your saves into a routed day plan.</>],
+              ['🗓️', <>Done exploring? <b>Go to Planner</b> turns your saves into a routed day plan.</>],
             ].map(([icon, text], i) => (
               <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12 }}>
                 <span style={{ fontSize: 17, lineHeight: 1.35, flexShrink: 0 }}>{icon}</span>
@@ -8329,7 +8327,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
               return (
                 <button
                   onClick={() => toggleSave('venue', selectedVenueId)}
-                  aria-label={isSaved ? 'Remove from My Trip' : 'Add to My Trip'}
+                  aria-label={isSaved ? 'Remove from Planner' : 'Add to Planner'}
                   style={{
                     marginLeft: 'auto',
                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -8340,7 +8338,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
                     fontSize: 11.5, fontWeight: 700, lineHeight: 1, whiteSpace: 'nowrap',
                     transition: 'background 120ms ease, color 120ms ease',
                   }}>
-                  {isSaved ? '✓ Saved' : '+ Add to Trip'}
+                  {isSaved ? '✓ Saved' : '+ Add to Planner'}
                 </button>
               )
             })()}
@@ -8398,7 +8396,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
               cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center',
               fontSize: 12.5, fontWeight: 700, color: 'var(--accent-text, var(--accent))',
               padding: '4px 0 0',
-            }}>See it in My Trip ›</button>
+            }}>See it in Planner ›</button>
           )}
         </div>
       )}
@@ -8469,7 +8467,7 @@ function VenueSheet({ venueId, blurb, savedItems = {}, toggleSave = () => {}, on
           so it's visible the instant the sheet peeks open — adding to the trip is
           the whole point of these cards. */}
       <button onClick={() => toggleSave('venue', venueId)} style={{ width: '100%', marginTop: 4, border: 'none', borderRadius: 999, padding: '14px', background: isSaved ? 'var(--ink)' : 'var(--accent)', color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', boxShadow: isSaved ? 'none' : 'var(--shadow-accent)' }}>
-        {isSaved ? '✓ Saved to My Trip' : '+ Add to My Trip'}
+        {isSaved ? '✓ In Planner' : '+ Add to Planner'}
       </button>
       <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
         <button onClick={() => open(venue.mapUrl)} style={{ flex: 1, border: '1.5px solid var(--gray-200)', borderRadius: 999, padding: '12px', background: 'var(--white)', color: 'var(--ink)', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>📍 Directions</button>
@@ -9695,6 +9693,16 @@ function getRestaurantSuggestionNear(area, cuisineId, offset = 0, anchor = null)
       return c ? distanceMiles(anchor, { lat: c[0], lng: c[1] }) : Infinity
     }
     pool = [...pool].sort((a, b) => dist(a) - dist(b))
+    // ≤20-min commute rule (2026-07-20): a meal suggestion shouldn't cost a
+    // trek — same estimator the travel connectors use, so the cap and the
+    // printed "~N min" never disagree. "Show another" cycles within the cap.
+    const near = pool.filter(r => {
+      const c = RESTAURANT_COORDS[r.id]
+      const trv = c ? estimateTravelCoords(anchor, { lat: c[0], lng: c[1] }) : null
+      return trv && trv.mins <= 20
+    })
+    // Never leave a day meal-less: nothing within 20 min → the 3 nearest.
+    pool = near.length ? near : pool.slice(0, 3)
   }
   return pool[offset % pool.length]
 }
@@ -9909,7 +9917,7 @@ function TripRouteMap({ groups }) {
         const lng = p.lng + (dup ? 0.00055 * Math.cos(ang) : 0)
         const icon = window.L.divIcon({
           className: '',
-          html: `<div style="width:22px;height:22px;border-radius:999px;background:${g.hue};color:#fff;font:700 11px/22px system-ui;text-align:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.35)">${i + 1}</div>`,
+          html: `<div style="width:22px;height:22px;border-radius:999px;background:${g.hue};color:#fff;font:700 11px/22px system-ui;text-align:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.35)">${p.n ?? i + 1}</div>`,
           iconSize: [22, 22], iconAnchor: [11, 11],
         })
         const m = window.L.marker([lat, lng], { icon, interactive: false })
@@ -10314,13 +10322,24 @@ ${body}
             {/* Trip's first day (falls back to saved-date for undated plans) —
                 showing savedAt here made two different trips look identical. */}
             {planDefaultName(snapshot)}
-            {/* Meals count as stops (2026-07-16) — matches the live summary. */}
-            {' · '}{(() => { const m = Object.values(lunchRestaurants || {}).filter(Boolean).length + Object.values(dinnerRestaurants || {}).filter(Boolean).length; const n = venueIds.length + m; return `${n} stop${n !== 1 ? 's' : ''}` })()}
-            {snapTripDays ? ` · ${snapTripDays} day${snapTripDays !== 1 ? 's' : ''}` : ''}
-            {(() => {
-              const count = mealCuisines ? Object.keys(mealCuisines).length : ((lunchCuisine ? 1 : 0) + (dinnerCuisine ? 1 : 0))
-              return count > 0 ? ` · ${count} meal${count !== 1 ? 's' : ''} picked` : ''
+            {/* Stop count = the CARDS actually in the plan (2026-07-20):
+                itemOrder is the rendered sequence, so counting it can't drift
+                from what the user sees below. (Old formula summed snapshot
+                restaurants even when the meal wasn't in the plan → "3 stops"
+                on a 2-card day.) Legacy snapshots keep the derived sum.
+                "N meals picked" removed — inventory noise. */}
+            {' · '}{(() => {
+              const ord = snapshot.itemOrder
+              let n
+              if (Array.isArray(ord) && ord.length) n = ord.reduce((s, d) => s + (Array.isArray(d) ? d.length : 0), 0)
+              else {
+                const m = Object.values(lunchRestaurants || {}).filter(Boolean).length + Object.values(dinnerRestaurants || {}).filter(Boolean).length
+                const ev = Object.values(snapshot.events || {}).flat().length
+                n = venueIds.length + m + ev
+              }
+              return `${n} stop${n !== 1 ? 's' : ''}`
             })()}
+            {snapTripDays ? ` · ${snapTripDays} day${snapTripDays !== 1 ? 's' : ''}` : ''}
           </div>
         </div>
         <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '4px 10px', borderRadius: 20 }}>✓ Saved</span>
@@ -10333,33 +10352,61 @@ ${body}
           const dinnerR = dinnerAt(dayIdx, day)
           const hasAfternoon = (day.stops || []).some(s => s.period === 'Afternoon')
           const renderItems = []
-          let lunchAdded = false, dinnerAdded = false
-          ;(day.stops || []).forEach(stop => {
-            if (!lunchAdded && lunchR && (stop.period === 'Afternoon' || (!hasAfternoon && stop.period === 'Evening'))) {
-              renderItems.push({ type: 'meal', meal: 'lunch', r: lunchR, cuisine: lunchCuisineAt(dayIdx) })
-              lunchAdded = true
-            }
-            if (!dinnerAdded && dinnerR && stop.period === 'Evening') {
-              renderItems.push({ type: 'meal', meal: 'dinner', r: dinnerR, cuisine: dinnerCuisineAt(dayIdx) })
-              dinnerAdded = true
-            }
-            renderItems.push({ type: 'stop', stop })
-          })
-          if (!lunchAdded && lunchR) renderItems.push({ type: 'meal', meal: 'lunch', r: lunchR, cuisine: lunchCuisineAt(dayIdx) })
-          if (!dinnerAdded && dinnerR) renderItems.push({ type: 'meal', meal: 'dinner', r: dinnerR, cuisine: dinnerCuisineAt(dayIdx) })
+          const _ord = snapshot.itemOrder?.[dayIdx]
+          if (Array.isArray(_ord) && _ord.length) {
+            // EXACT order replay (2026-07-16) — the snapshot recorded the card
+            // sequence as rendered; never re-derive (it shuffled events/meals).
+            const stopById = {}; (day.stops || []).forEach(s => { stopById[s.id] = s })
+            const evById = {}; (snapshot.events?.[dayIdx] || []).forEach(e => { evById[e.id] = e })
+            _ord.forEach(o => {
+              if (o.t === 's' && stopById[o.id]) renderItems.push({ type: 'stop', stop: stopById[o.id] })
+              else if (o.t === 'm') {
+                const r = o.meal === 'lunch' ? lunchR : dinnerR
+                if (r) renderItems.push({ type: 'meal', meal: o.meal, r, cuisine: o.meal === 'lunch' ? lunchCuisineAt(dayIdx) : dinnerCuisineAt(dayIdx) })
+              } else if (o.t === 'e' && evById[o.id]) {
+                const ev = evById[o.id]
+                renderItems.push({ type: 'event', event: { ...ev, date: ev.date ? new Date(ev.date) : null } })
+              }
+            })
+          } else {
+            // Legacy snapshots (pre-itemOrder): derive as before.
+            let lunchAdded = false, dinnerAdded = false
+            ;(day.stops || []).forEach(stop => {
+              if (!lunchAdded && lunchR && (stop.period === 'Afternoon' || (!hasAfternoon && stop.period === 'Evening'))) {
+                renderItems.push({ type: 'meal', meal: 'lunch', r: lunchR, cuisine: lunchCuisineAt(dayIdx) })
+                lunchAdded = true
+              }
+              if (!dinnerAdded && dinnerR && stop.period === 'Evening') {
+                renderItems.push({ type: 'meal', meal: 'dinner', r: dinnerR, cuisine: dinnerCuisineAt(dayIdx) })
+                dinnerAdded = true
+              }
+              renderItems.push({ type: 'stop', stop })
+            })
+            if (!lunchAdded && lunchR) renderItems.push({ type: 'meal', meal: 'lunch', r: lunchR, cuisine: lunchCuisineAt(dayIdx) })
+            if (!dinnerAdded && dinnerR) renderItems.push({ type: 'meal', meal: 'dinner', r: dinnerR, cuisine: dinnerCuisineAt(dayIdx) })
+            ;(snapshot.events?.[dayIdx] || []).forEach(ev => {
+              renderItems.push({ type: 'event', event: { ...ev, date: ev.date ? new Date(ev.date) : null } })
+            })
+          }
 
           // Same locatable rule everywhere on this page: curated coords first,
           // then coords the snapshot itself carries (custom stops).
           const coordsOf = (it) => {
             if (it.type === 'meal') return restaurantCoords(it.r)
+            if (it.type === 'event') {
+              const ev = it.event
+              return (typeof ev?.lat === 'number' && typeof ev?.lng === 'number') ? { lat: ev.lat, lng: ev.lng } : null
+            }
             const c = venueCoords[it.stop.id]
             if (c) return c
             const s = it.stop
             return (typeof s.lat === 'number' && typeof s.lng === 'number') ? { lat: s.lat, lng: s.lng } : null
           }
 
-          // Day summary — the SAME per-mode estimator + meal midpoint as the
-          // live page (my_trip_update #3), so the two views can never disagree.
+          // Day summary — SAME composition as Build (2026-07-16): time range ·
+          // stops (meals count) · meal label · per-mode travel · ≈$/person.
+          // The saved view previously showed only travel + $, so the summary
+          // "lost information" the moment you saved.
           const modeMins = { walk: 0, subway: 0, taxi: 0 }
           {
             let prev = null
@@ -10370,13 +10417,42 @@ ${body}
               prev = c
             }
           }
+          // Sequenced clock (Build's rules, simplified) → the day's time range.
+          let dayStart = null, dayEnd = null
+          {
+            const firstStop = renderItems.find(it => it.type === 'stop')?.stop
+            let clock = firstStop ? (firstStop.startHour ?? 10) : 10
+            const periodFloor = { Morning: 0, Afternoon: 12, Evening: 17 }
+            let prevC = null
+            renderItems.forEach(it => {
+              if (it.type === 'event') return // fixed showtime — no clock cost
+              if (it.type !== 'stop') { clock += 1.25; return }
+              const s = it.stop
+              const c = coordsOf(it)
+              if (prevC && c) { const tr = estimateTravelCoords(prevC, c); clock += (tr?.mins ?? 12) / 60 }
+              clock = Math.max(clock, periodFloor[s.period] ?? 0)
+              if (dayStart == null) dayStart = clock
+              clock += (typeof s.duration === 'number' ? s.duration : 1)
+              dayEnd = clock
+              if (c) prevC = c
+            })
+          }
           const sumBits = []
+          if (dayStart != null && dayEnd != null) sumBits.push(`${fmtHour(dayStart)} – ${fmtHour(dayEnd)}`)
+          sumBits.push(renderItems.length === 1 ? '1 stop' : `${renderItems.length} stops`)
+          // Meal label from the RENDERED cards, not the snapshot's stored
+          // picks (2026-07-20) — a pick that isn't in the plan isn't a meal.
+          const _hasL = renderItems.some(it => it.type === 'meal' && it.meal === 'lunch')
+          const _hasD = renderItems.some(it => it.type === 'meal' && it.meal === 'dinner')
+          const mealLabel = _hasL && _hasD ? t('Lunch + Dinner') : _hasD ? t('Dinner') : _hasL ? t('Lunch') : ''
+          if (mealLabel) sumBits.push(mealLabel)
           if (modeMins.walk)   sumBits.push(`🚶 ~${modeMins.walk} min`)
           if (modeMins.subway) sumBits.push(`🚇 ~${modeMins.subway} min`)
           if (modeMins.taxi)   sumBits.push(`🚕 ~${modeMins.taxi} min`)
           let mealLo = 0, mealHi = 0
           ;[lunchR, dinnerR].forEach(r => { const rng = r && MEAL_PRICE_RANGE[r.price]; if (rng) { mealLo += rng[0]; mealHi += rng[1] } })
-          if (mealHi > 0) sumBits.push(`≈$${Math.round((mealLo + mealHi) / 2 / 5) * 5}${t('/person')}`)
+          const dayHasEvt = renderItems.some(it => it.type === 'event')
+          if (mealHi > 0) sumBits.push(`≈$${Math.round((mealLo + mealHi) / 2 / 5) * 5}${dayHasEvt ? ' + ' + t('ticket') : ''}${t('/person')}`)
 
           return (
             <div key={dayIdx} style={{ marginBottom: 24 }}>
@@ -10387,7 +10463,7 @@ ${body}
                 <span style={{ background: dayHue(dayIdx), color: '#fff', fontSize: 11, fontWeight: 800, padding: '4px 10px', borderRadius: 20, letterSpacing: '0.04em' }}>
                   {getDayLabel(dayIdx, snapshot.tripStartDate || null).toUpperCase()}
                 </span>
-                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-700)' }}>{day.area}</span>
+                {/* Area label dropped — matches Build (date is the day's identity). */}
               </div>
               {sumBits.length > 0 && (
                 <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--gray-500)', margin: '-8px 0 12px 2px' }}>
@@ -10429,6 +10505,45 @@ ${body}
                       </span>
                     </div>
                   ) : null
+                  if (item.type === 'event') {
+                    const ev = item.event
+                    const d = ev.date
+                    const hasTime = d instanceof Date && !isNaN(d) && (d.getHours() || d.getMinutes())
+                    const time = hasTime ? `${(d.getHours() % 12) || 12}${d.getMinutes() ? ':' + String(d.getMinutes()).padStart(2, '0') : ''}${d.getHours() < 12 ? 'am' : 'pm'}` : ''
+                    return (
+                      <React.Fragment key={'sev-' + ev.id}>
+                      {travelConnector}
+                      <div style={{ background: 'var(--card)', border: '1px solid var(--gray-200)', borderRadius: 12, overflow: 'hidden' }}>
+                        <div style={{ background: 'var(--gray-50)', borderBottom: '1px solid var(--gray-100)', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>🎟 {t('Event')}{time ? ` · ${time}` : ''}</span>
+                        </div>
+                        <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontFamily: 'var(--serif)', fontSize: 17, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.25 }}>{ev.title}</div>
+                            {(ev.location || ev.kindLabel) && (
+                              <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>{[ev.kindLabel, ev.location].filter(Boolean).join(' · ')}</div>
+                            )}
+                            {ev.ticketUrl && (
+                              <a href={ev.ticketUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', marginTop: 6, fontSize: 12.5, fontWeight: 700, color: 'var(--accent-text, var(--accent))', textDecoration: 'none' }}>🎟 {t('Get tickets')} →</a>
+                            )}
+                            {String(savedNotes[`event:${ev.id}`] || '').trim() && (
+                              <div style={{ fontSize: 12, color: 'var(--gray-600)', fontStyle: 'italic', marginTop: 4, lineHeight: 1.4 }}>✎ {String(savedNotes[`event:${ev.id}`]).trim()}</div>
+                            )}
+                          </div>
+                          {/* Same map chip as every other card (2026-07-20) — venue
+                              search by name; never Google coords on our own map. */}
+                          {ev.location && (
+                            <a href={'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(`${ev.location}, New York`)}
+                              target="_blank" rel="noopener noreferrer" aria-label="Open in Maps"
+                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'center', background: 'var(--gray-200)', color: 'var(--gray-700)', padding: '6px 8px', borderRadius: 7, textDecoration: 'none', flexShrink: 0 }}>
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{NAV_ICON_PATHS.mapPin}</svg>
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                      </React.Fragment>
+                    )
+                  }
                   // The note the user wrote on the live card (stops keyed by id,
                   // meals by rest:<id>) — read-only, shown only when it exists.
                   const note = String(savedNotes[item.type === 'meal' ? `rest:${item.r.id}` : item.stop.id] || '').trim()
@@ -10453,21 +10568,22 @@ ${body}
                               same rule as the live cards (never disagree). */}
                           <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 2 }}>{mealPriceApprox(item.r.price)} · {item.r.neighborhood}</div>
                           {noteLine}
-                        </div>
-                        <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
+                          {/* Reserve lives IN the card body (an action on the meal),
+                              not beside the map chip — reviewer note 2026-07-20:
+                              navigation and booking are different mental categories. */}
                           {item.r.walkIn ? (
-                            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--gray-500)' }}>Walk-in</span>
-                          ) : item.r.reservationUrl && (
+                            <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 6 }}>Walk-ins welcome</div>
+                          ) : item.r.reservationUrl ? (
                             <a href={item.r.reservationUrl} target="_blank" rel="noopener noreferrer"
-                              style={{ fontSize: 11, fontWeight: 700, background: 'var(--accent)', color: '#fff', padding: '5px 8px', borderRadius: 7, textDecoration: 'none' }}>
-                              Reserve →
+                              style={{ display: 'inline-block', marginTop: 6, fontSize: 12.5, fontWeight: 700, color: 'var(--accent-text, var(--accent))', textDecoration: 'none' }}>
+                              {t('Reserve a table')} →
                             </a>
-                          )}
-                          <a href={item.r.mapsUrl} target="_blank" rel="noopener noreferrer"
-                            style={{ fontSize: 11, fontWeight: 600, background: 'var(--gray-200)', color: 'var(--gray-700)', padding: '5px 8px', borderRadius: 7, textDecoration: 'none' }}>
-                            📍
-                          </a>
+                          ) : null}
                         </div>
+                        <a href={item.r.mapsUrl} target="_blank" rel="noopener noreferrer" aria-label="Open in Maps"
+                          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'center', background: 'var(--gray-200)', color: 'var(--gray-700)', padding: '6px 8px', borderRadius: 7, textDecoration: 'none', flexShrink: 0 }}>
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{NAV_ICON_PATHS.mapPin}</svg>
+                        </a>
                       </div>
                       </React.Fragment>
                     )
@@ -10497,9 +10613,9 @@ ${body}
                         </div>
                         {noteLine}
                       </div>
-                      <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
-                        style={{ fontSize: 11, fontWeight: 600, background: 'var(--gray-200)', color: 'var(--gray-700)', padding: '5px 8px', borderRadius: 7, textDecoration: 'none', flexShrink: 0 }}>
-                        📍
+                      <a href={mapsUrl} target="_blank" rel="noopener noreferrer" aria-label="Open in Maps"
+                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'center', background: 'var(--gray-200)', color: 'var(--gray-700)', padding: '6px 8px', borderRadius: 7, textDecoration: 'none', flexShrink: 0 }}>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{NAV_ICON_PATHS.mapPin}</svg>
                       </a>
                     </div>
                     </React.Fragment>
@@ -10536,7 +10652,7 @@ ${body}
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                   padding: '14px', borderRadius: 12, background: '#1a56db', color: '#fff',
                   fontSize: 15, fontWeight: 700, textDecoration: 'none', flex: 1 }}>
-                <span>🗺️</span><span>Open full route in Maps</span>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{NAV_ICON_PATHS.mapPin}</svg><span>Open full route in Maps</span>
               </a>
               <button
                 onClick={handleShare}
@@ -10628,10 +10744,12 @@ function SavedEventsSection({ hiddenIds = null }) {
         <h2 style={{ fontFamily: 'var(--serif)', fontWeight: 500, fontSize: 22, margin: 0, letterSpacing: '0.01em', color: 'var(--ink)' }}>Saved events</h2>
         <span style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--field-clay)', fontWeight: 600 }}>{evs.length}</span>
       </div>
-      {/* Why an event is HERE and not in a day: it falls outside the trip's
-          dates. Without this line, "Add to My Trip" looked broken. */}
+      {/* The collect-then-pin model, said out loud. Since 2026-07-20 events
+          no longer wait for dates — any day in the plan takes them (Day 1
+          when undated), so this shelf only shows when there's no day yet or
+          the event falls outside the dated trip. */}
       <div style={{ fontSize: 12, color: 'var(--gray-500)', lineHeight: 1.5, margin: '-4px 0 12px' }}>
-        Events pin into a trip day automatically when their date falls inside your trip.
+        Collected events join your schedule as soon as your plan has a day — add a stop to start one. Set trip dates to sort events into the right days.
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {evs.map(e => {
@@ -10659,7 +10777,7 @@ function SavedEventsSection({ hiddenIds = null }) {
   )
 }
 
-function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, setVenueNote = () => {}, userVenues = {}, removeUserVenue = () => {}, addUserVenue = () => null, addPlaceFromHeader = () => {}, weather = null, savedPlacesReq = 0, onBackToSettings = null, onOpenFeedback = () => {}, onImportTakeout = () => {} }) {
+function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, setVenueNote = () => {}, userVenues = {}, removeUserVenue = () => {}, addUserVenue = () => null, addPlaceFromHeader = () => {}, weather = null, savedPlacesReq = 0, onBackToSettings = null, onOpenFeedback = () => {}, onImportTakeout = () => {}, onOpenPlansTab = () => {} }) {
   // $3.99 lifetime unlock: free tier gets a FULL 1-day plan + 1 saved plan;
   // multi-day, unlimited plans, and PDF export are Plus (see iap.js).
   const plusOwned = usePlus()
@@ -10814,6 +10932,9 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
 
   // Parked-saves fold in the Choose Stops drawer (cap 8 chips, expandable).
   const [offPlanExpanded, setOffPlanExpanded] = React.useState(false)
+  // Just-saved highlight on the Saved plans list — accent ring + "Saved ✓"
+  // so the landing after Save copy visibly points at the fresh copy.
+  const [savedFlashId, setSavedFlashId] = React.useState(null)
 
   // Prune plan-only extras the user has since removed from the plan — checked
   // once per visit so an unchecked pick doesn't haunt the stops list forever.
@@ -10868,6 +10989,16 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
       .slice(0, 6)
   }
 
+  // Saved events (from the Events tab) — kept in sync so they can render
+  // pinned inside trip days (see eventsByDay below). Declared BEFORE the
+  // itinerary build: an event with no stops still needs a day to live in.
+  const [savedEvts, setSavedEvts] = React.useState(() => loadSavedEvents())
+  React.useEffect(() => {
+    const refresh = () => setSavedEvts(loadSavedEvents())
+    window.addEventListener('nyc-saved-events', refresh)
+    return () => window.removeEventListener('nyc-saved-events', refresh)
+  }, [])
+
   const venueIds = allVenueIds.filter(id => planSelection.has(id)).map(id => venueSwaps[id] || id)
   const _rawClusters = buildItinerary(venueIds, userVenues)
   // Honor the chosen trip length: pad with empty days so stops can be spread
@@ -10890,6 +11021,13 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     while (out.length < tripDays) out.push({ area: `Day ${out.length + 1}`, stops: [] })
     return out
   })()
+  // An event alone STARTS the plan (2026-07-20): first-time users save a show
+  // from Events, land here, and must see a schedule — not an empty state with
+  // their event parked on a shelf. No stops + saved events → create Day 1;
+  // eventsByDay pins them into it (and the meal rule adds dinner around it).
+  if (_rawDays.length === 0 && savedEvts.length > 0) {
+    _rawDays.push({ area: 'Day 1', stops: [] })
+  }
 
   // Apply user's day-reassignment overrides on top of the auto-built itinerary.
   // A stop with no override stays where buildItinerary put it.
@@ -11012,12 +11150,43 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     return 'https://www.google.com/maps/dir/' + waypoints.map(w => encodeURIComponent(w)).join('/')
   }
 
+  // Which day each pinned event belongs to. Defined BEFORE the restaurant
+  // memos (moved 2026-07-20) so meal picks can anchor to event venues.
+  const eventsByDay = (() => {
+    // No trip dates? Don't hold events hostage on the shelf (user feedback
+    // 2026-07-20: a tonight plan — show + dinner — shouldn't require setting
+    // dates first). Every saved event joins Day 1 as a schedule card; setting
+    // dates later re-sorts them into their real days automatically.
+    if (!tripStartDate) {
+      if (days.length === 0) return {}
+      return { 0: savedEvts.map(hydrateSavedEvent) }
+    }
+    const parts = tripStartDate.split('-').map(Number)
+    const start = new Date(parts[0], parts[1] - 1, parts[2]); start.setHours(0, 0, 0, 0)
+    const map = {}
+    savedEvts.map(hydrateSavedEvent).forEach(e => {
+      if (!(e.date instanceof Date) || isNaN(e.date)) return
+      const d0 = new Date(e.date); d0.setHours(0, 0, 0, 0)
+      const idx = Math.round((d0 - start) / 86400000)
+      if (idx >= 0 && idx < days.length) { (map[idx] = map[idx] || []).push(e) }
+    })
+    return map
+  })()
+
   // Memoize restaurant picks per dayIdx (not per area) so each day can have its own cuisine + offset independently.
   // The stop you're coming from before a meal: the latest Morning stop for lunch,
   // the latest Afternoon/Evening stop for dinner. Used to recommend nearby spots.
-  const mealAnchor = (day, meal) => {
+  const mealAnchor = (day, meal, dayIdx = null) => {
     const withC = day.stops.map(s => ({ s, c: venueCoords[s.id] })).filter(x => x.c)
-    if (withC.length === 0) return null
+    if (withC.length === 0) {
+      // Event-only day (2026-07-20): anchor to the event venue — dinner near
+      // the show, not a citywide default from an area label that matches nothing.
+      if (dayIdx !== null) {
+        const ev = (eventsByDay[dayIdx] || []).find(e => typeof e.lat === 'number' && typeof e.lng === 'number')
+        if (ev) return { lat: ev.lat, lng: ev.lng }
+      }
+      return null
+    }
     const morning = withC.filter(x => x.s.period === 'Morning')
     const later = withC.filter(x => x.s.period === 'Afternoon' || x.s.period === 'Evening')
     const block = meal === 'lunch' ? (morning.length ? morning : withC) : (later.length ? later : withC)
@@ -11033,22 +11202,22 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
       // cuisine or "show another" if they care.
       const cuisine = mealCuisines[`${di}:lunch`] || null
       const off = restaurantOffsets[`lunch:${di}`] || 0
-      map[di] = getRestaurantSuggestionNear(day.area, cuisine, off, mealAnchor(day, 'lunch'))
+      map[di] = getRestaurantSuggestionNear(day.area, cuisine, off, mealAnchor(day, 'lunch', di))
     })
     return map
-  }, [mealCuisines, restaurantOffsets, days])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mealCuisines, restaurantOffsets, days, savedEvts, tripStartDate])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const dinnerRestaurants = React.useMemo(() => {
     const map = {}
     days.forEach((day, di) => {
       const cuisine = mealCuisines[`${di}:dinner`] || null
       const off = restaurantOffsets[`dinner:${di}`] || 0
-      const anchor = mealAnchor(day, 'dinner')
+      const anchor = mealAnchor(day, 'dinner', di)
       let pick = getRestaurantSuggestionNear(day.area, cuisine, off, anchor)
       // Don't suggest the same restaurant for lunch and dinner on the same day.
       // (Compute the lunch pick regardless of whether a lunch cuisine is set —
       // otherwise the no-cuisine default gave lunch and dinner the same spot.)
-      const lunchPick = getRestaurantSuggestionNear(day.area, mealCuisines[`${di}:lunch`] || null, restaurantOffsets[`lunch:${di}`] || 0, mealAnchor(day, 'lunch'))
+      const lunchPick = getRestaurantSuggestionNear(day.area, mealCuisines[`${di}:lunch`] || null, restaurantOffsets[`lunch:${di}`] || 0, mealAnchor(day, 'lunch', di))
       if (pick && lunchPick && pick.name === lunchPick.name) {
         const alt = getRestaurantSuggestionNear(day.area, cuisine, off + 1, anchor)
         if (alt && alt.name !== lunchPick.name) pick = alt
@@ -11056,7 +11225,7 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
       map[di] = pick
     })
     return map
-  }, [mealCuisines, restaurantOffsets, days])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mealCuisines, restaurantOffsets, days, savedEvts, tripStartDate])  // eslint-disable-line react-hooks/exhaustive-deps
 
 
 
@@ -11168,9 +11337,8 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     try { return JSON.parse(localStorage.getItem('nyc_stop_order') || 'null') } catch { return null }
   })
 
-  // Saved events (from the Events tab) — kept in sync so dated ones can render
-  // pinned inside their trip day (see eventsByDay below).
-  const [savedEvts, setSavedEvts] = React.useState(() => loadSavedEvents())
+  // (savedEvts state moved above the itinerary build 2026-07-20 — an event
+  // alone must be able to CREATE Day 1, see _rawDays.)
   // "ADDED EVENT" pill — same lifetime as the NEW badge: shows on this visit
   // only. The Events tab writes recently-added ids; we read-and-clear on
   // mount, so leaving My Trip retires the pill.
@@ -11181,11 +11349,6 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
       return v
     } catch { return new Set() }
   })
-  React.useEffect(() => {
-    const refresh = () => setSavedEvts(loadSavedEvents())
-    window.addEventListener('nyc-saved-events', refresh)
-    return () => window.removeEventListener('nyc-saved-events', refresh)
-  }, [])
 
   // 16-day NYC daily forecast — fetched once an arrival date exists, so each
   // trip day's header can show its own weather without leaving the planner.
@@ -11304,6 +11467,42 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
   // travelled at least 25px before treating the gesture as a real drag. This
   // prevents brief taps, quick swipes, and natural finger-tremor-during-hold
   // from accidentally moving a card to another day.
+  // ── Drag auto-scroll (2026-07-16) — without it, a card could never be
+  // dragged past cards BELOW the viewport (the finger hits the screen edge
+  // first): "can't drag a place over the restaurant card". Finger in the top/
+  // bottom edge zone scrolls the page; an interval keeps scrolling (and keeps
+  // re-computing the insertion point) while the finger holds still. ──
+  const autoScrollRef = React.useRef(null)
+  const dragIdRef = React.useRef(null)
+  const dragOrderRef = React.useRef(null)
+  const stopAutoScroll = () => { if (autoScrollRef.current) { clearInterval(autoScrollRef.current); autoScrollRef.current = null } }
+  function recomputeDragOrder(y, itemId) {
+    const cur = dragOrderRef.current
+    if (!cur || y == null || !itemId) return
+    const others = cur.filter(id => id !== itemId)
+    let insertIdx = others.length
+    for (let i = 0; i < others.length; i++) {
+      const el = stopCardRefs.current[others[i]]
+      if (!el) continue
+      const rect = el.getBoundingClientRect()
+      if (y < rect.top + rect.height * 0.5) { insertIdx = i; break }
+    }
+    const next = [...others]
+    next.splice(insertIdx, 0, itemId)
+    if (next.join(',') !== cur.join(',')) { dragOrderRef.current = next; setDragOrder(next) }
+  }
+  function maybeAutoScroll(y) {
+    const H = window.innerHeight
+    const EDGE = 130
+    const dir = y > H - EDGE ? 1 : y < EDGE + 60 ? -1 : 0
+    if (dir === 0) { stopAutoScroll(); return }
+    if (autoScrollRef.current) return
+    autoScrollRef.current = setInterval(() => {
+      window.scrollBy(0, dir * 14)
+      recomputeDragOrder(lastDragYRef.current, dragIdRef.current)
+    }, 16)
+  }
+
   function onItemTouchStart(e, itemId, thisDayIdx, defaultItemIds) {
     const point = e.touches ? e.touches[0] : e
     const startY = point.clientY
@@ -11320,6 +11519,8 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     setDragId(itemId)
     setDragDayIdx(thisDayIdx)
     setDragOrder([...base])
+    dragIdRef.current = itemId
+    dragOrderRef.current = [...base]
     // hasMoved = true only once BOTH (a) ≥120ms held and (b) ≥25px finger
     // travel are satisfied. onItemTouchEnd reads this to decide whether the
     // gesture was a deliberate drag (commit) or just a tap (no-op, revert state).
@@ -11343,19 +11544,11 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
       t.hasMoved = true
     }
     lastDragYRef.current = y
-    if (!dragOrder) return
-    // Reorder within the origin day: find where finger is among the other cards.
-    const others = dragOrder.filter(id => id !== itemId)
-    let insertIdx = others.length
-    for (let i = 0; i < others.length; i++) {
-      const el = stopCardRefs.current[others[i]]
-      if (!el) continue
-      const rect = el.getBoundingClientRect()
-      if (y < rect.top + rect.height * 0.5) { insertIdx = i; break }
-    }
-    const next = [...others]
-    next.splice(insertIdx, 0, itemId)
-    if (next.join(',') !== dragOrder.join(',')) setDragOrder(next)
+    if (!dragOrderRef.current) return
+    // Reorder within the origin day (ref-based so the auto-scroll interval
+    // shares the same up-to-date order), then edge-scroll if needed.
+    recomputeDragOrder(y, itemId)
+    maybeAutoScroll(y)
 
     // Cross-day visual: tint whichever day container has the cursor. The actual
     // move commit happens in onItemTouchEnd from the ref, not from this state.
@@ -11367,8 +11560,12 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     // No-op the gesture entirely if it never crossed the movement threshold.
     // Prevents an accidental press-and-release on the grip from saving stale
     // state OR mistakenly committing a cross-day move based on micro-jitter.
+    stopAutoScroll()
     const wasRealDrag = dragTimerRef.current?.hasMoved === true
-    if (dragId === itemId && dragOrder && wasRealDrag) {
+    // Commit from the REF (the interval may have reordered past the last
+    // state flush) — fall back to state for safety.
+    const finalOrder = dragOrderRef.current || dragOrder
+    if (dragId === itemId && finalOrder && wasRealDrag) {
       // Read the target day fresh from the last cursor Y stored in the ref.
       // This avoids the stale-closure bug where the window-level mouseup
       // handler captured hoverDayIdx at drag-start (when it was null).
@@ -11382,17 +11579,19 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
         moveStopToDay(itemId, targetDay)
       } else {
         // Same-day reorder: save the full item order (stops + meals) for this day.
-        const nextDayOrders = { ...dayItemOrders, [thisDayIdx]: dragOrder }
+        const nextDayOrders = { ...dayItemOrders, [thisDayIdx]: finalOrder }
         setDayItemOrders(nextDayOrders)
         try { lsSet('nyc_day_item_orders', JSON.stringify(nextDayOrders)) } catch {}
         // Also sync stop-only order to stopOrderOverride for today-checklist.
-        const stopIds = dragOrder.filter(id => id !== '__lunch__' && id !== '__dinner__')
+        const stopIds = finalOrder.filter(id => id !== '__lunch__' && id !== '__dinner__')
         setStopOrderOverride(stopIds)
         try { lsSet('nyc_stop_order', JSON.stringify(stopIds)) } catch {}
       }
     }
     dragTimerRef.current = null
     lastDragYRef.current = null
+    dragIdRef.current = null
+    dragOrderRef.current = null
     setDragId(null)
     setDragDayIdx(null)
     setDragOrder(null)
@@ -11432,6 +11631,20 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
   const [skippedMeals, setSkippedMeals] = React.useState(() => {
     try { return JSON.parse(localStorage.getItem('nyc_skipped_meals') || '{}') } catch { return {} }
   })
+  // Event-only days ask before adding a meal (2026-07-20) — {dayIdx: true}
+  // once the user taps "+ Add a restaurant for tonight".
+  const [mealOptIns, setMealOptIns] = React.useState(() => {
+    try { return JSON.parse(localStorage.getItem('nyc_meal_optins') || '{}') } catch { return {} }
+  })
+  const optIntoMeal = (dayIdx) => {
+    setMealOptIns(prev => {
+      const next = { ...prev, [dayIdx]: true }
+      try { lsSet('nyc_meal_optins', JSON.stringify(next)) } catch {}
+      return next
+    })
+    // Also clear a previous ✕ so the dinner actually reappears.
+    setMealSkipped(dayIdx, 'dinner', false)
+  }
   function setMealSkipped(dayIdx, meal, on) {
     setSkippedMeals(prev => {
       const day = { ...(prev[dayIdx] || {}) }
@@ -11443,8 +11656,64 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     })
   }
 
+  // ── "Saved ✓ — start fresh?" banner (2026-07-20) ──────────────────────────
+  // After Save copy, the Planner still holds every card from plan A — which
+  // reads as clutter the moment the user wants to build plan B. The flag set
+  // by Save copy surfaces a one-tap reset. Non-destructive by construction:
+  // saved places stay in the library (Choose Stops → "Add all back"), the
+  // snapshot lives in My Plans, and the event shelf keeps its collection.
+  const [showSavedBanner, setShowSavedBanner] = React.useState(() => {
+    try { return localStorage.getItem('nyc_plan_saved_flag') === '1' } catch { return false }
+  })
+  const dismissSavedBanner = () => {
+    setShowSavedBanner(false)
+    try { localStorage.removeItem('nyc_plan_saved_flag') } catch {}
+  }
+  const startFreshPlan = () => {
+    // The target state is THE PAGE AS FIRST OPENED (user feedback 2026-07-20:
+    // a reset that keeps plan A's dates and day frames "feels weird") — so
+    // every piece of plan-scoped working state goes, not just the stops.
+    setPlanSelection(new Set()); lsSet('nyc_plan_sel', '[]')
+    // NB: nyc_plan_known is deliberately KEPT — clearing it would make the
+    // auto-add effect re-select every save, undoing the reset.
+    setDayItemOrders({}); setStopDayOverrides({}); setSkippedMeals({}); setMealOptIns({})
+    setMealCuisines({}); setVenueSwaps({}); setRestaurantOffsets({})
+    setCheckedStops(new Set()); setCollapsedDays(new Set()); setStopOrderOverride(null)
+    // Collected events go too (2026-07-20) — they belong to the plan that was
+    // just archived (the snapshot keeps its own copy, so nothing is lost),
+    // and leaving them would instantly rebuild Day 1 via the event-creates-
+    // the-day rule. Truly clean = first-open.
+    setSavedEvts([])
+    try {
+      localStorage.removeItem('nyc_saved_events')
+      window.dispatchEvent(new Event('nyc-saved-events'))
+    } catch {}
+    setAndStoreTripStartDate('')
+    setTripDays(null)
+    setDayFilter(null)
+    try {
+      localStorage.removeItem('nyc_trip_days')
+      localStorage.removeItem('nyc_day_item_orders')
+      localStorage.removeItem('nyc_stop_day_overrides')
+      localStorage.removeItem('nyc_skipped_meals')
+      localStorage.removeItem('nyc_meal_optins')
+      localStorage.removeItem('nyc_plan_extra_ids')
+      localStorage.removeItem('nyc_meal_cuisines')
+      localStorage.removeItem('nyc_venue_swaps')
+      localStorage.removeItem('nyc_checked_stops')
+      localStorage.removeItem('nyc_collapsed_days')
+      localStorage.removeItem('nyc_stop_order')
+    } catch {}
+    dismissSavedBanner()
+    // First-open posture: date controls unfolded (discovery), drawers closed.
+    setBasicsOpen(true)
+    setSettingsOpen(false)
+    try { window.scrollTo({ top: 0, behavior: 'smooth' }) } catch {}
+  }
+
   function computeDayPlan(day, dayIdx) {
     const sortedDayStops = orderedStops(day.stops)
+    const dayEvents = (eventsByDay[dayIdx] || [])
     const hasEvening2 = sortedDayStops.some(s => s.period === 'Evening')
     // Lunch belongs ONLY to days with a daytime (Morning/Afternoon) portion — never
     // on an evening-only night out (that gets dinner only). Dinner shows whenever
@@ -11468,7 +11737,12 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     // restore chips gone, a vanished dinner is unrecoverable). Scoped to
     // single-day trips only: multi-day padding creates empty days that must
     // NOT sprout phantom dinner cards.
-    if (sortedDayStops.length === 0 && days.length === 1 && dinnerRestaurants[dayIdx]) {
+    // Event-only days are OPT-IN for the meal (2026-07-20): a user who added
+    // just a show sees just the show — the "+ Add a restaurant for tonight"
+    // button below the cards flips mealOptIns. Days with no events keep the
+    // original orphan rule unconditionally.
+    if (sortedDayStops.length === 0 && days.length === 1 && dinnerRestaurants[dayIdx]
+        && (dayEvents.length === 0 || mealOptIns[dayIdx])) {
       defaultItemIds.push('__dinner__')
     }
     // ✕-removed meals: filter ONCE here, after every insertion path (meals get
@@ -11485,7 +11759,6 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     // grammar, route number, and reorder arrows as every other stop, instead
     // of a special block stuck after the day. Default slot: appended (events
     // are usually evening); the saved order remembers wherever users move them.
-    const dayEvents = (eventsByDay[dayIdx] || [])
     dayEvents.forEach(ev => defaultItemIds.push('__event_' + ev.id))
     const isDraggingThisDay = dragId !== null && dragDayIdx === dayIdx
     let activeItemIds
@@ -11627,19 +11900,6 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
   // date lands inside the trip renders pinned inside that day (it's date-fixed —
   // the one thing the planner can't move). Without a date, events stay in the
   // "Saved events" section as before. Plain computation, no hooks — safe here.
-  const eventsByDay = (() => {
-    if (!tripStartDate) return {}
-    const parts = tripStartDate.split('-').map(Number)
-    const start = new Date(parts[0], parts[1] - 1, parts[2]); start.setHours(0, 0, 0, 0)
-    const map = {}
-    savedEvts.map(hydrateSavedEvent).forEach(e => {
-      if (!(e.date instanceof Date) || isNaN(e.date)) return
-      const d0 = new Date(e.date); d0.setHours(0, 0, 0, 0)
-      const idx = Math.round((d0 - start) / 86400000)
-      if (idx >= 0 && idx < days.length) { (map[idx] = map[idx] || []).push(e) }
-    })
-    return map
-  })()
   const plannedEventIds = new Set(Object.values(eventsByDay).flat().map(e => e.id))
 
   return (
@@ -11648,7 +11908,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
       {/* ══ Header — branded to match Explore / Tonight ══ */}
       <div className="home-header">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-          <div className="home-wordmark">My Trip</div>
+          <div className="home-wordmark">Planner</div>
           {/* Current conditions — same source as the home header, so no tab-hopping. */}
           {weather && (
             <div aria-label={`Current weather: ${weather.temp} degrees`} style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
@@ -11661,26 +11921,21 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
             already says the days, and stop/meal counts were inventory numbers.) */}
       </div>
 
-      {/* ── Saved plans — quiet chip under the header. The snapshots live on
-          the saved-places page, so this OPENS that page with the plans section
-          unfolded and scrolls to it (the old version only toggled a section on
-          a page that wasn't open — a dead tap). ── */}
-      <div style={{ padding: '0 20px' }}>
-        <button onClick={() => {
-          savedPageOriginRef.current = 'trip'
-          setSavedPageMode('plans')
-          setInvOpen('plans')
-          setSavedPageOpen(true)
-        }} style={{
-          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          background: 'none', border: 'none',
-          padding: '13px 2px', cursor: 'pointer', fontFamily: 'inherit',
-          fontSize: 14, fontWeight: 600, color: 'var(--gray-600)',
-        }}>
-          <span>💾 {t('My Plans')}</span>
-          <span style={{ color: 'var(--gray-400)', fontSize: 17 }}>›</span>
-        </button>
-      </div>
+      {/* (Saved-plans header row removed 2026-07-16 — My Plans is a nav tab
+          now; a duplicate entry point here was list weight.) */}
+
+      {/* Post-save nudge — plan A is safely archived; one tap clears the
+          workbench for plan B. Dismissible for users who keep iterating. */}
+      {showSavedBanner && days.length > 0 && (
+        <div style={{ margin: '10px 20px 2px', background: 'var(--gray-50)', border: '1px solid var(--gray-200)', borderRadius: 12, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12.5, color: 'var(--gray-700)', flex: 1, lineHeight: 1.35 }}>
+            ✓ {t('This plan is saved in My Plans.')}{' '}
+            <span style={{ color: 'var(--gray-500)' }}>{t('Building something new?')}</span>
+          </span>
+          <button onClick={startFreshPlan} style={{ flexShrink: 0, border: 'none', borderRadius: 999, padding: '7px 12px', background: 'var(--gray-900)', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>{t('Start fresh')}</button>
+          <button onClick={dismissSavedBanner} aria-label="Dismiss" style={{ flexShrink: 0, border: 'none', background: 'none', color: 'var(--gray-400)', fontSize: 15, cursor: 'pointer', padding: '2px 4px', fontFamily: 'inherit', lineHeight: 1 }}>✕</button>
+        </div>
+      )}
 
       {/* ══ Trip basics — dates are SET ONCE, READ OFTEN: show a one-line
           summary card; the actual controls only unfold behind Edit. (They used
@@ -11688,7 +11943,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
       <div style={{ padding: '4px 20px 14px', borderBottom: '1px solid var(--gray-100)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-400)' }}>{t('Your trip')}</div>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--gray-400)' }}>{t('Auto-saves as you edit')}</div>
             <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {(() => {
                 if (!tripStartDate) return <span style={{ color: 'var(--gray-400)', fontWeight: 500 }}>{t('No dates yet — planning by day')}</span>
@@ -11872,40 +12127,44 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
 
       {days.length === 0 && (
         <div style={{ padding: '32px 20px', textAlign: 'center' }}>
-          {venueIds.length === 0 && allVenueIds.length > 0 ? (
-            <>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>☝️</div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--gray-800)', marginBottom: 8 }}>No stops selected</div>
-              <div style={{ fontSize: 14, color: 'var(--gray-500)', lineHeight: 1.6, maxWidth: 280, margin: '0 auto' }}>
-                Tap a venue chip above to add it to your plan.
-              </div>
-            </>
-          ) : (
-            <>
-              <div style={{ fontSize: 40, marginBottom: 12 }}>🗺️</div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--gray-800)', marginBottom: 8 }}>Nothing to plan yet</div>
-              <div style={{ fontSize: 14, color: 'var(--gray-500)', lineHeight: 1.6, maxWidth: 280, margin: '0 auto 20px' }}>
-                Tap “+ Add to My Trip” on any venue in Explore to add it here — or start with a sample weekend.
-              </div>
-              <button
-                onClick={() => {
-                  const SAMPLE = ['moma', 'guggenheim', 'village_vanguard', 'carnegie_hall', 'brooklyn', 'central_park']
-                  const savedIds = new Set(Object.values(safeItems).filter(i => i?.type === 'venue').map(i => i.id))
-                  SAMPLE.forEach(id => { if (!savedIds.has(id) && venues[id]) toggleSave('venue', id) })
-                  // A WEEKEND is two days — without this, Auto clustered the
-                  // six samples into four (bug report 2026-07-16).
-                  setAndStoreTripDays(2)
-                }}
-                style={{
-                  background: 'var(--gray-900)', color: '#fff', border: 'none',
-                  borderRadius: 12, padding: '13px 28px',
-                  fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                }}
-              >
-                Build me a sample weekend
-              </button>
-            </>
-          )}
+          {/* ONE empty state (2026-07-20) — Start fresh must land on the same
+              page as a first open, sample-weekend button included. (The old
+              "No stops selected" variant for parked saves had no way forward
+              but the chip drawer.) Copy still points at parked saves when
+              they exist. */}
+          <div style={{ fontSize: 40, marginBottom: 12 }}>🗺️</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--gray-800)', marginBottom: 8 }}>Nothing to plan yet</div>
+          <div style={{ fontSize: 14, color: 'var(--gray-500)', lineHeight: 1.6, maxWidth: 280, margin: '0 auto 20px' }}>
+            {allVenueIds.length > 0
+              ? 'Tap a saved chip in Choose stops above, or “+ Add to Planner” in Explore — or start with a sample weekend.'
+              : 'Tap “+ Add to Planner” on any venue in Explore to add it here — or start with a sample weekend.'}
+          </div>
+          <button
+            onClick={() => {
+              const SAMPLE = ['moma', 'guggenheim', 'village_vanguard', 'carnegie_hall', 'brooklyn', 'central_park']
+              const savedIds = new Set(Object.values(safeItems).filter(i => i?.type === 'venue').map(i => i.id))
+              SAMPLE.forEach(id => { if (!savedIds.has(id) && venues[id]) toggleSave('venue', id) })
+              // Explicitly SELECT the samples (2026-07-20): after Start fresh
+              // these ids are already "known", so the brand-new auto-select
+              // won't fire — without this the button built an empty weekend.
+              setPlanSelection(prev => {
+                const next = new Set(prev)
+                SAMPLE.filter(id => venues[id]).forEach(id => next.add(id))
+                lsSet('nyc_plan_sel', JSON.stringify([...next]))
+                return next
+              })
+              // A WEEKEND is two days — without this, Auto clustered the
+              // six samples into four (bug report 2026-07-16).
+              setAndStoreTripDays(2)
+            }}
+            style={{
+              background: 'var(--gray-900)', color: '#fff', border: 'none',
+              borderRadius: 12, padding: '13px 28px',
+              fontSize: 14, fontWeight: 700, cursor: 'pointer',
+            }}
+          >
+            Build me a sample weekend
+          </button>
         </div>
       )}
 
@@ -12056,6 +12315,14 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
         </div>
       )}
 
+      {/* ── Saved-events shelf — ABOVE the schedule (2026-07-16): collected
+          events wait HERE, visibly, until the trip's dates cover them; then
+          they pin into their day automatically. Collecting an event never
+          touches the trip's dates. ── */}
+      {!todayMode && savedEvts.filter(e => e && !plannedEventIds.has(e.id)).length > 0 && (
+        <SavedEventsSection hiddenIds={plannedEventIds} />
+      )}
+
       {/* ── Plan view ── */}
       {!todayMode && days.map((day, dayIdx) => {
         // Day tabs: when a single day is selected, hide the others and force
@@ -12068,10 +12335,10 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
         // card times; meal label reflects which meals actually render.
         const summaryBits = []
         if (dayPlan.dayStart != null && dayPlan.dayEnd != null) summaryBits.push(`${fmtHour(dayPlan.dayStart)} – ${fmtHour(dayPlan.dayEnd)}`)
-        // Stops = every card in the day, MEALS INCLUDED (2026-07-16) — a
-        // restaurant is a stop on your route; counting only places made the
-        // number disagree with what's visibly on screen.
-        const _cardCount = dayPlan.reorderedItems.filter(it => it.type === 'stop' || it.type === 'restaurant').length
+        // Stops = every card in the day — places, MEALS, and EVENTS (2026-07-16).
+        // The count must always equal what's visibly on screen; the meal and
+        // event labels that follow are detail, not additional items.
+        const _cardCount = dayPlan.reorderedItems.length
         summaryBits.push(t2(_cardCount === 1 ? '1 stop' : '{N} stops', { N: _cardCount }))
         // Meal label reflects the meals ACTUALLY in the plan (✕-removed ones out).
         const _hasLunchItem = dayPlan.reorderedItems.some(it => it.type === 'restaurant' && it.meal === 'lunch')
@@ -12116,30 +12383,19 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
         if (_modeMins.subway > 0) summaryBits.push(`🚇 ~${_modeMins.subway} min`)
         if (_modeMins.taxi > 0)   summaryBits.push(`🚕 ~${_modeMins.taxi} min`)
 
-        // ── Route numbers — cards carry the SAME numbers as the trip map's
-        // pins, so "which pin is which" answers itself. Must replicate the
-        // map's plottable rule exactly (google-sourced adds are unplotted →
-        // unnumbered), or card 3 would point at pin 2. ──
+        // ── Route numbers — EVERY card gets its visit-order number
+        // (2026-07-16: google-added stops were skipped, leaving manual adds
+        // numberless). The trip map now carries these SAME numbers on its
+        // pins explicitly, so unplottable stops just mean a skipped pin
+        // number on the map — never a mismatch. ──
         const _routeNum = {}
         {
           let _n = 0
           for (const it of computeDayPlan(day, dayIdx).reorderedItems) {
-            let c = null
-            if (it.type === 'stop') {
-              c = venueCoords[it.stop.id]
-              if (!c) {
-                const uv = userVenues[it.stop.id]
-                const googleSourced = ((uv?.source || '') + '').startsWith('google')
-                if (uv && !googleSourced && typeof uv.lat === 'number' && typeof uv.lng === 'number') c = { lat: uv.lat, lng: uv.lng }
-              }
-              if (c) { _n += 1; _routeNum['stop:' + it.stop.id] = _n }
-            } else if (it.type === 'event') {
-              const ev = it.event
-              if (typeof ev?.lat === 'number' && typeof ev?.lng === 'number') { _n += 1; _routeNum['event:' + ev.id] = _n }
-            } else {
-              c = restaurantCoords(it.meal === 'lunch' ? lunchRestaurants[dayIdx] : dinnerRestaurants[dayIdx])
-              if (c) { _n += 1; _routeNum['meal:' + it.meal] = _n }
-            }
+            _n += 1
+            if (it.type === 'stop') _routeNum['stop:' + it.stop.id] = _n
+            else if (it.type === 'event') _routeNum['event:' + it.event.id] = _n
+            else _routeNum['meal:' + it.meal] = _n
           }
         }
         const routeNumBadge = (n) => n ? (
@@ -12169,7 +12425,11 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
           const rng = MEAL_PRICE_RANGE[tier]
           if (rng) { _mealLo += rng[0]; _mealHi += rng[1] }
         })
-        if (_mealHi > 0) summaryBits.push(`≈$${Math.round((_mealLo + _mealHi) / 2 / 5) * 5}${t('/person')}`)
+        // Days with an event say so in the price (2026-07-20): "≈$70 + ticket
+        // /person" — we don't know their ticket tier, but pretending the day
+        // costs only dinner reads as wrong the moment they've bought seats.
+        const _hasEvt = dayPlan.reorderedItems.some(it => it.type === 'event')
+        if (_mealHi > 0) summaryBits.push(`≈$${Math.round((_mealLo + _mealHi) / 2 / 5) * 5}${_hasEvt ? ' + ' + t('ticket') : ''}${t('/person')}`)
 
         const isCollapsed = dayFilter === null && collapsedDays.has(dayIdx)
         // Highlight this day's container when it's the cross-day drop target.
@@ -12371,6 +12631,21 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                               🎟 {t('Get tickets')} →
                             </a>
                           )}
+                          {/* Note field — same as stop/meal cards (2026-07-20):
+                              ticket price, seat numbers, who's coming. */}
+                          <textarea
+                            value={venueNotes[`event:${ev.id}`] || ''}
+                            onChange={e => setVenueNote(`event:${ev.id}`, e.target.value)}
+                            placeholder={t('Add a note…')}
+                            rows={1}
+                            style={{
+                              width: '100%', border: 'none', outline: 'none', resize: 'none',
+                              padding: '6px 0 0', fontSize: 12, color: 'var(--gray-600)',
+                              background: 'transparent', fontFamily: 'inherit', lineHeight: 1.5,
+                              boxSizing: 'border-box',
+                            }}
+                            onClick={e => e.stopPropagation()}
+                          />
                         </div>
                       </div>
                     </div>
@@ -12897,6 +13172,31 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
             {/* (Pinned events now render INSIDE the day's item flow above —
                 same cards, route numbers, and reorder as places, 2026-07-16.) */}
 
+            {/* Event-only day: the meal is invitation-first (2026-07-20) — a
+                show-only plan shows only the show, with dinner one tap away. */}
+            {!isCollapsed && day.stops.length === 0 && days.length === 1
+              && (eventsByDay[dayIdx] || []).length > 0
+              && !computeDayPlan(day, dayIdx).reorderedItems.some(it => it.type === 'restaurant')
+              && dinnerRestaurants[dayIdx] && (
+              <button
+                onClick={() => optIntoMeal(dayIdx)}
+                style={{
+                  width: '100%', margin: '6px 0 0',
+                  padding: '12px 14px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  background: 'var(--gray-50)',
+                  border: '1px dashed var(--gray-300)',
+                  borderRadius: 12,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  fontSize: 13, fontWeight: 600, color: 'var(--gray-600)',
+                }}
+              >
+                <span style={{ fontSize: 15, lineHeight: 1 }}>🍴</span>
+                <span>{t('Add a restaurant')}</span>
+              </button>
+            )}
+
             {/* Inline "Add a place" — Wanderlog-style. Appears at the bottom of each
                 expanded day so users can search-and-insert a venue without first having
                 to heart it from Explore. The search modal targets THIS dayIdx. */}
@@ -12953,7 +13253,9 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
           if (dayFilter !== null && dayFilter < days.length && di !== dayFilter) return null
           const dp = computeDayPlan(day, di)
           const pts = []
+          let n = 0
           dp.reorderedItems.forEach(it => {
+            n += 1 // card numbers count EVERY item; unplottable = skipped pin
             let c = null
             if (it.type === 'stop') {
               c = venueCoords[it.stop.id]
@@ -12962,10 +13264,13 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                 const googleSourced = ((uv?.source || '') + '').startsWith('google')
                 if (uv && !googleSourced && typeof uv.lat === 'number' && typeof uv.lng === 'number') c = { lat: uv.lat, lng: uv.lng }
               }
+            } else if (it.type === 'event') {
+              const ev = it.event
+              if (typeof ev?.lat === 'number' && typeof ev?.lng === 'number') c = { lat: ev.lat, lng: ev.lng }
             } else {
               c = restaurantCoords(it.meal === 'lunch' ? lunchRestaurants[di] : dinnerRestaurants[di])
             }
-            if (c) pts.push({ lat: c.lat, lng: c.lng })
+            if (c) pts.push({ lat: c.lat, lng: c.lng, n })
           })
           return pts.length >= 2 ? { hue: dayHue(di), pts } : null
         }).filter(Boolean)
@@ -12988,15 +13293,9 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
         {/* Primary actions — only when there's a plan */}
         {days.length > 0 && (
           <div style={{ display: 'flex', gap: 8 }}>
-            {/* Share */}
-            <button onClick={handleShare} style={{
-              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-              padding: '11px 6px', borderRadius: 10, border: '1px solid var(--gray-200)',
-              background: 'var(--white)', color: 'var(--gray-700)',
-              fontSize: 13, fontWeight: 700, cursor: 'pointer',
-            }}>
-              <span>↗</span><span>{shareCopied ? t('Copied') : t('Share')}</span>
-            </button>
+            {/* Share moved to the SAVED plan view (2026-07-16, Wanderlog
+                model): you share a finished artifact, not the workbench —
+                and two buttons read simpler than three. */}
             {/* Save plan */}
             <button
               onClick={() => {
@@ -13012,7 +13311,18 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                 const snapIds = [...new Set(days.flatMap(d => (d.stops || []).map(s => s.id)))]
                 const sig = JSON.stringify([snapIds, tripDays, tripStartDate || null])
                 const dup = list.find(sn => JSON.stringify([sn.venueIds, sn.tripDays, sn.tripStartDate || null]) === sig)
-                if (dup) { setViewSnapId(dup.id); return }
+                // Landing rule (2026-07-16): Save switches to the MY PLANS
+                // TAB — the nav lights up, the fresh copy sits highlighted on
+                // top. No "did anything happen?" possible.
+                const goToPlans = (flashId) => {
+                  try { lsSet('nyc_plan_flash', flashId) } catch {}
+                  // Next Planner visit offers "Start fresh" (2026-07-20) — so
+                  // building plan B doesn't start buried under plan A's cards.
+                  try { lsSet('nyc_plan_saved_flag', '1') } catch {}
+                  setShowSavedBanner(true)
+                  onOpenPlansTab?.()
+                }
+                if (dup) { goToPlans(dup.id); return }
                 // Free tier keeps 1 saved plan; the 2nd opens the paywall.
                 // (Dup check runs first so re-opening the existing plan stays free.)
                 if (!plusOwned && list.length >= 1) { openPaywall('plans'); return }
@@ -13030,10 +13340,24 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                   // Restaurants keyed by dayIdx (matches the live data structure now)
                   lunchRestaurants: Object.fromEntries(Object.entries(lunchRestaurants).map(([k,r]) => [k, r ? { id: r.id, name: r.name, price: r.price, neighborhood: r.neighborhood, reservationUrl: r.reservationUrl, mapsUrl: r.mapsUrl } : null])),
                   dinnerRestaurants: Object.fromEntries(Object.entries(dinnerRestaurants).map(([k,r]) => [k, r ? { id: r.id, name: r.name, price: r.price, neighborhood: r.neighborhood, reservationUrl: r.reservationUrl, mapsUrl: r.mapsUrl } : null])),
+                  // Pinned events ride along (2026-07-16) — saved plans were
+                  // silently dropping them.
+                  events: Object.fromEntries(Object.entries(eventsByDay).map(([di, evs]) => [di, (evs || []).map(e => ({
+                    id: e.id, title: e.title, kindLabel: e.kindLabel, location: e.location,
+                    date: e.date instanceof Date ? e.date.toISOString() : (e.date || null),
+                    ticketUrl: e.ticketUrl || '', lat: e.lat ?? null, lng: e.lng ?? null,
+                  }))])),
+                  // The EXACT card order on screen, per day (2026-07-16) — the
+                  // saved view replays this verbatim instead of re-deriving
+                  // its own insertion order (which shuffled events/meals).
+                  itemOrder: days.map((d, di) => computeDayPlan(d, di).reorderedItems.map(it =>
+                    it.type === 'stop' ? { t: 's', id: it.stop.id }
+                    : it.type === 'event' ? { t: 'e', id: it.event.id }
+                    : { t: 'm', meal: it.meal })),
                 }
                 writePlanSnapshots([snap, ...list])   // newest first
                 bumpSnaps()
-                setViewSnapId(snap.id)
+                goToPlans(snap.id)
               }}
               style={{
                 flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -13042,7 +13366,9 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                 fontSize: 13, fontWeight: 700, cursor: 'pointer',
               }}
             >
-              <span>💾</span><span>{t('Save')}</span>
+              {/* "Save copy" not "Save" — the trip already auto-saves; this
+                  keeps a NAMED VERSION under Saved plans. */}
+              <span>💾</span><span>{t('Save copy')}</span>
             </button>
             {/* Open route in Maps — context-aware: filtered to one day, it routes
                 THAT day (the standing-on-the-sidewalk moment); All days routes
@@ -13066,9 +13392,8 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
 
         {_snaps.length > 0 && (
           <button onClick={() => {
-            // One plan → open it; several → the My Plans page to choose.
-            if (_snaps.length === 1) setViewSnapId(_snaps[0].id)
-            else { savedPageOriginRef.current = 'trip'; setSavedPageMode('plans'); setInvOpen('plans'); setSavedPageOpen(true) }
+            // The shelf is a TAB now — always land there (consistent target).
+            onOpenPlansTab?.()
           }} style={{
             width: '100%', background: 'none', border: 'none', cursor: 'pointer',
             fontSize: 13, color: 'var(--gray-400)', textDecoration: 'underline', padding: '4px 0', fontFamily: 'inherit',
@@ -13168,12 +13493,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
       })()}
 
 
-      {/* ══ Below the schedule: only what earns its place. Undated saved events
-          appear automatically when they exist (dated ones pin into their day);
-          Your places + Plans are demoted to quiet rows after the saved list. ══ */}
-      {savedEvts.filter(e => e && !plannedEventIds.has(e.id)).length > 0 && (
-        <SavedEventsSection hiddenIds={plannedEventIds} />
-      )}
+      {/* (Saved-events shelf moved ABOVE the schedule, 2026-07-16.) */}
 
 
       {/* ── My saved places — the archive lives on its own page now; My Trip
@@ -13223,7 +13543,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
               cursor: 'pointer', color: 'var(--ink)', fontSize: 16, lineHeight: 1, flexShrink: 0,
               boxShadow: 'inset 0 0 0 1px rgba(33,27,20,0.10)',
             }}>←</button>
-            <div style={{ fontFamily: 'var(--serif)', fontSize: 19, fontWeight: 600, color: 'var(--ink)' }}>{savedPageMode === 'plans' ? t('My Plans') : t('My saved places')}</div>
+            <div style={{ fontFamily: 'var(--serif)', fontSize: 19, fontWeight: 600, color: 'var(--ink)' }}>{savedPageMode === 'plans' ? t('Saved plans') : t('My saved places')}</div>
           </div>
           <div style={{ paddingBottom: 'calc(40px + env(safe-area-inset-bottom, 0px))' }}>
       {/* ── Saved Places section (hidden in plans-only mode) ── */}
@@ -13538,7 +13858,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
           padding: '13px 2px', cursor: 'pointer', fontFamily: 'inherit',
           fontSize: 13, fontWeight: 600, color: 'var(--gray-500)',
         }}>
-          <span>💾 {t('My Plans')}</span>
+          <span>💾 {t('Saved plans')}</span>
           <span style={{ transform: invOpen === 'plans' ? 'rotate(180deg)' : 'none', color: 'var(--gray-400)', transition: 'transform 180ms' }}>⌄</span>
         </button>
       </div>
@@ -13569,8 +13889,8 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
             <div style={{ textAlign: 'center', padding: '14px 0 8px' }}>
               <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: '-0.01em', color: 'var(--ink)', marginBottom: 6 }}>
                 {totalSaved > 0
-                  ? `You have ${totalSaved} saved place${totalSaved !== 1 ? 's' : ''} — build tonight's plan`
-                  : 'Save a few places, then build tonight’s plan'}
+                  ? `You have ${totalSaved} place${totalSaved !== 1 ? 's' : ''} added — build tonight's plan`
+                  : 'Add a few places, then build tonight’s plan'}
               </div>
               {/* 3-step how-it-works row */}
               <div style={{
@@ -13578,7 +13898,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                 margin: '14px 0 18px',
               }}>
                 {[
-                  { n: 1, label: 'Add places', sub: 'Tap “+ Add to My Trip”' },
+                  { n: 1, label: 'Add places', sub: 'Tap “+ Add to Planner”' },
                   { n: 2, label: 'Pick your days', sub: 'Set trip length below' },
                   { n: 3, label: 'Get a plan', sub: 'We route your day' },
                 ].map(step => (
@@ -13668,7 +13988,8 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
             <div
               onClick={() => setViewSnapId(snap.id)}
               style={{
-                background: 'var(--gray-50)', border: '1px solid var(--gray-200)',
+                background: snap.id === savedFlashId ? 'rgba(190,77,43,0.06)' : 'var(--gray-50)',
+                border: snap.id === savedFlashId ? '2px solid var(--accent)' : '1px solid var(--gray-200)',
                 borderRadius: 14, padding: '14px 16px', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', gap: 12,
               }}
@@ -13715,7 +14036,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                 )}
                 <div style={{ fontSize: 12, color: 'var(--gray-500)', lineHeight: 1.5 }}>
                   {/* Meals count as stops — matches the live day summary. */}
-                  {(() => { const m = Object.values(snap.lunchRestaurants || {}).filter(Boolean).length + Object.values(snap.dinnerRestaurants || {}).filter(Boolean).length; const n = (snap.venueIds?.length || 0) + m; return `${n} stop${n !== 1 ? 's' : ''}` })()}
+                  {(() => { const ord = snap.itemOrder; let n; if (Array.isArray(ord) && ord.length) { n = ord.reduce((s, d) => s + (Array.isArray(d) ? d.length : 0), 0) } else { const m = Object.values(snap.lunchRestaurants || {}).filter(Boolean).length + Object.values(snap.dinnerRestaurants || {}).filter(Boolean).length; const ev = Object.values(snap.events || {}).flat().length; n = (snap.venueIds?.length || 0) + m + ev } return `${n} stop${n !== 1 ? 's' : ''}` })()}
                   {snap.tripDays ? ` · ${snap.tripDays} day${snap.tripDays !== 1 ? 's' : ''}` : ''}
                   {/* Show count of meals with cuisine set (new mealCuisines shape) or fall back to old format */}
                   {(() => {
@@ -13751,7 +14072,8 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                   if (modeMins.walk)   bits.push(`🚶 ~${modeMins.walk} min`)
                   if (modeMins.subway) bits.push(`🚇 ~${modeMins.subway} min`)
                   if (modeMins.taxi)   bits.push(`🚕 ~${modeMins.taxi} min`)
-                  if (hi > 0) bits.push(`≈$${Math.round((lo + hi) / 2 / 5) * 5}${t('/person')}`)
+                  const snapEvts = Object.values(snap.events || {}).flat().length
+                  if (hi > 0) bits.push(`≈$${Math.round((lo + hi) / 2 / 5) * 5}${snapEvts ? ' + ' + t(snapEvts > 1 ? 'tickets' : 'ticket') : ''}${t('/person')}`)
                   return bits.length ? (
                     <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 4, lineHeight: 1.5 }}>
                       {bits.join(' · ')}
@@ -13766,6 +14088,160 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
       </div>
       )}
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── My Plans tab (2026-07-16) — the SHELF, promoted to the bottom nav. The
+// Build tab is the workbench; this is where kept copies live: open, rename,
+// share, delete. First visit with nothing saved = one button + one line,
+// pointing at Build. "Save copy" lands here with the fresh card highlighted
+// (flash id handed off via nyc_plan_flash, read-and-cleared on mount).
+function MyPlansScreen({ userVenues = {}, onStartBuilding = () => {} }) {
+  const [, bump] = React.useReducer(x => x + 1, 0)
+  const [viewSnapId, setViewSnapId] = React.useState(null)
+  const [confirmDelete, setConfirmDelete] = React.useState(false)
+  const [renamingPlan, setRenamingPlan] = React.useState(false)
+  const [planNameDraft, setPlanNameDraft] = React.useState('')
+  const [flashId] = React.useState(() => {
+    try { const v = localStorage.getItem('nyc_plan_flash'); localStorage.removeItem('nyc_plan_flash'); return v } catch { return null }
+  })
+  const snaps = readPlanSnapshots()
+  const viewSnap = viewSnapId ? snaps.find(sn => sn.id === viewSnapId) : null
+  if (viewSnap) return <SavedPlanSummary snapshot={viewSnap} onBack={() => setViewSnapId(null)} />
+  return (
+    <div className="screen" style={{ paddingBottom: 90 }}>
+      <div className="home-header">
+        <div className="home-wordmark">{t('My Plans')}</div>
+      </div>
+      {snaps.length === 0 ? (
+        /* Empty shelf — per spec: a Start Building button with one line under it. */
+        <div style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          minHeight: 'calc(100dvh - 260px)', padding: '40px 28px', textAlign: 'center', gap: 14,
+        }}>
+          <button onClick={onStartBuilding} style={{
+            background: 'var(--accent)', color: '#fff', border: 'none',
+            borderRadius: 14, padding: '15px 34px',
+            fontSize: 15, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit',
+            boxShadow: '0 8px 22px rgba(190,77,43,0.35)',
+          }}>{t('Start Building')}</button>
+          <div style={{ fontSize: 13.5, color: 'var(--gray-500)' }}>{t('No plans yet, build first')}</div>
+        </div>
+      ) : (
+        <div style={{ padding: '4px 20px 20px' }}>
+          {snaps.map(snap => (
+            <div key={snap.id} style={{ position: 'relative', marginBottom: 12 }}>
+              {confirmDelete === snap.id && (
+                <div style={{
+                  position: 'absolute', inset: 0, zIndex: 10,
+                  background: 'rgba(255,255,255,0.97)', borderRadius: 14,
+                  border: '1px solid var(--gray-200)',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                  gap: 16, padding: '20px 24px',
+                }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gray-900)' }}>Remove this plan?</div>
+                  <div style={{ display: 'flex', gap: 10, width: '100%' }}>
+                    <button onClick={() => { writePlanSnapshots(readPlanSnapshots().filter(sn => sn.id !== snap.id)); bump(); setConfirmDelete(false) }}
+                      style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', cursor: 'pointer', background: 'var(--gray-900)', color: '#fff', fontWeight: 700, fontSize: 14 }}>
+                      Yes, remove
+                    </button>
+                    <button onClick={() => setConfirmDelete(false)}
+                      style={{ flex: 1, padding: '10px 0', borderRadius: 10, cursor: 'pointer', background: 'var(--gray-100)', color: 'var(--gray-700)', fontWeight: 600, fontSize: 14, border: '1px solid var(--gray-200)' }}>
+                      No, keep it
+                    </button>
+                  </div>
+                </div>
+              )}
+              <button
+                onClick={e => { e.stopPropagation(); setConfirmDelete(snap.id) }}
+                aria-label="Delete plan"
+                style={{ position: 'absolute', top: 10, right: 12, zIndex: 5, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 13, fontWeight: 700, color: 'var(--gray-400)', lineHeight: 1 }}
+              >✕</button>
+              <div
+                onClick={() => setViewSnapId(snap.id)}
+                style={{
+                  background: snap.id === flashId ? 'rgba(190,77,43,0.06)' : 'var(--gray-50)',
+                  border: snap.id === flashId ? '2px solid var(--accent)' : '1px solid var(--gray-200)',
+                  borderRadius: 14, padding: '14px 16px', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 12,
+                }}
+              >
+                <span style={{ fontSize: 22 }}>🗓️</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  {renamingPlan === snap.id ? (
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }} onClick={e => e.stopPropagation()}>
+                      <input
+                        autoFocus value={planNameDraft}
+                        onChange={e => setPlanNameDraft(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.nextSibling?.click() }}
+                        placeholder={planDefaultName(snap)}
+                        maxLength={40}
+                        style={{ flex: 1, minWidth: 0, padding: '5px 10px', fontSize: 13.5, fontWeight: 600, border: '1px solid var(--gray-300)', borderRadius: 8, outline: 'none', fontFamily: 'inherit', background: 'var(--white)' }}
+                      />
+                      <button onClick={() => {
+                        writePlanSnapshots(readPlanSnapshots().map(sn => sn.id === snap.id ? { ...sn, name: planNameDraft.trim() || undefined } : sn))
+                        bump(); setRenamingPlan(false)
+                      }} style={{ padding: '5px 10px', fontSize: 12, fontWeight: 700, flexShrink: 0, background: 'var(--gray-900)', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>{t('Save')}</button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, minWidth: 0 }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--gray-900)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {snap.name || planDefaultName(snap)}
+                      </span>
+                      <button
+                        onClick={e => { e.stopPropagation(); setPlanNameDraft(snap.name || ''); setRenamingPlan(snap.id) }}
+                        aria-label="Rename plan"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', fontSize: 13, color: 'var(--gray-400)', lineHeight: 1, flexShrink: 0 }}
+                      >✎</button>
+                      {snap.id === flashId && (
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '2px 8px', borderRadius: 20, flexShrink: 0 }}>✓ Saved</span>
+                      )}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 12, color: 'var(--gray-500)', lineHeight: 1.5 }}>
+                    {(() => { const ord = snap.itemOrder; let n; if (Array.isArray(ord) && ord.length) { n = ord.reduce((s, d) => s + (Array.isArray(d) ? d.length : 0), 0) } else { const m = Object.values(snap.lunchRestaurants || {}).filter(Boolean).length + Object.values(snap.dinnerRestaurants || {}).filter(Boolean).length; const ev = Object.values(snap.events || {}).flat().length; n = (snap.venueIds?.length || 0) + m + ev } return `${n} stop${n !== 1 ? 's' : ''}` })()}
+                    {snap.tripDays ? ` · ${snap.tripDays} day${snap.tripDays !== 1 ? 's' : ''}` : ''}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 3, lineHeight: 1.4 }}>
+                    {(snap.venueIds || []).map(id => venues[id]?.name || userVenues[id]?.name).filter(Boolean).join(' · ')}
+                  </div>
+                  {(() => {
+                    const modeMins = { walk: 0, subway: 0, taxi: 0 }
+                    ;(snap.days || []).forEach(d => {
+                      let prev = null
+                      ;(d.stops || []).forEach(s => {
+                        const c = venueCoords[s.id] || (typeof s.lat === 'number' && typeof s.lng === 'number' ? { lat: s.lat, lng: s.lng } : null)
+                        if (!c) return
+                        if (prev) { const tr = estimateTravelCoords(prev, c); if (tr) modeMins[tr.mode] += tr.mins }
+                        prev = c
+                      })
+                    })
+                    let lo = 0, hi = 0
+                    const collect = (obj) => obj && Object.values(obj).forEach(r => {
+                      const rng = r && MEAL_PRICE_RANGE[r.price]
+                      if (rng) { lo += rng[0]; hi += rng[1] }
+                    })
+                    collect(snap.lunchRestaurants); collect(snap.dinnerRestaurants)
+                    const bits = []
+                    if (modeMins.walk)   bits.push(`🚶 ~${modeMins.walk} min`)
+                    if (modeMins.subway) bits.push(`🚇 ~${modeMins.subway} min`)
+                    if (modeMins.taxi)   bits.push(`🚕 ~${modeMins.taxi} min`)
+                    const snapEvts2 = Object.values(snap.events || {}).flat().length
+                    if (hi > 0) bits.push(`≈$${Math.round((lo + hi) / 2 / 5) * 5}${snapEvts2 ? ' + ' + t(snapEvts2 > 1 ? 'tickets' : 'ticket') : ''}${t('/person')}`)
+                    return bits.length ? (
+                      <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 4, lineHeight: 1.5 }}>
+                        {bits.join(' · ')}
+                      </div>
+                    ) : null
+                  })()}
+                </div>
+                <span style={{ fontSize: 20, color: 'var(--gray-300)', flexShrink: 0 }}>›</span>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -15487,14 +15963,14 @@ function OnboardingModal({ onDismiss }) {
       body: 'A curated New York guide — browse what’s worth doing, read the story behind every place, and turn it all into a schedule.',
     },
     {
-      eyebrow: 'SAVE ANYTHING',
+      eyebrow: 'ADD ANYTHING',
       title: 'Tap + on what\ncatches your eye.',
-      body: 'Places, restaurants, shows — one button everywhere: “+ Add to My Trip.” Your picks collect in one place.',
+      body: 'Places, restaurants, shows — one button everywhere: “+ Add to Planner.” Your picks collect in one place.',
     },
     {
       eyebrow: 'WE DO THE PLANNING',
-      title: 'Saves become\na routed day.',
-      body: 'My Trip groups picks by neighborhood, adds lunch and dinner, checks the weather, and routes you door to door.',
+      title: 'Your picks become\na routed itinerary.',
+      body: 'My Trip groups your picks by neighborhood, adds lunch and dinner, checks the weather, and routes you door to door.',
     },
   ]
   const isLast = slide === slides.length - 1
@@ -16973,7 +17449,7 @@ export default function App() {
           {!showOnboarding && <TabTutorial key="nyc_tut_explore_v1" tutKey="nyc_tut_explore_v1" title="Start here" rows={[
             ['✨', <>Pick a mood — <b>Eat, Drink…</b> — and get a short, curated list.</>],
             ['🗽', <>Or browse by <b>neighborhood</b> and <b>topic</b> to go deeper.</>],
-            ['🔖', <>Save anything you like — it all lands in <b>My Trip</b>.</>],
+            ['🔖', <>Tap <b>+ Add to Planner</b> on anything — your picks build the itinerary.</>],
           ]} />}
           <HomeScreen push={push} savedItems={savedItems} toggleSave={toggleSave} onSeeAllTonight={() => setActiveTab('tonight')} onOpenSettings={() => setSettingsOpen(true)} onPlanNight={() => setPlanNightOpen(true)} userVenues={userVenues} weather={weather} user={user} />
         </>
@@ -17024,7 +17500,7 @@ export default function App() {
         }
         return (
           <>
-            <TabTutorial key="nyc_tut_tonight_v1" tutKey="nyc_tut_tonight_v1" title="What's on tonight" rows={[
+            <TabTutorial key="nyc_tut_tonight_v1" tutKey="nyc_tut_tonight_v1" title="What's on events" rows={[
               ['🌙', <>The evening lineup — jazz sets, shows, and live events, <b>night by night</b>.</>],
               ['🗓️', <>Use the <b>day selector</b> to look ahead; the lineup changes with the night.</>],
               ['🎟️', <>Tap any card for details — <b>On Sale</b> events link straight to tickets.</>],
@@ -17049,6 +17525,9 @@ export default function App() {
         )
       }
 
+      case 'plans':
+        return <MyPlansScreen userVenues={userVenues} onStartBuilding={() => setActiveTab('saved')} />
+
       case 'saved':
         if (savedSel) {
           const { type, id } = savedSel
@@ -17060,9 +17539,9 @@ export default function App() {
         return (
           <PlanErrorBoundary>
             <TabTutorial key="nyc_tut_trip_v1" tutKey="nyc_tut_trip_v1" title="Your trip, planned" rows={[
-              ['🗓️', <>Your saves become a routed <b>day-by-day plan</b> — drag cards to reorder.</>],
+              ['🗓️', <>Your picks become a routed <b>day-by-day itinerary</b> — drag cards to reorder.</>],
               ['🍴', <>Lunch & dinner picks appear between stops — <b>Change</b> swaps them, ✕ removes.</>],
-              ['💾', <><b>Save</b> keeps a plan; save as many versions as you like.</>],
+              ['💾', <>Everything <b>auto-saves</b> as you edit — <b>Save copy</b> keeps a named version in Saved plans.</>],
             ]} />
             <PlanScreen
               savedItems={savedItems}
@@ -17079,6 +17558,7 @@ export default function App() {
               onBackToSettings={() => setSettingsOpen(true)}
               onOpenFeedback={() => setFeedbackOpen(true)}
               onImportTakeout={() => setImportOpen(true)}
+              onOpenPlansTab={() => setActiveTab('plans')}
             />
           </PlanErrorBoundary>
         )
