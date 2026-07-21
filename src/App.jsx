@@ -6134,26 +6134,12 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
             Open now
           </button>
 
-          {/* My Picks — the viewer's own hand-added places (empty → add a place) */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-            <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--ink)' }}>★ My Picks</span>
-            {myPicksRendered.length > 0 && <span style={{ fontSize: 11, color: 'var(--ink-3)' }}>{myPicksRendered.length}</span>}
-            <span style={{ flex: 1 }} />
-            <button onClick={() => onAddPlace()} aria-label="Add a place" title="Add a place" style={{ width: 26, height: 26, borderRadius: 999, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', fontFamily: 'inherit', fontSize: 19, lineHeight: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, paddingBottom: 2 }}>+</button>
-          </div>
-          {myPicksRendered.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 22 }}>
-              {myPicksRendered}
-            </div>
-          ) : (
-            <button onClick={() => onAddPlace()} style={{ width: '100%', textAlign: 'left', border: '1.5px dashed var(--gray-300)', borderRadius: 16, background: 'var(--white)', cursor: 'pointer', fontFamily: 'inherit', padding: '16px', marginBottom: 22, display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span style={{ width: 36, height: 36, borderRadius: 999, background: 'var(--accent)', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0, lineHeight: 1 }}>+</span>
-              <span style={{ flex: 1 }}>
-                <span style={{ display: 'block', fontSize: 13.5, fontWeight: 800, color: 'var(--ink)' }}>You don&rsquo;t have any picks yet</span>
-                <span style={{ display: 'block', fontSize: 11.5, color: 'var(--ink-2)', marginTop: 2 }}>Tap to add a place you love</span>
-              </span>
-            </button>
-          )}
+          {/* ("★ My Picks" section removed 2026-07-21, product call — the
+              add-a-pick flow didn't reliably surface adds back into this
+              area-scoped view and read as broken. Parked for v2.0 alongside
+              Share; adds still work everywhere via "+ Add to Planner" and
+              the Planner's Add-a-place. myPicksRendered kept upstream for
+              that return. */}
 
           {/* NYC Stoop picks — editorial + curated + your imports. Built to 15,
               shown 6 at a time behind "Show more". */}
