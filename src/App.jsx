@@ -10365,9 +10365,32 @@ function SavedPlanSummary({ snapshot, onBack }) {
   const dinnerCuisineAt = (dayIdx) => mealCuisines?.[`${dayIdx}:dinner`] ?? dinnerCuisine
 
   function buildRouteUrl(onlyDayIdx = null) {
+    // Waypoints come from the CARDS the user sees (2026-07-21): itemOrder
+    // replay for new snapshots — meals only if they're in the plan, events
+    // included, drag order respected. (The old derivation routed through
+    // restaurant PICKS that exist internally even when no meal card does.)
     const waypoints = []
     days.forEach((day, di) => {
       if (onlyDayIdx !== null && di !== onlyDayIdx) return
+      const ord = snapshot.itemOrder?.[di]
+      if (Array.isArray(ord) && ord.length) {
+        const stopById = {}; (day.stops || []).forEach(s => { stopById[s.id] = s })
+        const evById = {}; (snapshot.events?.[di] || []).forEach(e => { evById[e.id] = e })
+        ord.forEach(o => {
+          if (o.t === 's' && stopById[o.id]) {
+            const s = stopById[o.id]; const v = venues[s.id]
+            waypoints.push(v?.address || s.name + ', New York')
+          } else if (o.t === 'm') {
+            const r = o.meal === 'lunch' ? lunchAt(di, day) : dinnerAt(di, day)
+            if (r) waypoints.push(r.name + ', ' + r.neighborhood + ', New York')
+          } else if (o.t === 'e' && evById[o.id]) {
+            const ev = evById[o.id]
+            if (ev.location) waypoints.push(ev.location + ', New York')
+          }
+        })
+        return
+      }
+      // Legacy snapshots (pre-itemOrder): old derivation.
       const lunchR = lunchAt(di, day)
       const dinnerR = dinnerAt(di, day)
       let lunchAdded = false, dinnerAdded = false
@@ -11318,12 +11341,18 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
           : ''
         lines.push(`  ${timeStr ? timeStr + ' · ' : ''}${v?.name || stop.name || stop.id}${v?.neighborhood ? ' (' + v.neighborhood + ')' : ''}`)
       })
-      if (lunchRestaurants[di]) {
+      // Meals only when their card is actually IN the day (2026-07-21) —
+      // this text feeds Share AND the native PDF; picks aren't plans.
+      const _items = computeDayPlan(day, di).reorderedItems
+      if (_items.some(it => it.type === 'restaurant' && it.meal === 'lunch') && lunchRestaurants[di]) {
         lines.push(`  Lunch: ${lunchRestaurants[di].name}`)
       }
-      if (dinnerRestaurants[di]) {
+      if (_items.some(it => it.type === 'restaurant' && it.meal === 'dinner') && dinnerRestaurants[di]) {
         lines.push(`  Dinner: ${dinnerRestaurants[di].name}`)
       }
+      _items.filter(it => it.type === 'event').forEach(it => {
+        lines.push(`  Event: ${it.event.title}${it.event.location ? ' — ' + it.event.location : ''}`)
+      })
       lines.push('')
     })
     lines.push('Built with NYC Stoop · nyc-stoop.vercel.app')
@@ -11359,29 +11388,25 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
   // onlyDayIdx: route a single day (used when the day tabs filter to one day —
   // that's the "standing on the sidewalk" moment); null routes the whole trip.
   function buildRouteUrl(onlyDayIdx = null) {
+    // Waypoints = the CARDS on screen (2026-07-21) — computeDayPlan's
+    // rendered sequence. The old derivation routed via restaurant PICKS,
+    // which exist internally even when meals are opt-in and NO meal card
+    // shows: adding one museum routed you through a surprise restaurant.
+    // Bonus: drag order and events are now respected.
     const waypoints = []
     days.forEach((day, di) => {
       if (onlyDayIdx !== null && di !== onlyDayIdx) return
-      const stops = day.stops || []
-      const lunchR = lunchRestaurants[di]
-      const dinnerR = dinnerRestaurants[di]
-      let lunchAdded = false
-      let dinnerAdded = false
-      const hasAfternoon = stops.some(s => s.period === 'Afternoon')
-      stops.forEach(stop => {
-        if (!lunchAdded && lunchR && (stop.period === 'Afternoon' || (!hasAfternoon && stop.period === 'Evening'))) {
-          waypoints.push(lunchR.name + ', ' + lunchR.neighborhood + ', New York')
-          lunchAdded = true
+      computeDayPlan(day, di).reorderedItems.forEach(it => {
+        if (it.type === 'stop') {
+          const v = venues[it.stop.id] || userVenues[it.stop.id]
+          waypoints.push(v?.address || it.stop.address || it.stop.name + ', New York')
+        } else if (it.type === 'restaurant') {
+          const r = it.meal === 'lunch' ? lunchRestaurants[di] : dinnerRestaurants[di]
+          if (r) waypoints.push(r.name + ', ' + r.neighborhood + ', New York')
+        } else if (it.type === 'event' && it.event?.location) {
+          waypoints.push(it.event.location + ', New York')
         }
-        if (!dinnerAdded && dinnerR && stop.period === 'Evening') {
-          waypoints.push(dinnerR.name + ', ' + dinnerR.neighborhood + ', New York')
-          dinnerAdded = true
-        }
-        const v = venues[stop.id] || userVenues[stop.id]
-        waypoints.push(v?.address || stop.address || stop.name + ', New York')
       })
-      if (!lunchAdded && lunchR) waypoints.push(lunchR.name + ', ' + lunchR.neighborhood + ', New York')
-      if (!dinnerAdded && dinnerR) waypoints.push(dinnerR.name + ', ' + dinnerR.neighborhood + ', New York')
     })
     if (waypoints.length === 0) return null
     if (waypoints.length === 1) return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(waypoints[0])
