@@ -10378,9 +10378,10 @@ function SavedPlanSummary({ snapshot, onBack }) {
   const lunchCuisineAt  = (dayIdx) => mealCuisines?.[`${dayIdx}:lunch`]  ?? lunchCuisine
   const dinnerCuisineAt = (dayIdx) => mealCuisines?.[`${dayIdx}:dinner`] ?? dinnerCuisine
 
-  function buildRouteUrl() {
+  function buildRouteUrl(onlyDayIdx = null) {
     const waypoints = []
     days.forEach((day, di) => {
+      if (onlyDayIdx !== null && di !== onlyDayIdx) return
       const lunchR = lunchAt(di, day)
       const dinnerR = dinnerAt(di, day)
       let lunchAdded = false, dinnerAdded = false
@@ -10401,7 +10402,16 @@ function SavedPlanSummary({ snapshot, onBack }) {
       if (!dinnerAdded && dinnerR) waypoints.push(dinnerR.name + ', ' + dinnerR.neighborhood + ', New York')
     })
     if (waypoints.length === 0) return null
-    return 'https://www.google.com/maps/dir/' + waypoints.map(w => encodeURIComponent(w)).join('/')
+    if (waypoints.length === 1) return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(waypoints[0])
+    // Google's DOCUMENTED deep link (?api=1) with origin/destination + ≤9
+    // intermediate waypoints — the old /dir/A/B/C path form broke silently
+    // past ~10 stops and on some app handoffs (device report 2026-07-21).
+    const _origin = waypoints[0]
+    const _dest = waypoints[waypoints.length - 1]
+    const _mid = waypoints.slice(1, -1).slice(0, 9)
+    let _url = 'https://www.google.com/maps/dir/?api=1&origin=' + encodeURIComponent(_origin) + '&destination=' + encodeURIComponent(_dest)
+    if (_mid.length) _url += '&waypoints=' + _mid.map(encodeURIComponent).join('%7C')
+    return _url
   }
 
   function buildShareText() {
@@ -10751,7 +10761,10 @@ ${body}
                       <React.Fragment key={`meal-${i}`}>
                       {travelConnector}
                       <div style={{ background: 'var(--gray-50)', border: '1px solid var(--gray-200)', borderRadius: 12, padding: '12px 14px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                        <span style={{ fontSize: 18, marginTop: 1 }}>{isLunch ? '🍴' : '🌙'}</span>
+                        {/* One icon for ALL restaurants (2026-07-21) — the LUNCH/
+                            DINNER eyebrow already says which meal; the moon read
+                            as a different card type. */}
+                        <span style={{ fontSize: 18, marginTop: 1 }}>🍴</span>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>
                             {isLunch ? t('Lunch') : t('Dinner')} · {cuisineLabel(item.cuisine)}
@@ -10840,28 +10853,53 @@ ${body}
           <span style={{ fontSize: 16 }}>{plusOwned ? '⬇' : '🔒'}</span><span>Download schedule (PDF)</span>
         </button>
         {(() => {
-          const url = buildRouteUrl()
-          return url ? (
-            <div style={{ display: 'flex', gap: 10 }}>
-              <a href={url} target="_blank" rel="noopener noreferrer"
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  padding: '14px', borderRadius: 12, background: '#1a56db', color: '#fff',
-                  fontSize: 15, fontWeight: 700, textDecoration: 'none', flex: 1 }}>
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{NAV_ICON_PATHS.mapPin}</svg><span>Open full route in Maps</span>
-              </a>
-              <button
-                onClick={handleShare}
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  padding: '14px 18px', borderRadius: 12, background: 'var(--gray-100)', color: 'var(--gray-800)',
-                  border: 'none', cursor: 'pointer', fontSize: 15, fontWeight: 700, flexShrink: 0,
-                }}
-              >
-                <span style={{ fontSize: 18 }}>{shareCopied ? '✓' : '↑'}</span>
-                <span>{shareCopied ? 'Copied!' : 'Share'}</span>
-              </button>
+          // ONE ROUTE PER DAY on multi-day plans (2026-07-21): a whole
+          // weekend crammed into a single Maps URL exceeded Google's waypoint
+          // limit and broke on handoff — and nobody walks two days at once.
+          const multi = days.length > 1
+          const routeBtnStyle = {
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            padding: '14px', borderRadius: 12, background: '#1a56db', color: '#fff',
+            fontSize: 15, fontWeight: 700, textDecoration: 'none', flex: 1,
+          }
+          const pinSvg = <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{NAV_ICON_PATHS.mapPin}</svg>
+          const shareBtn = (
+            <button
+              onClick={handleShare}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                padding: '14px 18px', borderRadius: 12, background: 'var(--gray-100)', color: 'var(--gray-800)',
+                border: 'none', cursor: 'pointer', fontSize: 15, fontWeight: 700, flexShrink: 0, fontFamily: 'inherit',
+              }}
+            >
+              <span style={{ fontSize: 18 }}>{shareCopied ? '✓' : '↑'}</span>
+              <span>{shareCopied ? 'Copied!' : 'Share'}</span>
+            </button>
+          )
+          if (!multi) {
+            const url = buildRouteUrl(0)
+            return url ? (
+              <div style={{ display: 'flex', gap: 10 }}>
+                <a href={url} target="_blank" rel="noopener noreferrer" style={routeBtnStyle}>
+                  {pinSvg}<span>Open route in Maps</span>
+                </a>
+                {shareBtn}
+              </div>
+            ) : null
+          }
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {days.map((_, di) => {
+                const url = buildRouteUrl(di)
+                return url ? (
+                  <a key={di} href={url} target="_blank" rel="noopener noreferrer" style={routeBtnStyle}>
+                    {pinSvg}<span>Day {di + 1} route in Maps</span>
+                  </a>
+                ) : null
+              })}
+              <div style={{ display: 'flex' }}>{React.cloneElement(shareBtn, { style: { ...shareBtn.props.style, flex: 1 } })}</div>
             </div>
-          ) : null
+          )
         })()}
       </div>
     </div>
@@ -11373,7 +11411,16 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
       if (!dinnerAdded && dinnerR) waypoints.push(dinnerR.name + ', ' + dinnerR.neighborhood + ', New York')
     })
     if (waypoints.length === 0) return null
-    return 'https://www.google.com/maps/dir/' + waypoints.map(w => encodeURIComponent(w)).join('/')
+    if (waypoints.length === 1) return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(waypoints[0])
+    // Google's DOCUMENTED deep link (?api=1) with origin/destination + ≤9
+    // intermediate waypoints — the old /dir/A/B/C path form broke silently
+    // past ~10 stops and on some app handoffs (device report 2026-07-21).
+    const _origin = waypoints[0]
+    const _dest = waypoints[waypoints.length - 1]
+    const _mid = waypoints.slice(1, -1).slice(0, 9)
+    let _url = 'https://www.google.com/maps/dir/?api=1&origin=' + encodeURIComponent(_origin) + '&destination=' + encodeURIComponent(_dest)
+    if (_mid.length) _url += '&waypoints=' + _mid.map(encodeURIComponent).join('%7C')
+    return _url
   }
 
   // Which day each pinned event belongs to. Defined BEFORE the restaurant
