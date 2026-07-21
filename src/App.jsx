@@ -7830,12 +7830,15 @@ function AreaPickCard({ pick: p, onBack, onShowMap, onFull = null, savedItems = 
   )
 }
 
-function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, savedItems = {}, toggleSave = () => {}, onGoToMyTrip = () => {} }) {
+function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, savedItems = {}, toggleSave = () => {}, onGoToMyTrip = () => {}, userVenues = {}, addUserVenue = () => null }) {
   const mapContainerRef = useRef(null)
   const mapInstanceRef  = useRef(null)
   const markersRef      = useRef([])
   const [filter, setFilter]         = useState('all')
   const [selectedVenueId, setSelectedVenueId] = useState(null)
+  // A curated RESTAURANT_DATA row tapped on the map (2026-07-20) — separate
+  // from selectedVenueId because restaurants aren't in `venues`.
+  const [selectedRest, setSelectedRest] = useState(null)
   // Map tab has two views: the detailed neighborhood schematic and the live
   // Leaflet pin map. Arriving via "View on map" (highlight) jumps to the live map.
   // MapScreen unmounts whenever "Full details" opens a venue page in this tab,
@@ -7986,12 +7989,35 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
         weight: 2.5, // thicker white halo so muted category colors stay glanceable on the light basemap
         fillOpacity: 0.95,
       })
-      marker.on('click', () => setSelectedVenueId(venueId))
+      marker.on('click', () => { setSelectedRest(null); setSelectedVenueId(venueId) })
       marker.bindTooltip(venue.name, { permanent: false, direction: 'top', offset: [0, -8] })
       marker.addTo(map)
       markersRef.current.push(marker)
     })
-  }, [filter, mapReady, savedItems])
+
+    // Curated restaurants join the Food layer (2026-07-20): venueCoords only
+    // held ~16 food-domain venues while RESTAURANT_DATA carries ~50 more —
+    // "Food" on the map showed a fraction of what the app knows. Coords are
+    // OUR RESTAURANT_COORDS (authored in-repo), so the Leaflet no-Google-
+    // coords rule is respected.
+    if (filter === 'all' || filter === 'food') {
+      RESTAURANT_DATA.forEach(r => {
+        const c = RESTAURANT_COORDS[r.id]
+        if (!c) return
+        const exUv = Object.values(userVenues || {}).find(v => v?.name === r.name)
+        const isSaved = !!(exUv && savedItems[`user_venue:${exUv.id}`])
+        const marker = L.circleMarker([c[0], c[1]], isSaved ? {
+          radius: 11, fillColor: MAP_DOMAIN_COLORS.food, color: '#ff4d7d', weight: 3, fillOpacity: 1,
+        } : {
+          radius: 7, fillColor: MAP_DOMAIN_COLORS.food, color: '#fff', weight: 2, fillOpacity: 0.92,
+        })
+        marker.on('click', () => { setSelectedVenueId(null); setSelectedRest(r) })
+        marker.bindTooltip(r.name, { permanent: false, direction: 'top', offset: [0, -8] })
+        marker.addTo(map)
+        markersRef.current.push(marker)
+      })
+    }
+  }, [filter, mapReady, savedItems, userVenues])
 
   // Pan to + open popup when arriving via "View on Map".
   // mapReady is in the dependency list so this re-runs after Leaflet finishes loading on the first visit —
@@ -8400,6 +8426,82 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
           )}
         </div>
       )}
+
+      {/* Selected RESTAURANT card (curated RESTAURANT_DATA pins, 2026-07-20) —
+          same shell as the venue card; adds via the unified user_venue path. */}
+      {view === 'real' && selectedRest && (() => {
+        const r = selectedRest
+        const c = RESTAURANT_COORDS[r.id]
+        const exUv = Object.values(userVenues || {}).find(v => v?.name === r.name)
+        const isSaved = !!(exUv && savedItems[`user_venue:${exUv.id}`])
+        return (
+          <div style={{
+            position: 'absolute', bottom: 12, left: 12, right: 12,
+            background: 'var(--white)', borderRadius: 16, padding: '14px 16px',
+            boxShadow: '0 8px 28px rgba(0,0,0,0.22)', zIndex: 1000,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: MAP_DOMAIN_COLORS.food }}>Restaurant</div>
+              <button
+                onClick={() => {
+                  if (exUv) { toggleSave('user_venue', exUv.id); return }
+                  addUserVenue({
+                    name: r.name, category: 'food', neighborhood: r.neighborhood || r.area || '',
+                    blurb: r.description || '', price: r.price, cuisines: r.cuisines || [],
+                    website: r.reservationUrl || '', sourceUrl: r.mapsUrl || '',
+                    lat: c ? c[0] : undefined, lng: c ? c[1] : undefined,
+                  })
+                }}
+                aria-label={isSaved ? 'Remove from Planner' : 'Add to Planner'}
+                style={{
+                  marginLeft: 'auto',
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  height: 26, padding: '0 11px', borderRadius: 999,
+                  background: isSaved ? 'var(--ink)' : 'var(--gray-100)',
+                  color: isSaved ? '#fff' : 'var(--gray-700)',
+                  border: 'none', cursor: 'pointer',
+                  fontSize: 11.5, fontWeight: 700, lineHeight: 1, whiteSpace: 'nowrap',
+                }}>
+                {isSaved ? '✓ Saved' : '+ Add to Planner'}
+              </button>
+              <button onClick={() => setSelectedRest(null)} style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 16, color: 'var(--gray-400)', padding: '0 2px', lineHeight: 1,
+              }}>&#x2715;</button>
+            </div>
+            <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--gray-900)', lineHeight: 1.2, marginBottom: 4 }}>{r.name}</div>
+            <div style={{ fontSize: 12, color: 'var(--gray-600)', marginBottom: 6 }}>{[mealPriceApprox(r.price), r.neighborhood || r.area].filter(Boolean).join(' · ')}</div>
+            {r.description && (
+              <div style={{ fontSize: 12.5, color: 'var(--gray-600)', lineHeight: 1.5, marginBottom: 12 }}>{r.description}</div>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              {r.reservationUrl && (
+                <a href={r.reservationUrl} target="_blank" rel="noopener noreferrer" style={{
+                  flex: 1, background: 'var(--accent)', color: '#fff', border: 'none',
+                  borderRadius: 10, padding: '10px 0', cursor: 'pointer',
+                  fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
+                  textDecoration: 'none', textAlign: 'center', display: 'block',
+                }}>Reserve →</a>
+              )}
+              <a href={r.mapsUrl || `https://maps.google.com/?q=${encodeURIComponent(r.name + ' New York')}`}
+                target="_blank" rel="noopener noreferrer" style={{
+                flex: 1, background: 'var(--gray-100)', color: 'var(--gray-900)', border: 'none',
+                borderRadius: 10, padding: '10px 0', cursor: 'pointer',
+                fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
+                textDecoration: 'none', textAlign: 'center', display: 'block',
+              }}>&#x1F4CD; Directions</a>
+            </div>
+            {isSaved && (
+              <button onClick={onGoToMyTrip} style={{
+                width: '100%', marginTop: 8, background: 'none', border: 'none',
+                cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center',
+                fontSize: 12.5, fontWeight: 700, color: 'var(--accent-text, var(--accent))',
+                padding: '4px 0 0',
+              }}>See it in Planner ›</button>
+            )}
+          </div>
+        )
+      })()}
     </div>
   )
 }
@@ -17574,7 +17676,7 @@ export default function App() {
 
       case 'map':
         if (mapSel) return <VenueScreen venueId={mapSel} fromTopicId={null} fromDomainId={venueCoords[mapSel]?.domain} push={pushToExplore} savedItems={savedItems} toggleSave={toggleSave} />
-        return <MapScreen onSelectVenue={setMapSel} highlight={mapHighlight} onClearHighlight={() => setMapHighlight(null)} savedItems={savedItems} toggleSave={toggleSave} onGoToMyTrip={() => { setSavedSel(null); setActiveTab('saved') }} />
+        return <MapScreen onSelectVenue={setMapSel} highlight={mapHighlight} onClearHighlight={() => setMapHighlight(null)} savedItems={savedItems} toggleSave={toggleSave} onGoToMyTrip={() => { setSavedSel(null); setActiveTab('saved') }} userVenues={userVenues} addUserVenue={addUserVenue} />
 
       case 'eat':
         return <EatScreen push={pushToExplore} savedItems={savedItems} userVenues={userVenues} toggleSave={toggleSave} onAddToTrip={addUserVenue} initialLoc={userLoc} />
