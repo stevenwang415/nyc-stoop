@@ -9983,6 +9983,42 @@ const isRestaurantStop = (stop) => !!(stop?.isCustom && !HOTEL_NAME_RE.test(stop
 // Price tiers → rough per-person dollar ranges (NYC reality). Shared by the
 // day-summary estimate and the meal cards, so the two never disagree.
 const MEAL_PRICE_RANGE = { '$': [15, 25], '$$': [25, 50], '$$$': [50, 90], '$$$$': [90, 150] }
+// Open a printable HTML page and trigger the print → Save-as-PDF flow.
+// Web: a new tab (nice, inspectable). Native iOS shell / popup-blocked:
+// window.open('') returns null in the Capacitor WKWebView — so we print via
+// a hidden iframe in THIS webview instead, which brings up the native iOS
+// print sheet (with its own Save-to-Files / share options). (2026-07-20 —
+// device testing hit the "allow pop-ups" dead end.)
+function printHtmlDoc(html) {
+  let w = null
+  try { w = window.open('', '_blank') } catch {}
+  if (w) { w.document.open(); w.document.write(html); w.document.close(); return }
+  const f = document.createElement('iframe')
+  f.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0.01;pointer-events:none'
+  document.body.appendChild(f)
+  // The document's own load-script calls window.print() (the iframe's window),
+  // so no extra trigger needed here — just clean up after the sheet closes.
+  f.srcdoc = html
+  setTimeout(() => { try { document.body.removeChild(f) } catch {} }, 90000)
+}
+
+// One per-person figure from a messy admissionCost string (2026-07-20):
+// "Adults $25 · Students $15" → 25 (adult price leads by convention),
+// "$40–$44" → 42, "Pay what you wish (suggested $30)" → 30, "Free…" → 0.
+// null = unpriced (unknown ≠ free; unknowns stay out of the estimate).
+function admissionAvgFromCost(str) {
+  if (!str) return null
+  const s = String(str)
+  if (/^\s*(free|no cover|pay what you wish)/i.test(s)) {
+    const sug = s.match(/suggested \$(\d+)/i)
+    return sug ? Number(sug[1]) : 0
+  }
+  const m = s.match(/\$(\d+)(?:\s*[–\-]\s*\$?(\d+))?/)
+  if (!m) return null
+  const lo = Number(m[1]), hi = m[2] ? Number(m[2]) : Number(m[1])
+  return (lo + hi) / 2
+}
+
 // "$$$$" → "≈$90–150/person"; unknown tiers fall back to the raw symbol.
 function mealPriceApprox(price) {
   const r = MEAL_PRICE_RANGE[price]
@@ -10305,9 +10341,7 @@ ${body}
 <div class="foot">Made with NYC Stoop</div>
 <script>window.addEventListener('load',function(){setTimeout(function(){try{window.print()}catch(e){}},350)})</script>
 </body></html>`
-    const w = window.open('', '_blank')
-    if (!w) { alert('Please allow pop-ups to download your schedule, then tap again.'); return }
-    w.document.open(); w.document.write(html); w.document.close()
+    printHtmlDoc(html)
   }
 
   return (
@@ -10438,7 +10472,7 @@ ${body}
             })
           }
           const sumBits = []
-          if (dayStart != null && dayEnd != null) sumBits.push(`${fmtHour(dayStart)} – ${fmtHour(dayEnd)}`)
+          // (Time range removed 2026-07-20 — matches the Planner summary.)
           sumBits.push(renderItems.length === 1 ? '1 stop' : `${renderItems.length} stops`)
           // Meal label from the RENDERED cards, not the snapshot's stored
           // picks (2026-07-20) — a pick that isn't in the plan isn't a meal.
@@ -10450,7 +10484,14 @@ ${body}
           if (modeMins.subway) sumBits.push(`🚇 ~${modeMins.subway} min`)
           if (modeMins.taxi)   sumBits.push(`🚕 ~${modeMins.taxi} min`)
           let mealLo = 0, mealHi = 0
-          ;[lunchR, dinnerR].forEach(r => { const rng = r && MEAL_PRICE_RANGE[r.price]; if (rng) { mealLo += rng[0]; mealHi += rng[1] } })
+          ;[_hasL ? lunchR : null, _hasD ? dinnerR : null].forEach(r => { const rng = r && MEAL_PRICE_RANGE[r.price]; if (rng) { mealLo += rng[0]; mealHi += rng[1] } })
+          // Paid stops (museums, decks, shows) count too — same rule as the
+          // Planner summary (2026-07-20). Free = $0; unpriced stays out.
+          renderItems.forEach(it => {
+            if (it.type !== 'stop') return
+            const adm = admissionAvgFromCost(venues[it.stop.id]?.admissionCost ?? it.stop.admissionCost)
+            if (adm) { mealLo += adm; mealHi += adm }
+          })
           const dayHasEvt = renderItems.some(it => it.type === 'event')
           if (mealHi > 0) sumBits.push(`≈$${Math.round((mealLo + mealHi) / 2 / 5) * 5}${dayHasEvt ? ' + ' + t('ticket') : ''}${t('/person')}`)
 
@@ -11875,9 +11916,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
 <div class="foot">Made with NYC Stoop</div>
 <script>window.addEventListener('load',function(){setTimeout(function(){try{window.print()}catch(e){}},350)})</script>
 </body></html>`
-    const w = window.open('', '_blank')
-    if (!w) { alert('Please allow pop-ups to download your schedule, then tap again.'); return }
-    w.document.open(); w.document.write(html); w.document.close()
+    printHtmlDoc(html)
   }
 
   // All saved plans (legacy single-slot migrates into the list on read).
@@ -12334,7 +12373,8 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
         // Day summary strip — start/end from the sequenced clock so it matches the
         // card times; meal label reflects which meals actually render.
         const summaryBits = []
-        if (dayPlan.dayStart != null && dayPlan.dayEnd != null) summaryBits.push(`${fmtHour(dayPlan.dayStart)} – ${fmtHour(dayPlan.dayEnd)}`)
+        // (Time range removed 2026-07-20 — estimated hours read as a promise
+        // the plan can't keep; the per-card durations already say the pace.)
         // Stops = every card in the day — places, MEALS, and EVENTS (2026-07-16).
         // The count must always equal what's visibly on screen; the meal and
         // event labels that follow are detail, not additional items.
@@ -12418,12 +12458,21 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
         // auto-suggested meals. Tiers arrive as "$$" strings (seeds) or 1–4
         // numbers (unified restaurant adds); both normalize to the ranges.
         dayPlan.reorderedItems.forEach(it => {
-          if (it.type !== 'stop' || !isRestaurantStop(it.stop)) return
-          const uv = userVenues[it.stop.id]
-          const raw = uv?.price ?? it.stop.price
-          const tier = typeof raw === 'number' ? '$'.repeat(Math.max(1, Math.min(4, raw))) : raw
-          const rng = MEAL_PRICE_RANGE[tier]
-          if (rng) { _mealLo += rng[0]; _mealHi += rng[1] }
+          if (it.type !== 'stop') return
+          if (isRestaurantStop(it.stop)) {
+            const uv = userVenues[it.stop.id]
+            const raw = uv?.price ?? it.stop.price
+            const tier = typeof raw === 'number' ? '$'.repeat(Math.max(1, Math.min(4, raw))) : raw
+            const rng = MEAL_PRICE_RANGE[tier]
+            if (rng) { _mealLo += rng[0]; _mealHi += rng[1] }
+            return
+          }
+          // Admission-charging stops count too (2026-07-20): museums,
+          // observation decks, shows. Free ones contribute $0; stops with no
+          // price data stay out (unknown ≠ free, and guessing reads as wrong).
+          const v = venues[it.stop.id]
+          const adm = admissionAvgFromCost(v?.admissionCost ?? it.stop.admissionCost)
+          if (adm) { _mealLo += adm; _mealHi += adm }
         })
         // Days with an event say so in the price (2026-07-20): "≈$70 + ticket
         // /person" — we don't know their ticket tier, but pretending the day
@@ -13641,7 +13690,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
               })()}
               {toggleSave && (
                 <button
-                  onClick={e => { e.stopPropagation(); toggleSave(item.type, item.id) }}
+                  onClick={e => { e.stopPropagation(); toggleSave(item.type, item.id, { pure: true }) }}
                   aria-label="Remove from saved"
                   style={{
                     background: 'none', border: 'none', cursor: 'pointer',
@@ -17337,7 +17386,32 @@ export default function App() {
     try { document.documentElement.scrollTop = 0; document.body.scrollTop = 0 } catch {}
   }, [savedSel, mapSel, tonightFull])
 
-  function toggleSave(type, id) {
+  function toggleSave(type, id, opts = {}) {
+    // ── Explicit-add-always-wins (2026-07-20) ────────────────────────────────
+    // "+ Add to Planner" buttons everywhere are PLAN intent, not library
+    // bookkeeping. Two rules fix the Choose-Stops dead end (save from map →
+    // ✕ the card → tap add again → nothing visibly happened):
+    //   1. Saving a place also (re-)selects it into the plan — the card
+    //      always appears.
+    //   2. Tapping the toggle on a place that's saved but PARKED (✕'d out of
+    //      the plan) re-adds it to the plan instead of silently unsaving —
+    //      the button read "✓ In Planner", so a tap means "make that true".
+    // Pure library removals (My saved places ✕) pass { pure: true }.
+    const planType = type === 'venue' || type === 'user_venue'
+    const ensureInPlanSel = () => {
+      try {
+        const sel = JSON.parse(localStorage.getItem('nyc_plan_sel') || '[]') || []
+        if (!sel.includes(id)) lsSet('nyc_plan_sel', JSON.stringify([...sel, id]))
+      } catch {}
+    }
+    const exists = !!savedItems[`${type}:${id}`]
+    if (exists && planType && !opts.pure) {
+      try {
+        const sel = JSON.parse(localStorage.getItem('nyc_plan_sel') || '[]') || []
+        if (!sel.includes(id)) { ensureInPlanSel(); return } // parked → back in plan, save kept
+      } catch {}
+    }
+    if (!exists && planType) ensureInPlanSel()
     setSavedItems(prev => {
       const next = { ...prev }
       const key = `${type}:${id}`
