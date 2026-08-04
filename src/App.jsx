@@ -8380,7 +8380,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
           {/* Action buttons */}
           <div style={{ display: 'flex', gap: 8 }}>
             <a
-              href={`https://maps.google.com/maps?q=${selInfo?.lat},${selInfo?.lng}`}
+              href={`https://maps.apple.com/?ll=${selInfo?.lat},${selInfo?.lng}&q=${encodeURIComponent(selVenue?.name || 'Destination')}`}
               target="_blank"
               rel="noopener noreferrer"
               style={{
@@ -8464,7 +8464,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
                   textDecoration: 'none', textAlign: 'center', display: 'block',
                 }}>Reserve →</a>
               )}
-              <a href={r.mapsUrl || `https://maps.google.com/?q=${encodeURIComponent(r.name + ' New York')}`}
+              <a href={`https://maps.apple.com/?q=${encodeURIComponent(r.name + ', ' + (r.neighborhood || 'New York'))}`}
                 target="_blank" rel="noopener noreferrer" style={{
                 flex: 1, background: 'var(--gray-100)', color: 'var(--gray-900)', border: 'none',
                 borderRadius: 10, padding: '10px 0', cursor: 'pointer',
@@ -10747,8 +10747,8 @@ ${body}
                           {/* Same map chip as every other card (2026-07-20) — venue
                               search by name; never Google coords on our own map. */}
                           {ev.location && (
-                            <a href={'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(`${ev.location}, New York`)}
-                              target="_blank" rel="noopener noreferrer" aria-label="Open in Maps"
+                            <a href={'https://maps.apple.com/?q=' + encodeURIComponent(`${ev.location}, New York`)}
+                              target="_blank" rel="noopener noreferrer" aria-label="Open in Apple Maps"
                               style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'center', background: 'var(--gray-200)', color: 'var(--gray-700)', padding: '6px 8px', borderRadius: 7, textDecoration: 'none', flexShrink: 0 }}>
                               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{NAV_ICON_PATHS.mapPin}</svg>
                             </a>
@@ -10797,7 +10797,7 @@ ${body}
                             </a>
                           ) : null}
                         </div>
-                        <a href={item.r.mapsUrl} target="_blank" rel="noopener noreferrer" aria-label="Open in Maps"
+                        <a href={'https://maps.apple.com/?q=' + encodeURIComponent(item.r.name + ', ' + (item.r.neighborhood || 'New York'))} target="_blank" rel="noopener noreferrer" aria-label="Open in Apple Maps"
                           style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'center', background: 'var(--gray-200)', color: 'var(--gray-700)', padding: '6px 8px', borderRadius: 7, textDecoration: 'none', flexShrink: 0 }}>
                           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{NAV_ICON_PATHS.mapPin}</svg>
                         </a>
@@ -10816,7 +10816,10 @@ ${body}
                   const durLabel = stop.duration
                     ? `~${stop.duration < 1 ? `${Math.round(stop.duration * 60)} min` : stop.duration % 1 === 0 ? `${stop.duration} hrs` : `${stop.duration.toFixed(1)} hrs`}`
                     : null
-                  const mapsUrl = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(v?.address || `${stop.name}, New York`)
+                  // Apple Maps (Guideline 4, 2026-08-04): single-place links
+                  // launch the NATIVE maps app; Google remains only for the
+                  // multi-stop day routes Apple Maps URLs can't express.
+                  const mapsUrl = 'https://maps.apple.com/?q=' + encodeURIComponent(v?.address || `${stop.name}, New York`)
                   return (
                     <React.Fragment key={stop.id}>
                     {travelConnector}
@@ -10849,7 +10852,7 @@ ${body}
                     <a href={_u} target="_blank" rel="noopener noreferrer"
                       style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, color: 'var(--accent-text, var(--accent))', textDecoration: 'none' }}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{NAV_ICON_PATHS.mapPin}</svg>
-                      <span>{t('Open this day in Maps')}</span><span>→</span>
+                      <span>{t('Open this day in Google Maps')}</span><span>→</span>
                     </a>
                   </div>
                 ) : null

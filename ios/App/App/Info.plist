@@ -41,6 +41,10 @@
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>NYC Stoop uses the camera only if you choose “Take Photo” when setting your profile picture.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>NYC Stoop accesses your photo library only when you choose a profile picture.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>NYC Stoop uses your location to show restaurants, bars, and places to explore near you, and to sort recommendations by distance.</string>
 	<key>UILaunchStoryboardName</key>
