@@ -16468,6 +16468,7 @@ function switchDataProfile(nextId) {
 }
 // Published Notion pages (2026-07-16) — one source of truth, no repo/deploy
 // dependency. The same privacy URL goes in App Store Connect.
+const SUPPORT_URL = 'https://nyc-stoop.vercel.app/support.html'
 const PRIVACY_URL = 'https://island-lime-fa1.notion.site/NYC-Stoop-Privacy-Policy-39f129b450be81d6bcc0f966ea97c410'
 const TERMS_URL = 'https://island-lime-fa1.notion.site/NYC-Stoop-Terms-of-Use-39f129b450be813f8524c05685743d60'
 
@@ -17116,6 +17117,10 @@ function SettingsModal({
           {/* Legal furniture lives here as quiet links, not full rows:
               Privacy/Terms (Notion) and the CC-required Image credits page. */}
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 4, marginTop: 2 }}>
+            <a href={SUPPORT_URL} target="_blank" rel="noopener noreferrer" style={{
+              fontSize: 11, color: 'var(--gray-400)', textDecoration: 'underline', padding: '6px 4px',
+            }}>Support</a>
+            <span style={{ fontSize: 11, color: 'var(--gray-300)' }}>·</span>
             <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer" style={{
               fontSize: 11, color: 'var(--gray-400)', textDecoration: 'underline', padding: '6px 4px',
             }}>Privacy</a>
