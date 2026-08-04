@@ -5641,9 +5641,12 @@ function openStatusNow(hoursStr) {
 // sheet with Apple Maps / Google Maps (like a native action sheet). `googleUrl`
 // is the precise Google link when we have one; otherwise both are built from the
 // place name + area as a search query.
-function MapsButton({ name, area, googleUrl, btnStyle = {} }) {
+function MapsButton({ name, area, address = null, googleUrl, btnStyle = {} }) {
   const [open, setOpen] = React.useState(false)
-  const q = encodeURIComponent([name, area].filter(Boolean).join(' '))
+  // Anchor the query (2026-08-04): ADDRESS beats area beats a bare 'New
+  // York' suffix — a name-only search ("Smør") resolved to the wrong
+  // borough's namesake.
+  const q = encodeURIComponent([name, address || area || 'New York'].filter(Boolean).join(' '))
   const appleUrl = 'https://maps.apple.com/?q=' + q
   const gUrl = googleUrl || ('https://www.google.com/maps/search/?api=1&query=' + q)
   const go = (u) => { setOpen(false); try { window.open(u, '_blank', 'noopener') } catch (e) {} }
@@ -5707,7 +5710,7 @@ function MoodPlaceSheet({ place = {}, onFull = null, savedItems = {}, toggleSave
   const openSt = openStatusNow(place.hours)
   // Disambiguate the Maps search with the address (or neighborhood) so an
   // ambiguous name like "Mama Fox" can't resolve to the wrong business.
-  const mapQuery = [place.name, place.address || place.neighborhood].filter(Boolean).join(' ')
+  const mapQuery = [place.name, place.address || place.neighborhood || 'New York'].filter(Boolean).join(' ')
   const url = place.sourceUrl || place.reservationUrl || place.mapsUrl || (place.name ? mapsUrl(mapQuery) : '')
   const website = place.website || ''
   let host = ''
@@ -17018,8 +17021,8 @@ function SettingsModal({
               }}>
                 {[
                   'Eva Chan', 'Cliff Chen', 'Ray Chen', 'Shih-Chieh Chien',
-                  'Willow Liu', 'Cindy Ou', 'Mateo Solorzano', 'Apple Tsai',
-                  'Peter Wang', 'Ian Wei', 'Suzie Wu',
+                  'Yvonne Hsiao', 'Willow Liu', 'Mateo Solorzano', 'Apple Tsai',
+                  'Shuping Wang', 'Peter Wang', 'Ian Wei', 'Suzie Wu',
                 ].map(name => <div key={name}>{name}</div>)}
               </div>
             </div>
