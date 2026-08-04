@@ -5641,31 +5641,46 @@ function openStatusNow(hoursStr) {
 // sheet with Apple Maps / Google Maps (like a native action sheet). `googleUrl`
 // is the precise Google link when we have one; otherwise both are built from the
 // place name + area as a search query.
-function MapsButton({ name, area, address = null, googleUrl, btnStyle = {} }) {
-  const [open, setOpen] = React.useState(false)
-  // Anchor the query (2026-08-04): ADDRESS beats area beats a bare 'New
-  // York' suffix — a name-only search ("Smør") resolved to the wrong
-  // borough's namesake.
-  const q = encodeURIComponent([name, address || area || 'New York'].filter(Boolean).join(' '))
+// ── ONE maps chooser for the whole app (2026-08-04, product call) ──────────
+// Every "open this place in maps" action — chips, Directions buttons, place
+// sheets — summons the same action sheet: Apple Maps · Google Maps · Cancel.
+// Global event + single host (the openPaywall pattern) so a 20px chip can
+// use it without carrying its own sheet state.
+function openMapsChooser(detail) {
+  try { window.dispatchEvent(new CustomEvent('nyc-open-maps', { detail })) } catch {}
+}
+function MapsChooserHost() {
+  const [target, setTarget] = React.useState(null)
+  React.useEffect(() => {
+    const h = (e) => setTarget(e.detail || null)
+    window.addEventListener('nyc-open-maps', h)
+    return () => window.removeEventListener('nyc-open-maps', h)
+  }, [])
+  const q = target ? encodeURIComponent([target.name, target.address || target.area || 'New York'].filter(Boolean).join(' ')) : ''
   const appleUrl = 'https://maps.apple.com/?q=' + q
-  const gUrl = googleUrl || ('https://www.google.com/maps/search/?api=1&query=' + q)
-  const go = (u) => { setOpen(false); try { window.open(u, '_blank', 'noopener') } catch (e) {} }
-  const trigger = { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: 600, padding: '7px 8px', borderRadius: 8, background: 'var(--gray-100)', color: 'var(--gray-700)', cursor: 'pointer', border: 'none', fontFamily: 'inherit', ...btnStyle }
+  const gUrl = target?.googleUrl || ('https://www.google.com/maps/search/?api=1&query=' + q)
+  const go = (u) => { setTarget(null); try { window.open(u, '_blank', 'noopener') } catch {} }
   const choice = { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '15px', borderRadius: 14, background: 'var(--gray-100)', color: 'var(--ink)', fontWeight: 700, fontSize: 16, cursor: 'pointer', border: 'none', fontFamily: 'inherit', marginBottom: 10 }
   return (
-    <>
-      <button onClick={(e) => { e.stopPropagation(); setOpen(true) }} style={trigger}>{t('View on Maps')}</button>
-      <BottomSheet open={open} onClose={() => setOpen(false)} fit>
-        <div style={{ padding: '2px 20px calc(28px + env(safe-area-inset-bottom, 0px))' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--gray-500)', textAlign: 'center', marginBottom: 16 }}>
-            Open {name || 'this place'} in
-          </div>
-          <button onClick={() => go(appleUrl)} style={choice}>🗺️ Apple Maps</button>
-          <button onClick={() => go(gUrl)} style={choice}>📍 Google Maps</button>
-          <button onClick={() => setOpen(false)} style={{ ...choice, background: 'transparent', color: 'var(--gray-500)', fontWeight: 600, marginBottom: 0 }}>Cancel</button>
+    <BottomSheet open={!!target} onClose={() => setTarget(null)} fit>
+      <div style={{ padding: '2px 20px calc(28px + env(safe-area-inset-bottom, 0px))' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--gray-500)', textAlign: 'center', marginBottom: 16 }}>
+          Open {target?.name || 'this place'} in
         </div>
-      </BottomSheet>
-    </>
+        <button onClick={() => go(appleUrl)} style={choice}>🗺️ Apple Maps</button>
+        <button onClick={() => go(gUrl)} style={choice}>📍 Google Maps</button>
+        <button onClick={() => setTarget(null)} style={{ ...choice, background: 'transparent', color: 'var(--gray-500)', fontWeight: 600, marginBottom: 0 }}>Cancel</button>
+      </div>
+    </BottomSheet>
+  )
+}
+
+function MapsButton({ name, area, address = null, googleUrl, btnStyle = {}, label = null, className = null }) {
+  const trigger = { flex: 1, textAlign: 'center', fontSize: 12, fontWeight: 600, padding: '7px 8px', borderRadius: 8, background: 'var(--gray-100)', color: 'var(--gray-700)', cursor: 'pointer', border: 'none', fontFamily: 'inherit', ...btnStyle }
+  return (
+    <button className={className || undefined}
+      onClick={(e) => { e.stopPropagation(); openMapsChooser({ name, address, area, googleUrl }) }}
+      style={className ? undefined : trigger}>{label || t('View on Maps')}</button>
   )
 }
 
@@ -5765,7 +5780,9 @@ function MoodPlaceSheet({ place = {}, onFull = null, savedItems = {}, toggleSave
         </button>
       )}
       {onFull && <button onClick={onFull} style={btn(false)}>Full details →</button>}
-      {url && <button onClick={() => open(url)} style={btn(!canAdd && !onFull)}>📍 Open in Google Maps</button>}
+      {/* One "Open in Maps" → Apple/Google chooser (2026-08-04) — the
+          platform-standard pattern, replacing the Google-only jump. */}
+      {url && <MapsButton name={place.name} address={place.address} area={place.neighborhood} googleUrl={url} btnStyle={{ ...btn(!canAdd && !onFull), flex: undefined, width: '100%', textAlign: 'center' }} label="📍 Open in Maps" />}
     </div>
   )
 }
@@ -7579,14 +7596,7 @@ function VenueCard({ venue }) {
         >
           Get tickets & plan your visit →
         </a>
-        <a
-          href={venue.mapUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="map-btn"
-        >
-          📍 Open in Maps
-        </a>
+        <MapsButton name={venue.name} address={venue.address} googleUrl={venue.mapUrl} className="map-btn" label="📍 Open in Maps" />
       </div>
     </div>
   )
@@ -8383,7 +8393,8 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
           {/* Action buttons */}
           <div style={{ display: 'flex', gap: 8 }}>
             <a
-              href={`https://maps.apple.com/?ll=${selInfo?.lat},${selInfo?.lng}&q=${encodeURIComponent(selVenue?.name || 'Destination')}`}
+              onClick={(e) => { e.preventDefault(); openMapsChooser({ name: selVenue?.name, address: selInfo?.address || null }) }}
+              href="#"
               target="_blank"
               rel="noopener noreferrer"
               style={{
@@ -8467,8 +8478,8 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
                   textDecoration: 'none', textAlign: 'center', display: 'block',
                 }}>Reserve →</a>
               )}
-              <a href={`https://maps.apple.com/?q=${encodeURIComponent(r.name + ', ' + (r.neighborhood || 'New York'))}`}
-                target="_blank" rel="noopener noreferrer" style={{
+              <a onClick={(e) => { e.preventDefault(); openMapsChooser({ name: r.name, area: r.neighborhood, googleUrl: r.mapsUrl }) }}
+                href="#" style={{
                 flex: 1, background: 'var(--gray-100)', color: 'var(--gray-900)', border: 'none',
                 borderRadius: 10, padding: '10px 0', cursor: 'pointer',
                 fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
@@ -10750,11 +10761,10 @@ ${body}
                           {/* Same map chip as every other card (2026-07-20) — venue
                               search by name; never Google coords on our own map. */}
                           {ev.location && (
-                            <a href={'https://maps.apple.com/?q=' + encodeURIComponent(`${ev.location}, New York`)}
-                              target="_blank" rel="noopener noreferrer" aria-label="Open in Apple Maps"
-                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'center', background: 'var(--gray-200)', color: 'var(--gray-700)', padding: '6px 8px', borderRadius: 7, textDecoration: 'none', flexShrink: 0 }}>
+                            <button onClick={() => openMapsChooser({ name: ev.location })} aria-label="Open in Maps"
+                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'center', background: 'var(--gray-200)', color: 'var(--gray-700)', padding: '6px 8px', borderRadius: 7, border: 'none', cursor: 'pointer', flexShrink: 0 }}>
                               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{NAV_ICON_PATHS.mapPin}</svg>
-                            </a>
+                            </button>
                           )}
                         </div>
                       </div>
@@ -10800,10 +10810,10 @@ ${body}
                             </a>
                           ) : null}
                         </div>
-                        <a href={'https://maps.apple.com/?q=' + encodeURIComponent(item.r.name + ', ' + (item.r.neighborhood || 'New York'))} target="_blank" rel="noopener noreferrer" aria-label="Open in Apple Maps"
-                          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'center', background: 'var(--gray-200)', color: 'var(--gray-700)', padding: '6px 8px', borderRadius: 7, textDecoration: 'none', flexShrink: 0 }}>
+                        <button onClick={() => openMapsChooser({ name: item.r.name, area: item.r.neighborhood, googleUrl: item.r.mapsUrl })} aria-label="Open in Maps"
+                          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'center', background: 'var(--gray-200)', color: 'var(--gray-700)', padding: '6px 8px', borderRadius: 7, border: 'none', cursor: 'pointer', flexShrink: 0 }}>
                           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{NAV_ICON_PATHS.mapPin}</svg>
-                        </a>
+                        </button>
                       </div>
                       </React.Fragment>
                     )
@@ -10819,10 +10829,7 @@ ${body}
                   const durLabel = stop.duration
                     ? `~${stop.duration < 1 ? `${Math.round(stop.duration * 60)} min` : stop.duration % 1 === 0 ? `${stop.duration} hrs` : `${stop.duration.toFixed(1)} hrs`}`
                     : null
-                  // Apple Maps (Guideline 4, 2026-08-04): single-place links
-                  // launch the NATIVE maps app; Google remains only for the
-                  // multi-stop day routes Apple Maps URLs can't express.
-                  const mapsUrl = 'https://maps.apple.com/?q=' + encodeURIComponent(v?.address || `${stop.name}, New York`)
+                  const _mapTarget = { name: stop.name, address: v?.address || null }
                   return (
                     <React.Fragment key={stop.id}>
                     {travelConnector}
@@ -10836,10 +10843,10 @@ ${body}
                         </div>
                         {noteLine}
                       </div>
-                      <a href={mapsUrl} target="_blank" rel="noopener noreferrer" aria-label="Open in Maps"
-                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'center', background: 'var(--gray-200)', color: 'var(--gray-700)', padding: '6px 8px', borderRadius: 7, textDecoration: 'none', flexShrink: 0 }}>
+                      <button onClick={() => openMapsChooser(_mapTarget)} aria-label="Open in Maps"
+                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'center', background: 'var(--gray-200)', color: 'var(--gray-700)', padding: '6px 8px', borderRadius: 7, border: 'none', cursor: 'pointer', flexShrink: 0 }}>
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{NAV_ICON_PATHS.mapPin}</svg>
-                      </a>
+                      </button>
                     </div>
                     </React.Fragment>
                   )
@@ -18106,6 +18113,8 @@ export default function App() {
       />
       {/* First-time-user onboarding overlay */}
       {showOnboarding && <OnboardingModal onDismiss={dismissOnboarding} />}
+      {/* One maps chooser for every "open in maps" action app-wide. */}
+      <MapsChooserHost />
       {/* $3.99 lifetime unlock — see iap.js for the free/Plus split */}
       {paywallOpen && <PaywallSheet onClose={() => setPaywallOpen(false)} />}
       {/* Add-place modal — user-added venues, kept separate from curated data */}
