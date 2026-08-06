@@ -12075,31 +12075,18 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     // on an evening-only night out (that gets dinner only). Dinner shows whenever
     // the day has an Evening stop.
     const hasDaytime2 = sortedDayStops.some(s => s.period === 'Morning' || s.period === 'Afternoon')
-    // The user's OWN eateries beat our suggestions (2026-07-20): adding a
-    // restaurant from the map must not ALSO conjure a random auto-suggested
-    // meal beside it. A user food stop in the evening slot silences the
-    // dinner suggestion; one in the daytime slot silences lunch.
-    const _userFood = sortedDayStops.filter(s => isRestaurantStop(s))
-    const _foodEve = _userFood.some(s => s.period === 'Evening')
-    const _foodDay = _userFood.some(s => s.period !== 'Evening')
-    // Meals are OPT-IN per day (2026-07-20, product call): suggestions never
-    // appear until the user taps "🍴 Add a restaurant" (mealOptIns) — except
-    // generated flows (Plan-my-night, sample weekend), which SEED the opt-in
-    // because "routed, with food" is their promise. Own food stops still
-    // silence the matching slot even after opt-in.
-    // Lunch also survives stop removals once it's on screen (pinned pick =
-    // proof it was displayed) — daytime-ness only gates its FIRST appearance.
-    // `_foodEve` joins the gate (2026-07-21): when the user's own restaurant
-    // occupies the evening, "Add a restaurant" offers the OTHER meal — two
-    // meals a day, theirs + ours.
-    const wantLunch2 = (hasDaytime2 || !!mealPicks[`${dayIdx}:lunch`] || _foodEve)
+    // Meals are OPT-IN per day: suggestions never appear until the user taps
+    // "🍴 Add a restaurant" (mealOptIns); generated flows seed the opt-in.
+    // CARDS NEVER REMOVE EACH OTHER (2026-08-06, product call): the old
+    // own-food suppression made an added restaurant silently kill the
+    // suggested meal in its slot — reading as a swap. Users stack as many
+    // restaurants as they like; ✕ is the only remover.
+    const wantLunch2 = (hasDaytime2 || !!mealPicks[`${dayIdx}:lunch`])
       && (sortedDayStops.length > 0 || dayEvents.length > 0)
-      && !_foodDay && !!mealOptIns[dayIdx]
-    // Dinner must SURVIVE stop removals (bug 2026-07-20: ✕ing the only
-    // evening place silently took the restaurant card with it). Once opted
-    // in, dinner stays as long as the day has anything at all — the stops'
-    // periods only decide WHERE it slots, not WHETHER it exists.
-    const wantDinner2 = (sortedDayStops.length > 0 || dayEvents.length > 0) && !_foodEve && !!mealOptIns[dayIdx]
+      && !!mealOptIns[dayIdx]
+    // Dinner survives stop removals: once opted in, it stays as long as the
+    // day has anything at all — periods only decide WHERE it slots.
+    const wantDinner2 = (sortedDayStops.length > 0 || dayEvents.length > 0) && !!mealOptIns[dayIdx]
     const defaultItemIds = []
     let li2 = false, di2 = false
     sortedDayStops.forEach(stop => {
@@ -13497,11 +13484,9 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
             {!isCollapsed
               && !computeDayPlan(day, dayIdx).reorderedItems.some(it => it.type === 'restaurant')
               && (day.stops.length > 0
-                    // Own restaurants no longer hide the button (2026-07-21:
-                    // two meals a day) — it only hides once BOTH slots are
-                    // covered by the user's own food stops.
-                    ? !(day.stops.some(s => isRestaurantStop(s) && s.period === 'Evening')
-                        && day.stops.some(s => isRestaurantStop(s) && s.period !== 'Evening'))
+                    // Own restaurants never hide the button (2026-08-06):
+                    // stack as many as you like; ✕ removes.
+                    ? true
                     : ((eventsByDay[dayIdx] || []).length > 0 && days.length === 1 && !!dinnerRestaurants[dayIdx]))
               && (
               <button
