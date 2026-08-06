@@ -5657,18 +5657,38 @@ function MapsChooserHost() {
     return () => window.removeEventListener('nyc-open-maps', h)
   }, [])
   const q = target ? encodeURIComponent([target.name, target.address || target.area || 'New York'].filter(Boolean).join(' ')) : ''
-  const appleUrl = 'https://maps.apple.com/?q=' + q
+  // NATIVE Apple Maps (App Review 2026-08-06): on device, the maps:// scheme
+  // LAUNCHES the built-in Maps app — the https link could render Apple's web
+  // maps inside the in-app browser, which reads as "not integrated". Multi-
+  // stop day routes pass appleDaddr (directions to the first stop) since
+  // Apple Maps URLs can't express waypoint chains.
+  const _isNative = (() => { try { return Capacitor.isNativePlatform() } catch { return false } })()
+  const _appleBase = _isNative ? 'maps://' : 'https://maps.apple.com/'
+  const appleUrl = target?.appleDaddr
+    ? _appleBase + '?daddr=' + encodeURIComponent(target.appleDaddr) + '&dirflg=r'
+    : _appleBase + '?q=' + q
   const gUrl = target?.googleUrl || ('https://www.google.com/maps/search/?api=1&query=' + q)
-  const go = (u) => { setTarget(null); try { window.open(u, '_blank', 'noopener') } catch {} }
+  const go = (u) => {
+    setTarget(null)
+    // Custom schemes must navigate (window.open drops them in WKWebView).
+    if (u.startsWith('maps://')) { try { window.location.href = u } catch {} return }
+    try { window.open(u, '_blank', 'noopener') } catch {}
+  }
+  const multi = !!target?.appleDaddr
   const choice = { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '15px', borderRadius: 14, background: 'var(--gray-100)', color: 'var(--ink)', fontWeight: 700, fontSize: 16, cursor: 'pointer', border: 'none', fontFamily: 'inherit', marginBottom: 10 }
+  const sub = { display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--gray-500)', marginTop: 2 }
   return (
     <BottomSheet open={!!target} onClose={() => setTarget(null)} fit>
       <div style={{ padding: '2px 20px calc(28px + env(safe-area-inset-bottom, 0px))' }}>
         <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--gray-500)', textAlign: 'center', marginBottom: 16 }}>
           Open {target?.name || 'this place'} in
         </div>
-        <button onClick={() => go(appleUrl)} style={choice}>🗺️ Apple Maps</button>
-        <button onClick={() => go(gUrl)} style={choice}>📍 Google Maps</button>
+        <button onClick={() => go(appleUrl)} style={choice}>
+          <span>🗺️ Apple Maps{multi && <span style={sub}>directions to your first stop</span>}</span>
+        </button>
+        <button onClick={() => go(gUrl)} style={choice}>
+          <span>📍 Google Maps{multi && <span style={sub}>full stop-by-stop route</span>}</span>
+        </button>
         <button onClick={() => setTarget(null)} style={{ ...choice, background: 'transparent', color: 'var(--gray-500)', fontWeight: 600, marginBottom: 0 }}>Cancel</button>
       </div>
     </BottomSheet>
@@ -7292,7 +7312,8 @@ function SightScreen({ sightId, push, savedItems = {}, toggleSave = () => {} }) 
           </span>
         </div>
 
-        <a href={mapsUrl} target="_blank" rel="noopener noreferrer" style={{
+        <a onClick={(e) => { e.preventDefault(); openMapsChooser({ name: sight.name, area: [sight.neighborhood, 'Brooklyn'].filter(Boolean).join(', '), googleUrl: mapsUrl }) }}
+          href="#" style={{
           background: 'var(--gray-100)', color: 'var(--gray-800)',
           border: '1px solid var(--gray-200)', borderRadius: 12, padding: '12px',
           fontSize: 14, fontWeight: 700, cursor: 'pointer', textDecoration: 'none',
@@ -10378,7 +10399,7 @@ function SavedPlanSummary({ snapshot, onBack, onEdit = null }) {
   const lunchCuisineAt  = (dayIdx) => mealCuisines?.[`${dayIdx}:lunch`]  ?? lunchCuisine
   const dinnerCuisineAt = (dayIdx) => mealCuisines?.[`${dayIdx}:dinner`] ?? dinnerCuisine
 
-  function buildRouteUrl(onlyDayIdx = null) {
+  function collectRouteWaypoints(onlyDayIdx = null) {
     // Waypoints come from the CARDS the user sees (2026-07-21): itemOrder
     // replay for new snapshots — meals only if they're in the plan, events
     // included, drag order respected. (The old derivation routed through
@@ -10424,8 +10445,12 @@ function SavedPlanSummary({ snapshot, onBack, onEdit = null }) {
       if (!lunchAdded && lunchR) waypoints.push(lunchR.name + ', ' + lunchR.neighborhood + ', New York')
       if (!dinnerAdded && dinnerR) waypoints.push(dinnerR.name + ', ' + dinnerR.neighborhood + ', New York')
     })
+    return waypoints
+  }
+  function buildRouteUrl(onlyDayIdx = null) {
+    const waypoints = collectRouteWaypoints(onlyDayIdx)
     if (waypoints.length === 0) return null
-    if (waypoints.length === 1) return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(waypoints[0])
+    if (waypoints.length === 1) return 'https://maps.apple.com/?q=' + encodeURIComponent(waypoints[0]) // single place → native Apple Maps (G4)
     // Google's DOCUMENTED deep link (?api=1) with origin/destination + ≤9
     // intermediate waypoints — the old /dir/A/B/C path form broke silently
     // past ~10 stops and on some app handoffs (device report 2026-07-21).
@@ -10857,13 +10882,16 @@ ${body}
                   at 4+ days). Quiet clay text link, right-aligned. */}
               {(() => {
                 const _u = buildRouteUrl(dayIdx)
+                const _wps = collectRouteWaypoints(dayIdx)
                 return _u ? (
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
-                    <a href={_u} target="_blank" rel="noopener noreferrer"
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, color: 'var(--accent-text, var(--accent))', textDecoration: 'none' }}>
+                    <button onClick={() => openMapsChooser(_wps.length > 1
+                        ? { name: 'this day', appleDaddr: _wps[0], googleUrl: _u }
+                        : { name: _wps[0] || 'this day', googleUrl: _u })}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, color: 'var(--accent-text, var(--accent))', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', padding: 0 }}>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{NAV_ICON_PATHS.mapPin}</svg>
-                      <span>{t('Open this day in Google Maps')}</span><span>→</span>
-                    </a>
+                      <span>{t('Open this day in Maps')}</span><span>→</span>
+                    </button>
                   </div>
                 ) : null
               })()}
@@ -11409,7 +11437,7 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     // Build a Google Maps multi-stop directions URL from the itinerary
   // onlyDayIdx: route a single day (used when the day tabs filter to one day —
   // that's the "standing on the sidewalk" moment); null routes the whole trip.
-  function buildRouteUrl(onlyDayIdx = null) {
+  function collectRouteWaypoints(onlyDayIdx = null) {
     // Waypoints = the CARDS on screen (2026-07-21) — computeDayPlan's
     // rendered sequence. The old derivation routed via restaurant PICKS,
     // which exist internally even when meals are opt-in and NO meal card
@@ -11430,8 +11458,12 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
         }
       })
     })
+    return waypoints
+  }
+  function buildRouteUrl(onlyDayIdx = null) {
+    const waypoints = collectRouteWaypoints(onlyDayIdx)
     if (waypoints.length === 0) return null
-    if (waypoints.length === 1) return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(waypoints[0])
+    if (waypoints.length === 1) return 'https://maps.apple.com/?q=' + encodeURIComponent(waypoints[0]) // single place → native Apple Maps (G4)
     // Google's DOCUMENTED deep link (?api=1) with origin/destination + ≤9
     // intermediate waypoints — the old /dir/A/B/C path form broke silently
     // past ~10 stops and on some app handoffs (device report 2026-07-21).
@@ -13687,15 +13719,19 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
             {(() => {
               const routeDay = dayFilter !== null && dayFilter < days.length ? dayFilter : null
               const url = buildRouteUrl(routeDay)
+              const wps = collectRouteWaypoints(routeDay)
               return url ? (
-                <a href={url} target="_blank" rel="noopener noreferrer" style={{
+                <button onClick={() => openMapsChooser(wps.length > 1
+                    ? { name: routeDay !== null ? 'this day' : 'your trip', appleDaddr: wps[0], googleUrl: url }
+                    : { name: wps[0] || 'your stop', googleUrl: url })}
+                  style={{
                   flex: 1.1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                   padding: '11px 6px', borderRadius: 10,
-                  background: '#111', color: '#fff',
-                  fontSize: 13, fontWeight: 700, textDecoration: 'none',
+                  background: '#111', color: '#fff', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                  fontSize: 13, fontWeight: 700,
                 }}>
                   <span>🗺️</span><span>{routeDay !== null ? t('Route day') : days.length > 1 ? t('Route trip') : t('Route')}</span>
-                </a>
+                </button>
               ) : null
             })()}
           </div>
