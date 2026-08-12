@@ -1368,7 +1368,7 @@ function EventDetail({ event }) {
         </button>
       )}
       <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-        <button onClick={() => open(eventMapsUrl(e))} style={{ flex: 1, border: '1.5px solid var(--gray-200)', borderRadius: 999, padding: '12px', background: 'var(--white)', color: 'var(--ink)', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>📍 Directions</button>
+        <button onClick={() => openMapsChooser({ name: e.location || e.locationFull || e.title, area: e.borough || 'New York', googleUrl: eventMapsUrl(e) })} style={{ flex: 1, border: '1.5px solid var(--gray-200)', borderRadius: 999, padding: '12px', background: 'var(--white)', color: 'var(--ink)', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>📍 Directions</button>
         {e.source !== 'market' && (
           <button onClick={addToCalendar} style={{ flex: 1, border: '1.5px solid var(--gray-200)', borderRadius: 999, padding: '12px', background: 'var(--white)', color: 'var(--ink)', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>📅 Add to calendar</button>
         )}
@@ -3257,11 +3257,11 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
             </a>
           )}
 
-          {/* ── Address ── */}
+          {/* ── Address → maps chooser (App Review 2026-08-11: this was a
+              direct Google link on EVERY venue page) ── */}
           <a
-            href={venue.mapUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+            onClick={(e) => { e.preventDefault(); openMapsChooser({ name: venue.name, address: venue.address, googleUrl: venue.mapUrl }) }}
+            href="#"
             className="map-btn"
           >
             📍 {venue.address}
@@ -8588,7 +8588,7 @@ function VenueSheet({ venueId, blurb, savedItems = {}, toggleSave = () => {}, on
         {isSaved ? '✓ In Planner' : '+ Add to Planner'}
       </button>
       <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-        <button onClick={() => open(venue.mapUrl)} style={{ flex: 1, border: '1.5px solid var(--gray-200)', borderRadius: 999, padding: '12px', background: 'var(--white)', color: 'var(--ink)', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>📍 Directions</button>
+        <button onClick={() => openMapsChooser({ name: venue.name, address: venue.address, googleUrl: venue.mapUrl })} style={{ flex: 1, border: '1.5px solid var(--gray-200)', borderRadius: 999, padding: '12px', background: 'var(--white)', color: 'var(--ink)', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>📍 Directions</button>
         <button onClick={onFullPage} style={{ flex: 1, border: '1.5px solid var(--gray-200)', borderRadius: 999, padding: '12px', background: 'var(--white)', color: 'var(--ink)', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Full details →</button>
       </div>
     </div>
