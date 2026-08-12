@@ -1309,10 +1309,24 @@ function EventDetail({ event }) {
     const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//NYC Stoop//Events//EN', 'BEGIN:VEVENT',
       `UID:${e.id}@nyc-stoop`, dt, `SUMMARY:${esc(e.title)}`, `LOCATION:${loc}`,
       'DESCRIPTION:Saved from NYC Stoop', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n')
+    const fname = (e.title || 'event').replace(/[^a-z0-9]+/gi, '_').slice(0, 40) + '.ics'
+    // Native shell: blob downloads are a silent no-op in WKWebView (same class
+    // as the PDF bug, 2026-08-11 audit) — write the .ics and open the share
+    // sheet, where Calendar/Files/AirDrop live.
+    const _nat = (() => { try { return Capacitor.isNativePlatform() } catch { return false } })()
+    if (_nat) {
+      ;(async () => {
+        try {
+          const f = await Filesystem.writeFile({ path: fname, data: ics, directory: Directory.Cache, encoding: 'utf8' })
+          await Share.share({ title: e.title || 'Event', url: f.uri })
+        } catch (err) {}
+      })()
+      return
+    }
     try {
       const url = URL.createObjectURL(new Blob([ics], { type: 'text/calendar;charset=utf-8' }))
       const a = document.createElement('a')
-      a.href = url; a.download = (e.title || 'event').replace(/[^a-z0-9]+/gi, '_').slice(0, 40) + '.ics'
+      a.href = url; a.download = fname
       document.body.appendChild(a); a.click(); a.remove()
       setTimeout(() => URL.revokeObjectURL(url), 2000)
     } catch (err) {}
@@ -1966,25 +1980,22 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                 Not curated &#8220;{query}&#8221; yet
               </div>
               <div style={{ fontSize: 13, lineHeight: 1.5, maxWidth: 280, margin: '0 auto 20px' }}>
-                We focus on hand-picked spots with editorial detail. For broader coverage of bookstores, wine bars, and everything else, Google Maps is still your friend.
+                We focus on hand-picked spots with editorial detail. For broader coverage of bookstores, wine bars, and everything else, a maps app is still your friend.
               </div>
-              <a
-                href={`https://www.google.com/maps/search/${encodeURIComponent(query + ' New York City')}`}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                onClick={() => openMapsChooser({ name: query, area: 'New York City' })}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 8,
-                  background: 'var(--accent)', color: '#fff',
-                  padding: '11px 18px', borderRadius: 12,
-                  textDecoration: 'none', fontFamily: 'inherit',
+                  background: 'var(--accent)', color: '#fff', border: 'none', cursor: 'pointer',
+                  padding: '11px 18px', borderRadius: 12, fontFamily: 'inherit',
                   fontSize: 13, fontWeight: 700,
                   boxShadow: '0 6px 16px rgba(190,77,43,0.30)',
                 }}
               >
                 <span>🗺️</span>
-                <span>Search Google Maps</span>
+                <span>Search in Maps</span>
                 <span>↗</span>
-              </a>
+              </button>
               <div style={{ marginTop: 18, fontSize: 11, color: 'var(--gray-400)' }}>
                 Or try a venue, neighborhood, or artist name in NYC Stoop.
               </div>
@@ -10299,6 +10310,7 @@ function TabTutorial({ tutKey, title, rows }) {
 // when the entitlement lands. Rendered once at the app root, opened from
 // anywhere via openPaywall().
 function PaywallSheet({ onClose }) {
+  if (!IAP_ENABLED) return null // v1.0: zero purchase surface (audit 2026-08-11)
   const owned = usePlus()
   const [busy, setBusy] = React.useState(null) // 'buy' | 'restore' | null
   const [err, setErr] = React.useState('')
@@ -10498,7 +10510,7 @@ function SavedPlanSummary({ snapshot, onBack, onEdit = null }) {
         setTimeout(() => setShareCopied(false), 2500)
       }).catch(() => {
         const w = window.open('', '_blank')
-        w.document.write('<pre style="font-family:monospace;padding:20px">' + text.replace(/</g,'&lt;') + '</pre>')
+        if (w) w.document.write('<pre style="font-family:monospace;padding:20px">' + text.replace(/</g,'&lt;') + '</pre>')
       })
     }
   }
@@ -11429,7 +11441,7 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
         setTimeout(() => setShareCopied(false), 2500)
       }).catch(() => {
         const w = window.open('', '_blank')
-        w.document.write('<pre style="font-family:monospace;padding:20px">' + text.replace(/</g,'&lt;') + '</pre>')
+        if (w) w.document.write('<pre style="font-family:monospace;padding:20px">' + text.replace(/</g,'&lt;') + '</pre>')
       })
     }
   }
@@ -13168,7 +13180,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                       {!restaurant && (
                         <div style={{ fontSize: 13, color: 'var(--gray-400)', fontStyle: 'italic' }}>
                           No spots found for this area yet —
-                          <a href={mapsSearchUrl} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gray-500)', marginLeft: 4 }}>browse Google Maps →</a>
+                          <a onClick={(ev) => { ev.preventDefault(); openMapsChooser({ name: (cuisineOpt?.label || 'restaurants'), area: day.area + ', New York', googleUrl: mapsSearchUrl }) }} href="#" style={{ color: 'var(--gray-500)', marginLeft: 4 }}>browse in Maps →</a>
                         </div>
                       )}
                     </div>
