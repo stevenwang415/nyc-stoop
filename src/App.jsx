@@ -35,9 +35,9 @@ import { venueImages } from './data/venueImages.js'
 // Bulk-imported user places — merged into userVenues on app boot
 // (idempotent by stable `seed_*` ids so re-runs don't duplicate).
 import { seedUserPlaces } from './data/places.js'
-import { t, t2, getLang, setLang, getUnit, setUnit, fmtTemp, unitLabel, dateLocale } from './lib/i18n.js'
+import { t, t2, tDesc, tTip, tTopicF, tDomainF, tGroupF, tVenueF, tFigureF, tWorkF, getLang, setLang, getUnit, setUnit, fmtTemp, unitLabel, dateLocale } from './lib/i18n.js'
 import { findSubwayLeg, findBusLeg } from './data/subway.js'
-import { hasPlus, usePlus, openPaywall, initIap, buyPlus, restorePlus, plusPrice, IAP_ENABLED } from './iap.js'
+import { hasPlus, usePlus, openPaywall, initIap, buyPlus, restorePlus, plusPrice, IAP_ENABLED, isFounder } from './iap.js'
 
 // Safe localStorage write — Safari private mode and WKWebView storage pressure
 // can throw on setItem; a failed persist should never crash the app.
@@ -1344,10 +1344,10 @@ function EventDetail({ event }) {
   // label is the contract: "Search the web" can land on results; "More info"
   // couldn't. (Decision log: events_update.md.)
   const primaryUrl = hasTicketUrl ? e.ticketUrl : website || eventSearchUrl(e)
-  const primaryLabel = hasTicketUrl ? 'Get tickets →' : website ? '🌐 Visit website →' : '🔎 Search the web →'
+  const primaryLabel = hasTicketUrl ? t('Get tickets →') : website ? t('🌐 Visit website →') : t('🔎 Search the web →')
   const sourceLine = e.source === 'ticketmaster'
-    ? 'Source: Ticketmaster. Theatre tickets may be sold via the venue box office.'
-    : 'From NYC’s public event permits — the city lists the date and place; details live with the organizer.'
+    ? t('Source: Ticketmaster. Theatre tickets may be sold via the venue box office.')
+    : t('From NYC’s public event permits — the city lists the date and place; details live with the organizer.')
   return (
     <div style={{ padding: '0 20px calc(40px + env(safe-area-inset-bottom, 0px))' }}>
       {heroImg ? (
@@ -1357,7 +1357,7 @@ function EventDetail({ event }) {
       ) : (
         <div style={{ height: 120, borderRadius: 18, background: `linear-gradient(135deg, ${e.color}, ${e.color}B0)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 52, marginBottom: 16 }}>{e.emoji}</div>
       )}
-      <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: e.color, marginBottom: 6 }}>{e.kindLabel}</div>
+      <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: e.color, marginBottom: 6 }}>{t(e.kindLabel)}</div>
       <h2 style={{ fontSize: 22, fontWeight: 800, lineHeight: 1.22, color: 'var(--ink)', margin: '0 0 16px' }}>{e.title}</h2>
       <Row icon="📅">{fullWhen}</Row>
       <Row icon="📍">{[e.locationFull || e.location, e.borough].filter(Boolean).join(' · ')}</Row>
@@ -1368,12 +1368,12 @@ function EventDetail({ event }) {
           feeling broken; next to a real website button it's filler. */}
       {BLURB[e.kindLabel] && ((e.kindLabel !== 'Event' && e.kindLabel !== 'Plaza event') || !(hasTicketUrl || website)) && (
         <div style={{ fontSize: 13.5, color: 'var(--ink-2)', lineHeight: 1.55, margin: '14px 0 0' }}>
-          {BLURB[e.kindLabel]}
+          {t(BLURB[e.kindLabel])}
         </div>
       )}
       <button onClick={() => setEvSaved(toggleEventSaved(e))}
         style={{ width: '100%', marginTop: 18, border: 'none', borderRadius: 999, padding: '14px', background: evSaved ? 'var(--ink)' : 'var(--accent)', color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', boxShadow: evSaved ? 'none' : 'var(--shadow-accent)' }}>
-        {evSaved ? '✓ In Planner' : '+ Add to Planner'}
+        {evSaved ? t('✓ In Planner') : t('+ Add to Planner')}
       </button>
       {primaryUrl && (
         <button onClick={() => open(primaryUrl)}
@@ -1382,9 +1382,9 @@ function EventDetail({ event }) {
         </button>
       )}
       <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-        <button onClick={() => openMapsChooser({ name: e.location || e.locationFull || e.title, area: e.borough || 'New York', googleUrl: eventMapsUrl(e) })} style={{ flex: 1, border: '1.5px solid var(--gray-200)', borderRadius: 999, padding: '12px', background: 'var(--white)', color: 'var(--ink)', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>📍 Directions</button>
+        <button onClick={() => openMapsChooser({ name: e.location || e.locationFull || e.title, area: e.borough || 'New York', googleUrl: eventMapsUrl(e) })} style={{ flex: 1, border: '1.5px solid var(--gray-200)', borderRadius: 999, padding: '12px', background: 'var(--white)', color: 'var(--ink)', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>📍 {t('Directions')}</button>
         {e.source !== 'market' && (
-          <button onClick={addToCalendar} style={{ flex: 1, border: '1.5px solid var(--gray-200)', borderRadius: 999, padding: '12px', background: 'var(--white)', color: 'var(--ink)', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>📅 Add to calendar</button>
+          <button onClick={addToCalendar} style={{ flex: 1, border: '1.5px solid var(--gray-200)', borderRadius: 999, padding: '12px', background: 'var(--white)', color: 'var(--ink)', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>📅 {t('Add to calendar')}</button>
         )}
       </div>
       {/* Source note: ticketed events always; free events when we only have a
@@ -1993,7 +1993,7 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                 }}
               >
                 <span>🗺️</span>
-                <span>Search in Maps</span>
+                <span>{t('Search in Maps')}</span>
                 <span>↗</span>
               </button>
               <div style={{ marginTop: 18, fontSize: 11, color: 'var(--gray-400)' }}>
@@ -2222,7 +2222,7 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                             cursor: 'pointer', width: '100%', fontFamily: 'inherit',
                           }}>
                           <span style={{ width: 7, height: 7, borderRadius: 999, background: tint, flexShrink: 0 }} />
-                          <span style={{ fontFamily: 'var(--serif)', fontSize: 16, fontWeight: 500, color: 'var(--ink)', textAlign: 'center', lineHeight: 1.2 }}>{domain.name}</span>
+                          <span style={{ fontFamily: 'var(--serif)', fontSize: 16, fontWeight: 500, color: 'var(--ink)', textAlign: 'center', lineHeight: 1.2 }}>{t(domain.name)}</span>
                         </button>
                       )
                     })}
@@ -2245,11 +2245,11 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
                             <span style={{
                               fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
                               color: '#92400e', background: '#fef3c7', padding: '2px 7px', borderRadius: 999,
-                            }}>Soon</span>
+                            }}>{t('Soon')}</span>
                           ) : (
                             <span style={{ width: 7, height: 7, borderRadius: 999, background: 'var(--field-clay)', flexShrink: 0 }} />
                           )}
-                          <span style={{ fontFamily: 'var(--serif)', fontSize: 16, fontWeight: 500, color: showSoonBadge ? 'var(--gray-500)' : 'var(--ink)', textAlign: 'center', lineHeight: 1.2 }}>{grp.label}</span>
+                          <span style={{ fontFamily: 'var(--serif)', fontSize: 16, fontWeight: 500, color: showSoonBadge ? 'var(--gray-500)' : 'var(--ink)', textAlign: 'center', lineHeight: 1.2 }}>{t(grp.label)}</span>
                         </button>
                       )
                     })}
@@ -2327,10 +2327,10 @@ function DomainScreen({ domainId, push, savedItems = {} }) {
     return (
       <div className="screen">
         <div className="section">
-          <p className="meta">{domain.icon} {domain.name}</p>
-          <h1 className="display" style={{ marginTop: 8 }}>Where do you want to go?</h1>
+          <p className="meta">{domain.icon} {t(domain.name)}</p>
+          <h1 className="display" style={{ marginTop: 8 }}>{t('Where do you want to go?')}</h1>
           <p style={{ marginTop: 10, fontSize: 15, color: 'var(--gray-500)', lineHeight: 1.5 }}>
-            {domain.description}
+            {tDomainF(domain.id, 'description', domain.description)}
           </p>
         </div>
 
@@ -2355,15 +2355,15 @@ function DomainScreen({ domainId, push, savedItems = {} }) {
               >
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 800, fontSize: 16, color: 'var(--gray-900)', marginBottom: 4 }}>
-                    {group.name || group.label}
+                    {tGroupF(group.name || group.label, 'name', group.name || group.label)}
                   </div>
                   {(group.description || group.note) && (
                     <div style={{ fontSize: 13, color: 'var(--gray-500)', lineHeight: 1.4 }}>
-                      {group.description || group.note}
+                      {tGroupF(group.name || group.label, 'desc', group.description || group.note)}
                     </div>
                   )}
                   <div style={{ marginTop: 6, fontSize: 12, color: 'var(--gray-400)' }}>
-                    {group.venueIds.length} {group.venueIds.length === 1 ? 'site' : 'sites'}
+                    {group.venueIds.length} {t(group.venueIds.length === 1 ? 'site' : 'sites')}
                   </div>
                 </div>
                 <div style={{ color: 'var(--gray-300)', fontSize: 22, flexShrink: 0 }}>›</div>
@@ -2394,9 +2394,9 @@ function DomainScreen({ domainId, push, savedItems = {} }) {
           replacing the bare meta + h1 header. */}
       <FlowHero
         art={<ActivityCoverArt activityId={DOMAIN_HERO_ART[domainId] || 'culture'} />}
-        eyebrow={domain.name}
-        title="What draws you in?"
-        body={clipWords(domain.description || '', 120)}
+        eyebrow={t(domain.name)}
+        title={t('What draws you in?')}
+        body={clipWords(tDomainF(domain.id, 'description', domain.description || ''), 120)}
         compact
       />
 
@@ -2413,9 +2413,9 @@ function DomainScreen({ domainId, push, savedItems = {} }) {
               <div className="card-body" style={{ flex: 1, minWidth: 0 }}>
                 {/* Serif topic names — S2: the biggest text on a card should
                     sound like the guide, not the OS. */}
-                <div style={{ fontFamily: 'var(--serif)', fontSize: 19, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.2 }}>{topic.name}</div>
-                {topic.years && <div className="card-meta" style={{ marginTop: 3 }}>{topic.years}</div>}
-                <div className="card-tagline">{topic.tagline}</div>
+                <div style={{ fontFamily: 'var(--serif)', fontSize: 19, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.2 }}>{tTopicF(topic.id, 'name', topic.name)}</div>
+                {topic.years && <div className="card-meta" style={{ marginTop: 3 }}>{tTopicF(topic.id, 'years', topic.years)}</div>}
+                <div className="card-tagline">{tTopicF(topic.id, 'tagline', topic.tagline)}</div>
               </div>
               {/* Signature work — the face a newcomer recognizes before the
                   movement's name means anything. */}
@@ -2463,7 +2463,7 @@ function TopicScreen({ topicId, push, savedItems = {} }) {
   const topic = topics[topicId]
   const topicVenues = (topic.venueIds || []).map(id => venues[id]).filter(Boolean)
   const topicFigures = (topic.figureIds || []).map(id => figures[id]).filter(Boolean)
-  const descParagraphs = (topic.description || topic.primer || '').split('\n\n')
+  const descParagraphs = (tTopicF(topic.id, 'description', topic.description) || tTopicF(topic.id, 'primer', topic.primer) || '').split('\n\n')
   const isTheaterTopic = topic.domainId === 'theater'
   // Theater shows split into two tracks — currently running vs historic. Toggle
   // defaults to 'now' so tourists see Wicked / Lion King / Hamilton first
@@ -2517,8 +2517,8 @@ function TopicScreen({ topicId, push, savedItems = {} }) {
           />
           <div className="figure-card-text">
             <div className="figure-card-name">{figure.name}</div>
-            <div className="figure-card-years">{figure.years}{figure.nationality ? ` · ${figure.nationality}` : ''}</div>
-            <div className="figure-card-tagline">{figure.tagline}</div>
+            <div className="figure-card-years">{figure.years}{figure.nationality ? ` · ${tFigureF(figure.id, 'nationality', figure.nationality)}` : ''}</div>
+            <div className="figure-card-tagline">{tFigureF(figure.id, 'tagline', figure.tagline)}</div>
           </div>
           <div className="figure-card-arrow">›</div>
         </button>
@@ -2543,8 +2543,8 @@ function TopicScreen({ topicId, push, savedItems = {} }) {
   return (
     <div className="screen">
       <div className="topic-intro">
-        {topic.years && <div className="topic-years">{topic.years}</div>}
-        <div className="topic-name">{topic.name}</div>
+        {topic.years && <div className="topic-years">{tTopicF(topic.id, 'years', topic.years)}</div>}
+        <div className="topic-name">{tTopicF(topic.id, 'name', topic.name)}</div>
         <div className="topic-description">
           {descParagraphs.map((p, i) => <p key={i}>{p}</p>)}
         </div>
@@ -2639,7 +2639,7 @@ function TopicScreen({ topicId, push, savedItems = {} }) {
                   const fig = figures[work.figureId]
                   const venue = venues[work.venueId]
                   const colors = venueColors[work.venueId] || { bg: '#9d174d', text: '#ffffff' }
-                  const preview = clipWords(work.description || '', 180)
+                  const preview = clipWords(tWorkF(work.id, 'description', work.description || ''), 180)
                   return (
                     /* House-style card (improve_design.md #1): cream ground,
                        serif ink title, the venue's palette color reduced to an
@@ -2920,16 +2920,16 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
         <div style={{ padding: '14px 20px 0' }}>
           <div className="facts-row">
             <div className="fact-tile">
-              <div className="fact-label">Area</div>
-              <div className="fact-value">{venue.neighborhood || '—'}</div>
+              <div className="fact-label">{t('Area')}</div>
+              <div className="fact-value">{t(venue.neighborhood) || '—'}</div>
             </div>
             <div className="fact-tile">
-              <div className="fact-label">Admission</div>
-              <div className="fact-value">{venue.admissionCost || 'See site'}</div>
+              <div className="fact-label">{t('Admission')}</div>
+              <div className="fact-value">{tVenueF(venue.id, 'admissionCost', venue.admissionCost) || t('See site')}</div>
             </div>
             <div className="fact-tile">
-              <div className="fact-label">Time</div>
-              <div className="fact-value">{venue.visitDuration || 'Flexible'}</div>
+              <div className="fact-label">{t('Time')}</div>
+              <div className="fact-value">{tVenueF(venue.id, 'visitDuration', venue.visitDuration) || t('Flexible')}</div>
             </div>
           </div>
         </div>
@@ -2950,7 +2950,7 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
               }}
               style={isSaved ? { background: 'var(--ink)', boxShadow: 'none', opacity: 0.85 } : {}}
             >
-              {isSaved ? '✓ In Planner' : justAdded ? '✓ Added to Planner!' : '+ Add to Planner'}
+              {isSaved ? t('✓ In Planner') : justAdded ? t('✓ Added to Planner!') : t('+ Add to Planner')}
             </button>
           )
         })()}
@@ -3148,14 +3148,15 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
              scannable: the editorial hook (callout) is above; the full essay
              lives one tap away instead of pushing the actions down the page. ── */}
       {venue.character && (() => {
-        const isLong = venue.character.length > 280
+        const charText = tVenueF(venue.id, 'character', venue.character)
+        const isLong = charText.length > 200
         return (
           <div className="section" style={{ paddingTop: 22, paddingBottom: 8 }}>
             <div className="lede" style={{
               fontSize: 15, lineHeight: 1.72, color: 'var(--gray-700)',
               ...(isLong && !storyOpen ? { display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' } : {}),
             }}>
-              {venue.character}
+              {charText}
             </div>
             {isLong && (
               <button onClick={() => setStoryOpen(o => !o)} style={{
@@ -3205,8 +3206,8 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
               <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                 <span style={{ fontSize: 17, flexShrink: 0 }}>📅</span>
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Booking</div>
-                  <div style={{ fontSize: 14, color: 'var(--gray-800)', marginTop: 2 }}>{venue.bookingNote}</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('Booking')}</div>
+                  <div style={{ fontSize: 14, color: 'var(--gray-800)', marginTop: 2 }}>{tVenueF(venue.id, 'bookingNote', venue.bookingNote)}</div>
                 </div>
               </div>
             )}
@@ -3214,14 +3215,14 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
               <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', ...(venue.bookingNote ? { borderTop: '1px solid var(--gray-200)', paddingTop: 12, marginTop: 2 } : {}) }}>
                 <span style={{ fontSize: 17, flexShrink: 0 }}>💡</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Insider tip</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{t('Insider tip')}</div>
                   {/* Split the tip on \n\n so multi-section intent-based tips
                       (Central Park style: "🌅 Lake view? …" / "👨‍👩‍👧 Kids? …")
                       render as spaced paragraphs. Single-paragraph tips just
                       render as one block with no extra spacing. whiteSpace:
                       pre-line also respects any single \n inside a paragraph. */}
                   <div style={{ fontSize: 14, color: 'var(--gray-800)', marginTop: 6, lineHeight: 1.7 }}>
-                    {venue.insiderTip.split(/\n\n+/).map((para, i) => (
+                    {tTip(venue, venue.insiderTip).split(/\n\n+/).map((para, i) => (
                       <p key={i} style={{
                         margin: i === 0 ? 0 : '10px 0 0',
                         whiteSpace: 'pre-line',
@@ -3337,7 +3338,7 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
                     <div className="figure-card-text">
                       <div className="figure-card-name">{fig.name}</div>
                       <div className="figure-card-years">{fig.years}</div>
-                      <div className="figure-card-tagline">{fig.tagline}</div>
+                      <div className="figure-card-tagline">{tFigureF(fig.id, 'tagline', fig.tagline)}</div>
                     </div>
                     <div className="figure-card-arrow">›</div>
                   </button>
@@ -3372,7 +3373,7 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
                     <div className="card-meta">{work.year} · {work.medium}</div>
                     {work.description && (
                       <div className="card-tagline" style={{ marginTop: 4, fontSize: 12, color: 'var(--gray-500)', lineHeight: 1.4 }}>
-                        {clipWords(work.description, 100)}
+                        {clipWords(tWorkF(work.id, 'description', work.description), 100)}
                       </div>
                     )}
                   </div>
@@ -3403,8 +3404,8 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
                                 <ImgWithFallback className="figure-avatar" src={fig.imageUrl} alt={fig.name} />
                 <div className="figure-card-text">
                   <div className="figure-card-name">{fig.name}</div>
-                  <div className="figure-card-years">{fig.years} · {fig.nationality}</div>
-                  <div className="figure-card-tagline">{fig.tagline}</div>
+                  <div className="figure-card-years">{fig.years} · {tFigureF(fig.id, 'nationality', fig.nationality)}</div>
+                  <div className="figure-card-tagline">{tFigureF(fig.id, 'tagline', fig.tagline)}</div>
                 </div>
                 <div className="figure-card-arrow">›</div>
               </button>
@@ -3435,7 +3436,7 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
                   <div className="card-meta">{work.year} · {work.medium}</div>
                   {work.description && (
                     <div className="card-tagline" style={{ marginTop: 4, fontSize: 12, color: 'var(--gray-500)', lineHeight: 1.4 }}>
-                      {clipWords(work.description, 100)}
+                      {clipWords(tWorkF(work.id, 'description', work.description), 100)}
                     </div>
                   )}
                 </div>
@@ -3464,7 +3465,7 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
                 <div className="figure-card-text">
                   <div className="figure-card-name">{fig.name}</div>
                   <div className="figure-card-years">{fig.years}</div>
-                  <div className="figure-card-tagline">{fig.tagline}</div>
+                  <div className="figure-card-tagline">{tFigureF(fig.id, 'tagline', fig.tagline)}</div>
                 </div>
                 <div className="figure-card-arrow">›</div>
               </button>
@@ -3495,7 +3496,7 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
                   <div className="card-meta">{work.year}</div>
                   {work.description && (
                     <div className="card-tagline" style={{ marginTop: 4, fontSize: 12, color: 'var(--gray-500)', lineHeight: 1.4 }}>
-                      {clipWords(work.description, 100)}
+                      {clipWords(tWorkF(work.id, 'description', work.description), 100)}
                     </div>
                   )}
                 </div>
@@ -3524,7 +3525,7 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
                 <div className="figure-card-text">
                   <div className="figure-card-name">{fig.name}</div>
                   <div className="figure-card-years">{fig.years}</div>
-                  <div className="figure-card-tagline">{fig.tagline}</div>
+                  <div className="figure-card-tagline">{tFigureF(fig.id, 'tagline', fig.tagline)}</div>
                 </div>
                 <div className="figure-card-arrow">›</div>
               </button>
@@ -3553,8 +3554,8 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
                                 <ImgWithFallback className="figure-avatar" src={fig.imageUrl} alt={fig.name} />
                 <div className="figure-card-text">
                   <div className="figure-card-name">{fig.name}</div>
-                  <div className="figure-card-years">{fig.years} · {fig.nationality}</div>
-                  <div className="figure-card-tagline">{fig.tagline}</div>
+                  <div className="figure-card-years">{fig.years} · {tFigureF(fig.id, 'nationality', fig.nationality)}</div>
+                  <div className="figure-card-tagline">{tFigureF(fig.id, 'tagline', fig.tagline)}</div>
                 </div>
                 <div className="figure-card-arrow">›</div>
               </button>
@@ -3676,7 +3677,7 @@ function VenueScreen({ venueId, fromTopicId, fromDomainId, push, savedItems = {}
 function FigureScreen({ figureId, push, savedItems = {}, toggleSave = () => {} }) {
   const figure = figures[figureId]
   const figureWorks = (figure.workIds || []).map(id => works[id]).filter(Boolean)
-  const primerParagraphs = (figure.primer || figure.description || '').split('\n\n')
+  const primerParagraphs = (tFigureF(figure.id, 'primer', figure.primer) || tFigureF(figure.id, 'description', figure.description) || '').split('\n\n')
   const figureDomain = topics[figure.topicId].domainId
   const isPerformance = ['jazz', 'classical_music'].includes(figureDomain)
   const isSportsFigure = figureDomain === 'sports'
@@ -3703,8 +3704,8 @@ function FigureScreen({ figureId, push, savedItems = {}, toggleSave = () => {} }
         {/* No save/share — a figure is reading material, not something you go visit. */}
         <div className="figure-hero-text">
           <div className="figure-hero-name">{figure.name}</div>
-          <div className="figure-hero-meta">{figure.years}{figure.nationality ? ` · ${figure.nationality}` : ''}</div>
-          <div className="figure-hero-tagline">{figure.tagline}</div>
+          <div className="figure-hero-meta">{figure.years}{figure.nationality ? ` · ${tFigureF(figure.id, 'nationality', figure.nationality)}` : ''}</div>
+          <div className="figure-hero-tagline">{tFigureF(figure.id, 'tagline', figure.tagline)}</div>
         </div>
       </div>
 
@@ -3895,7 +3896,7 @@ function WorkScreen({ workId, push, savedItems = {}, toggleSave = () => {} }) {
 
       <div className="section">
         <div className="body-text">
-          {work.description}
+          {tWorkF(work.id, 'description', work.description)}
         </div>
       </div>
 
@@ -3903,14 +3904,14 @@ function WorkScreen({ workId, push, savedItems = {}, toggleSave = () => {} }) {
 
       {isArchWork && work.significance ? (
         <div className="section">
-          <div className="section-label">Why it matters</div>
-          <div className="body-text">{work.significance}</div>
+          <div className="section-label">{t('Why it matters')}</div>
+          <div className="body-text">{tWorkF(work.id, 'significance', work.significance)}</div>
         </div>
       ) : work.whatToLookFor?.length > 0 ? (
         <div className="section">
-          <div className="section-label">{isJazz ? 'What to listen for' : 'What to look for'}</div>
+          <div className="section-label">{t(isJazz ? 'What to listen for' : 'What to look for')}</div>
           <div className="look-for-list">
-            {work.whatToLookFor.map((item, i) => (
+            {tWorkF(work.id, 'whatToLookFor', work.whatToLookFor).map((item, i) => (
               <div key={i} className="look-for-item">
                 <div className="look-for-num">{i + 1}</div>
                 <div className="look-for-text">{item}</div>
@@ -4027,7 +4028,7 @@ function WorkScreen({ workId, push, savedItems = {}, toggleSave = () => {} }) {
                   <div className="figure-card-text">
                     <div className="figure-card-name">{fig.name}</div>
                     <div className="figure-card-years">{fig.years}</div>
-                    <div className="figure-card-tagline">{fig.tagline}</div>
+                    <div className="figure-card-tagline">{tFigureF(fig.id, 'tagline', fig.tagline)}</div>
                   </div>
                   <div className="figure-card-arrow">›</div>
                 </button>
@@ -4484,9 +4485,9 @@ function EatScreen({ push, savedItems = {}, userVenues = {}, toggleSave = () => 
           removed: inventory numbers, not invitation. */}
       <FlowHero
         art={<ActivityCoverArt activityId="eat" />}
-        eyebrow="Eat"
-        title="Where to eat in New York."
-        body="Every restaurant in your guide — filter by cuisine, price, and neighborhood."
+        eyebrow={t('Eat')}
+        title={t('Where to eat in New York.')}
+        body={t('Every restaurant in your guide — filter by cuisine, price, and neighborhood.')}
       />
 
       {/* "Where are you?" — a location-first entry that mirrors the place step of
@@ -5692,15 +5693,15 @@ function MapsChooserHost() {
     <BottomSheet open={!!target} onClose={() => setTarget(null)} fit>
       <div style={{ padding: '2px 20px calc(28px + env(safe-area-inset-bottom, 0px))' }}>
         <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--gray-500)', textAlign: 'center', marginBottom: 16 }}>
-          Open {target?.name || 'this place'} in
+          {t2('Open {NAME} in', { NAME: target?.name || t('this place') })}
         </div>
         <button onClick={() => go(appleUrl)} style={choice}>
-          <span>🗺️ Apple Maps{multi && <span style={sub}>directions to your first stop</span>}</span>
+          <span>🗺️ {t('Apple Maps')}{multi && <span style={sub}>{t('directions to your first stop')}</span>}</span>
         </button>
         <button onClick={() => go(gUrl)} style={choice}>
-          <span>📍 Google Maps{multi && <span style={sub}>full stop-by-stop route</span>}</span>
+          <span>📍 {t('Google Maps')}{multi && <span style={sub}>{t('full stop-by-stop route')}</span>}</span>
         </button>
-        <button onClick={() => setTarget(null)} style={{ ...choice, background: 'transparent', color: 'var(--gray-500)', fontWeight: 600, marginBottom: 0 }}>Cancel</button>
+        <button onClick={() => setTarget(null)} style={{ ...choice, background: 'transparent', color: 'var(--gray-500)', fontWeight: 600, marginBottom: 0 }}>{t('Cancel')}</button>
       </div>
     </BottomSheet>
   )
@@ -5751,7 +5752,7 @@ function MoodPlaceSheet({ place = {}, onFull = null, savedItems = {}, toggleSave
     : (place.cuisine ? [place.cuisine] : [])
   const cuisine = cuisineArr.filter(Boolean).map(prettyCuisine).join(', ')
   const metaTop = [place.price, cuisine, neighborhood].filter(Boolean).join(' · ')
-  const desc = (place.description || place.googleSummary || place.blurb || '').trim()
+  const desc = tDesc(place, (place.description || place.googleSummary || place.blurb || '').trim())
   const hrs = todayHoursLine(place.hours)
   const openSt = openStatusNow(place.hours)
   // Disambiguate the Maps search with the address (or neighborhood) so an
@@ -5807,7 +5808,7 @@ function MoodPlaceSheet({ place = {}, onFull = null, savedItems = {}, toggleSave
       ) : null}
       {canAdd && (
         <button onClick={handleAddToTrip} style={btn(!inTrip)}>
-          {inTrip ? '✓ In Planner' : '+ Add to Planner'}
+          {inTrip ? t('✓ In Planner') : t('+ Add to Planner')}
         </button>
       )}
       {onFull && <button onClick={onFull} style={btn(false)}>Full details →</button>}
@@ -5951,7 +5952,7 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
       onPress={onPress} />
   )
   const cardForItem = (it) => {
-    if (it.kind === 'venue') return compactCard('v' + it.id, { name: it.venue.name, neighborhood: it.venue.neighborhood, desc: it.venue.character || '', image: venueImages[it.id] || null }, () => setMoodSheet({ kind: 'venue', id: it.id }))
+    if (it.kind === 'venue') return compactCard('v' + it.id, { name: it.venue.name, neighborhood: it.venue.neighborhood, desc: tVenueF(it.id, 'character', it.venue.character || ''), image: venueImages[it.id] || null }, () => setMoodSheet({ kind: 'venue', id: it.id }))
     if (it.kind === 'sight') return compactCard('s' + it.id, { name: it.sight.name, neighborhood: [it.sight.neighborhood, it.sight.subArea].filter(Boolean).join(' · '), desc: it.sight.longDesc || '', image: venueImages[it.id] || null }, () => setMoodSheet({ kind: 'place', place: { name: it.sight.name, image: venueImages[it.id] || null, neighborhood: [it.sight.neighborhood, it.sight.subArea].filter(Boolean).join(' · '), description: it.sight.longDesc || '', category: 'culture', addData: { name: it.sight.name, neighborhood: [it.sight.neighborhood, it.sight.subArea].filter(Boolean).join(' · '), category: 'culture', blurb: it.sight.longDesc || '', lat: it.sight.lat, lng: it.sight.lng } }, full: { screen: 'sight', sightId: it.id } }))
     return compactCard('c' + it.id, { name: it.name, neighborhood: it.note || '' }, () => setMoodSheet({ kind: 'place', place: { name: it.name, neighborhood: it.note || '', category: 'place', addData: { name: it.name, neighborhood: it.note || '', category: 'place' } } }))
   }
@@ -6084,7 +6085,9 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
 
   return (
     <div style={{ paddingBottom: 'calc(104px + env(safe-area-inset-bottom, 0px))' }}>
-      <FlowHero art={heroArt} eyebrow={heroEyebrow} title={heroCopy.title} body={heroCopy.body} compact />
+      {/* Copy lives in module-level constants (evaluated at import), so it is
+          translated HERE at the render site rather than at definition. */}
+      <FlowHero art={heroArt} eyebrow={t(heroEyebrow)} title={t(heroCopy.title)} body={t(heroCopy.body)} compact />
       <div style={{ padding: '10px 16px 0' }}>
       {step === 'place' && (
         <>
@@ -6415,13 +6418,13 @@ function MoodScreen({ moodId, push, savedItems = {}, toggleSave = () => {} }) {
           <span style={{
             fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
             textTransform: 'uppercase', opacity: 0.8,
-          }}>Mood</span>
+          }}>{t('Mood')}</span>
         </div>
         <div style={{ fontSize: 24, fontWeight: 800, lineHeight: 1.2, marginBottom: 6 }}>
-          {mood.label}
+          {t(mood.label)}
         </div>
         <div style={{ fontSize: 13, lineHeight: 1.55, opacity: 0.9 }}>
-          {mood.blurb}
+          {t(mood.blurb)}
         </div>
         <div style={{
           marginTop: 10, fontSize: 11, fontWeight: 700, opacity: 0.75,
@@ -6899,13 +6902,13 @@ function NeighborhoodScreen({ neighborhoodKey, subAreaName, push, savedItems = {
         <p style={{ marginTop: 8, fontSize: 14, color: 'var(--gray-500)', lineHeight: 1.5 }}>
           {nbVenues.length === 0
             ? subAreaInfo
-              ? `No venues catalogued in ${subAreaInfo.name} yet — tap + Add to save your own.`
-              : 'No venues catalogued in this area yet — check back as the guide grows.'
+              ? t2('No venues catalogued in {AREA} yet — tap + Add to save your own.', { AREA: subAreaInfo.name })
+              : t('No venues catalogued in this area yet — check back as the guide grows.')
             : subAreas
               // Parent view with sub-areas: nudge users to drill into a specific area instead of
               // duplicating venues at the top. They'll find each venue under its actual sub-area below.
-              ? `${nbVenues.length} venue${nbVenues.length !== 1 ? 's' : ''} across ${group.label} — find them by area below.`
-              : `${nbVenues.length} venue${nbVenues.length !== 1 ? 's' : ''} to explore here.`}
+              ? t2('{N} venues across {AREA} — find them by area below.', { N: nbVenues.length, AREA: group.label })
+              : (nbVenues.length === 1 ? t('1 venue to explore here.') : t2('{N} venues to explore here.', { N: nbVenues.length }))}
         </p>
       </div>
       {/* Top venue list — only on focused sub-area views. On the parent view (with sub-areas),
@@ -7218,7 +7221,7 @@ function SightScreen({ sightId, push, savedItems = {}, toggleSave = () => {} }) 
         <div style={{ position: 'absolute', top: 18, right: 16, display: 'flex', gap: 6 }}>
           <button
             onClick={() => toggleSave('sight', sight.id)}
-            aria-label={isSaved ? 'Remove from Planner' : 'Add to Planner'}
+            aria-label={isSaved ? t('Remove from Planner') : t('Add to Planner')}
             style={{
               background: isSaved ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.22)',
               backdropFilter: isSaved ? 'none' : 'blur(6px)', border: 'none',
@@ -7228,7 +7231,7 @@ function SightScreen({ sightId, push, savedItems = {}, toggleSave = () => {} }) 
               transition: 'background 120ms ease, color 120ms ease',
             }}
           >
-            {isSaved ? '✓ Saved' : '+ Add to Planner'}
+            {isSaved ? t('✓ Saved') : t('+ Add to Planner')}
           </button>
         </div>
       </div>
@@ -7278,7 +7281,7 @@ function SightScreen({ sightId, push, savedItems = {}, toggleSave = () => {} }) 
             {sight.insiderTip && (
               <>
                 <div style={{ borderTop: '1px dashed var(--gray-200)' }} />
-                <DetailRow icon="💡" label="Insider tip" body={sight.insiderTip} bodyStyle={{ lineHeight: 1.55 }} />
+                <DetailRow icon="💡" label={t('Insider tip')} body={tTip(sight, sight.insiderTip)} bodyStyle={{ lineHeight: 1.55 }} />
               </>
             )}
           </div>
@@ -7296,7 +7299,7 @@ function SightScreen({ sightId, push, savedItems = {}, toggleSave = () => {} }) 
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           transition: 'background 120ms ease, color 120ms ease',
         }}>
-          {isSaved ? <>✓ Added to Planner</> : <>+ Add to Planner</>}
+          {isSaved ? <>{t('✓ Added to Planner')}</> : <>{t('+ Add to Planner')}</>}
         </button>
 
         {/* Official site (if URL is known) */}
@@ -7385,7 +7388,7 @@ function VenueTapCard({ venue, onPress, isSaved = false, image = null, attributi
   // Photo priority: explicit image prop → curated venue photo → first
   // work-at-this-venue image → none, in which case the category gradient shows.
   const photo = image || venueImages[venue.id] || getWorksAtVenue(venue.id).find(w => w.imageUrl)?.imageUrl || null
-  const preview = clipWords(venue.character || '', 110)
+  const preview = clipWords(tVenueF(venue.id, 'character', venue.character || ''), 110)
   // Theater venues: surface what's currently playing. Users search by show
   // name ("where's Hamilton?"), not theater name, so the production needs to
   // be visible BEFORE you tap in. `isDark` means the theater is between
@@ -7553,7 +7556,7 @@ function UserVenueCard({ venue, cardVenue, onPress, isSaved = false }) {
   const imageSrc = venue?.image || g?.photoUrl || null
   const image = imageSrc && !imgFailed ? imageSrc : null
   // Layout C — compact row: small thumbnail + name + rating·price·neighborhood + one-line desc.
-  const rawDesc = (venue?.description || venue?.googleSummary || cardVenue?.character || '').trim()
+  const rawDesc = tDesc(venue, (venue?.description || venue?.googleSummary || cardVenue?.character || '').trim())
   const desc = clipWords(rawDesc, 84)
   const place = (venue?.neighborhood && venue.neighborhood !== 'Saved from Google Maps')
     ? venue.neighborhood : (cardVenue?.neighborhood || 'Saved spot')
@@ -7618,7 +7621,7 @@ function VenueCard({ venue }) {
         </div>
         <div className="venue-detail-row" style={{ borderBottom: 'none' }}>
           <span className="venue-detail-icon">ℹ️</span>
-          <span>{venue.description}</span>
+          <span>{tVenueF(venue.id, 'description', venue.description)}</span>
         </div>
         <a
           href={venue.ticketUrl}
@@ -7687,11 +7690,11 @@ function BottomNav({ activeTab, onTabPress, savedCount, onAddPlace }) {
   // 5 tabs (2026-07-16): the workbench/shelf split — Build assembles the
   // trip, My Plans keeps the copies. The bar itself teaches the model.
   const tabs = [
-    { id: 'explore', icon: 'compass',  label: 'Explore' },
-    { id: 'tonight', icon: 'moon',     label: 'Events', accent: true },
-    { id: 'map',     icon: 'mapPin',   label: 'Map' },
-    { id: 'saved',   icon: 'tool',     label: 'Planner' },
-    { id: 'plans',   icon: 'folder',   label: 'My Plans' },
+    { id: 'explore', icon: 'compass',  label: t('Explore') },
+    { id: 'tonight', icon: 'moon',     label: t('Events'), accent: true },
+    { id: 'map',     icon: 'mapPin',   label: t('Map') },
+    { id: 'saved',   icon: 'tool',     label: t('Planner') },
+    { id: 'plans',   icon: 'folder',   label: t('My Plans') },
   ]
   return (
     <div style={{
@@ -7839,7 +7842,7 @@ function AreaPickCard({ pick: p, onBack, onShowMap, onFull = null, savedItems = 
         background: saved ? 'var(--ink)' : 'var(--accent)', color: '#fff', borderRadius: 12,
         padding: '12px 16px', fontSize: 13.5, fontWeight: 700, marginBottom: 8,
         opacity: saved ? 0.85 : 1,
-      }}>{saved ? '✓ In Planner' : '+ Add to Planner'}</button>
+      }}>{saved ? t('✓ In Planner') : t('+ Add to Planner')}</button>
       <button onClick={onShowMap} style={{
         width: '100%', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
         background: 'var(--gray-900)', color: '#fff', borderRadius: 12,
@@ -8124,7 +8127,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
       <div style={{ display: 'flex', alignItems: 'center', padding: '8px 14px 6px', background: 'var(--canvas)', flexShrink: 0 }}>
         <div style={{ width: 78, flexShrink: 0 }} />
         <div role="tablist" style={{ display: 'inline-flex', background: 'var(--gray-100)', borderRadius: 999, padding: 3, margin: '0 auto' }}>
-          {[{ id: 'real', label: 'Map' }, { id: 'schematic', label: 'Neighborhoods' }].map(opt => {
+          {[{ id: 'real', label: t('Map') }, { id: 'schematic', label: t('Neighborhoods') }].map(opt => {
             const on = view === opt.id
             return (
               <button key={opt.id} role="tab" aria-selected={on} onClick={() => setView(opt.id)} style={{
@@ -8138,11 +8141,11 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
             )
           })}
         </div>
-        <button onClick={handleNearMeMap} disabled={geoStatus === 'denied'} title="Show my location" style={{
+        <button onClick={handleNearMeMap} disabled={geoStatus === 'denied'} title={t('Show my location')} style={{
           width: 78, flexShrink: 0, textAlign: 'right', border: 'none', background: 'none',
           cursor: geoStatus === 'denied' ? 'default' : 'pointer', fontFamily: 'inherit',
           fontSize: 11.5, fontWeight: 700, color: geoStatus === 'denied' ? 'var(--gray-400)' : 'var(--accent-text)',
-        }}>{geoStatus === 'locating' ? '…' : geoStatus === 'denied' ? 'Loc. off' : '📍 Near me'}</button>
+        }}>{geoStatus === 'locating' ? '…' : geoStatus === 'denied' ? t('Loc. off') : t('📍 Near me')}</button>
       </div>
 
       {/* Filter chips — live-map categories only */}
@@ -8159,7 +8162,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
             color: filter === f.id ? '#fff' : 'var(--gray-600)',
             fontSize: 12, fontWeight: filter === f.id ? 700 : 500,
             cursor: 'pointer', fontFamily: 'inherit',
-          }}>{f.label}</button>
+          }}>{t(f.label)}</button>
         ))}
       </div>
       )}
@@ -8184,7 +8187,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
                         background: on ? 'var(--gray-900)' : 'transparent',
                         color: on ? '#fff' : 'var(--gray-500)',
                         transition: 'background 120ms ease, color 120ms ease',
-                      }}>{b}</button>
+                      }}>{t(b === 'brooklyn' ? 'Brooklyn' : 'Manhattan')}</button>
                   )
                 })}
               </div>
@@ -8228,11 +8231,11 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
                       <div onTouchStart={areaTouchStart} onTouchMove={areaTouchMove} onTouchEnd={areaTouchEnd}
                         style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 10, touchAction: 'none' }}>
                         <div style={{ fontFamily: 'var(--serif)', fontSize: 20, fontWeight: 600, color: 'var(--ink)' }}>{areaSheet.label}</div>
-                        <button onClick={() => handleSchemSelect(null)} aria-label="Close" style={{ border: 'none', background: 'var(--gray-100)', borderRadius: 999, width: 28, height: 28, cursor: 'pointer', color: 'var(--gray-500)', fontSize: 14, lineHeight: 1 }}>✕</button>
+                        <button onClick={() => handleSchemSelect(null)} aria-label={t('Close')} style={{ border: 'none', background: 'var(--gray-100)', borderRadius: 999, width: 28, height: 28, cursor: 'pointer', color: 'var(--gray-500)', fontSize: 14, lineHeight: 1 }}>✕</button>
                       </div>
                       {areaSheet.picks.length === 0 ? (
                         <div style={{ fontSize: 13.5, color: 'var(--ink-3)', lineHeight: 1.5, padding: '4px 0 12px' }}>
-                          No curated spots mapped here yet — try the live map for everything nearby.
+                          {t('No curated spots mapped here yet — try the live map for everything nearby.')}
                         </div>
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
@@ -8256,7 +8259,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
                         width: '100%', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
                         background: 'var(--gray-900)', color: '#fff', borderRadius: 12,
                         padding: '12px 16px', fontSize: 13.5, fontWeight: 700,
-                      }}>See {areaSheet.label} on the live map</button>
+                      }}>{t2('See {AREA} on the live map', { AREA: areaSheet.label })}</button>
                     </>
                   )}
                 </div>
@@ -8278,7 +8281,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
           display: 'inline-flex', alignItems: 'center', gap: 7,
         }}>
           <NavIcon name="bookmark" size={14} />
-          <span>Go to Planner</span>
+          <span>{t('Go to Planner')}</span>
         </button>
       )}
 
@@ -8294,12 +8297,12 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
             maxWidth: 320, width: '100%', boxShadow: '0 18px 50px rgba(0,0,0,0.35)',
           }}>
             <div style={{ fontFamily: 'var(--serif)', fontSize: 20, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.2, marginBottom: 14 }}>
-              Your map of the city
+              {t('Your map of the city')}
             </div>
             {[
-              ['📍', <>Tap any pin — a card pops up with <b>+ Add to Planner</b>.</>],
-              ['🎨', <>Filter by category with the chips above the map, or tap a color in the legend.</>],
-              ['🗓️', <>Done exploring? <b>Go to Planner</b> turns your saves into a routed day plan.</>],
+              ['📍', <>{t('Tap any pin — a card pops up with ')}<b>{t('+ Add to Planner')}</b>{t('.')}</>],
+              ['🎨', <>{t('Filter by category with the chips above the map, or tap a color in the legend.')}</>],
+              ['🗓️', <>{t('Done exploring? ')}<b>{t('Go to Planner')}</b>{t(' turns your saves into a routed day plan.')}</>],
             ].map(([icon, text], i) => (
               <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12 }}>
                 <span style={{ fontSize: 17, lineHeight: 1.35, flexShrink: 0 }}>{icon}</span>
@@ -8310,7 +8313,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
               width: '100%', marginTop: 4, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
               background: 'var(--gray-900)', color: '#fff', borderRadius: 12,
               padding: '12px 16px', fontSize: 13.5, fontWeight: 700,
-            }}>Got it</button>
+            }}>{t('Got it')}</button>
           </div>
         </div>
       )}
@@ -8332,7 +8335,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
             fontSize: 9, fontWeight: 800, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--ink-3)',
             marginBottom: legendOpen ? 4 : 0,
           }}>
-            <span>Legend</span>
+            <span>{t('Legend')}</span>
             <span style={{ marginLeft: 'auto', fontSize: 11, display: 'inline-block', transform: legendOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s ease' }}>›</span>
           </button>
           {legendOpen && (
@@ -8347,13 +8350,13 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
                     opacity: filter === 'all' || on ? 1 : 0.45,
                   }}>
                     <span style={{ width: 9, height: 9, borderRadius: 999, background: c, border: '1.5px solid #fff', boxShadow: '0 0 0 1px rgba(29,39,51,0.12)', flexShrink: 0 }} />
-                    <span style={{ fontSize: 10.5, fontWeight: on ? 800 : 600, color: 'var(--ink)' }}>{MAP_DOMAIN_LEGEND_LABELS[d] || d}</span>
+                    <span style={{ fontSize: 10.5, fontWeight: on ? 800 : 600, color: 'var(--ink)' }}>{t(MAP_DOMAIN_LEGEND_LABELS[d] || d)}</span>
                   </button>
                 )
               })}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, paddingTop: 4, borderTop: '1px solid var(--gray-100)', padding: '4px 5px 0', margin: '2px -5px 0' }}>
                 <span style={{ width: 9, height: 9, borderRadius: 999, background: '#fff', border: '2px solid var(--love)', flexShrink: 0 }} />
-                <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--ink)' }}>Saved</span>
+                <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--ink)' }}>{t('Saved')}</span>
               </div>
             </div>
           )}
@@ -8379,7 +8382,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
               return (
                 <button
                   onClick={() => toggleSave('venue', selectedVenueId)}
-                  aria-label={isSaved ? 'Remove from Planner' : 'Add to Planner'}
+                  aria-label={isSaved ? t('Remove from Planner') : t('Add to Planner')}
                   style={{
                     marginLeft: 'auto',
                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -8390,7 +8393,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
                     fontSize: 11.5, fontWeight: 700, lineHeight: 1, whiteSpace: 'nowrap',
                     transition: 'background 120ms ease, color 120ms ease',
                   }}>
-                  {isSaved ? '✓ Saved' : '+ Add to Planner'}
+                  {isSaved ? t('✓ Saved') : t('+ Add to Planner')}
                 </button>
               )
             })()}
@@ -8418,7 +8421,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
             {selVenue.admissionCost && (
               <div style={{ fontSize: 12, color: 'var(--gray-600)', display: 'flex', gap: 5, alignItems: 'flex-start' }}>
                 <span style={{ flexShrink: 0 }}>&#x1F3AB;</span>
-                <span>{selVenue.admissionCost}</span>
+                <span>{tVenueF(selVenue.id, 'admissionCost', selVenue.admissionCost)}</span>
               </div>
             )}
           </div>
@@ -8435,12 +8438,12 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
                 fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
                 textDecoration: 'none', textAlign: 'center', display: 'block',
               }}
-            >&#x1F4CD; Directions</a>
+            >&#x1F4CD; {t('Directions')}</a>
             <button onClick={() => onSelectVenue(selectedVenueId)} style={{
               flex: 1, background: 'var(--gray-900)', color: '#fff', border: 'none',
               borderRadius: 10, padding: '10px 0', cursor: 'pointer',
               fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
-            }}>Explore ›</button>
+            }}>{t('Explore ›')}</button>
           </div>
           {/* Just saved? Close the loop — show where the schedule lives. */}
           {!!savedItems[`venue:${selectedVenueId}`] && (
@@ -8449,7 +8452,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
               cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center',
               fontSize: 12.5, fontWeight: 700, color: 'var(--accent-text, var(--accent))',
               padding: '4px 0 0',
-            }}>See it in Planner ›</button>
+            }}>{t('See it in Planner ›')}</button>
           )}
         </div>
       )}
@@ -8468,7 +8471,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
             boxShadow: '0 8px 28px rgba(0,0,0,0.22)', zIndex: 1000,
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: MAP_DOMAIN_COLORS.food }}>Restaurant</div>
+              <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: MAP_DOMAIN_COLORS.food }}>{t('Restaurant')}</div>
               <button
                 onClick={() => {
                   if (exUv) { toggleSave('user_venue', exUv.id); return }
@@ -8479,7 +8482,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
                     lat: c ? c[0] : undefined, lng: c ? c[1] : undefined,
                   })
                 }}
-                aria-label={isSaved ? 'Remove from Planner' : 'Add to Planner'}
+                aria-label={isSaved ? t('Remove from Planner') : t('Add to Planner')}
                 style={{
                   marginLeft: 'auto',
                   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -8489,7 +8492,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
                   border: 'none', cursor: 'pointer',
                   fontSize: 11.5, fontWeight: 700, lineHeight: 1, whiteSpace: 'nowrap',
                 }}>
-                {isSaved ? '✓ Saved' : '+ Add to Planner'}
+                {isSaved ? t('✓ Saved') : t('+ Add to Planner')}
               </button>
               <button onClick={() => setSelectedRest(null)} style={{
                 background: 'none', border: 'none', cursor: 'pointer',
@@ -8508,7 +8511,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
                   borderRadius: 10, padding: '10px 0', cursor: 'pointer',
                   fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
                   textDecoration: 'none', textAlign: 'center', display: 'block',
-                }}>Reserve →</a>
+                }}>{t('Reserve →')}</a>
               )}
               <a onClick={(e) => { e.preventDefault(); openMapsChooser({ name: r.name, area: r.neighborhood, googleUrl: r.mapsUrl }) }}
                 href="#" style={{
@@ -8516,7 +8519,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
                 borderRadius: 10, padding: '10px 0', cursor: 'pointer',
                 fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
                 textDecoration: 'none', textAlign: 'center', display: 'block',
-              }}>&#x1F4CD; Directions</a>
+              }}>&#x1F4CD; {t('Directions')}</a>
             </div>
             {isSaved && (
               <button onClick={onGoToMyTrip} style={{
@@ -8524,7 +8527,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
                 cursor: 'pointer', fontFamily: 'inherit', textAlign: 'center',
                 fontSize: 12.5, fontWeight: 700, color: 'var(--accent-text, var(--accent))',
                 padding: '4px 0 0',
-              }}>See it in Planner ›</button>
+              }}>{t('See it in Planner ›')}</button>
             )}
           </div>
         )
@@ -8590,16 +8593,16 @@ function VenueSheet({ venueId, blurb, savedItems = {}, toggleSave = () => {}, on
         <p style={{ fontSize: 14, color: 'var(--ink-2)', lineHeight: 1.5, fontStyle: 'italic', margin: '0 0 14px', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{why}</p>
       )}
       <Row icon="📍">{place}</Row>
-      <Row icon="💰">{venue.admissionCost}</Row>
-      <Row icon="⏱">{venue.visitDuration}</Row>
+      <Row icon="💰">{tVenueF(venue.id, 'admissionCost', venue.admissionCost)}</Row>
+      <Row icon="⏱">{tVenueF(venue.id, 'visitDuration', venue.visitDuration)}</Row>
       {/* Primary action sits directly under the facts (above the editorial blurb)
           so it's visible the instant the sheet peeks open — adding to the trip is
           the whole point of these cards. */}
       <button onClick={() => toggleSave('venue', venueId)} style={{ width: '100%', marginTop: 4, border: 'none', borderRadius: 999, padding: '14px', background: isSaved ? 'var(--ink)' : 'var(--accent)', color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', boxShadow: isSaved ? 'none' : 'var(--shadow-accent)' }}>
-        {isSaved ? '✓ In Planner' : '+ Add to Planner'}
+        {isSaved ? t('✓ In Planner') : t('+ Add to Planner')}
       </button>
       <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-        <button onClick={() => openMapsChooser({ name: venue.name, address: venue.address, googleUrl: venue.mapUrl })} style={{ flex: 1, border: '1.5px solid var(--gray-200)', borderRadius: 999, padding: '12px', background: 'var(--white)', color: 'var(--ink)', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>📍 Directions</button>
+        <button onClick={() => openMapsChooser({ name: venue.name, address: venue.address, googleUrl: venue.mapUrl })} style={{ flex: 1, border: '1.5px solid var(--gray-200)', borderRadius: 999, padding: '12px', background: 'var(--white)', color: 'var(--ink)', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>📍 {t('Directions')}</button>
         <button onClick={onFullPage} style={{ flex: 1, border: '1.5px solid var(--gray-200)', borderRadius: 999, padding: '12px', background: 'var(--white)', color: 'var(--ink)', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Full details →</button>
       </div>
     </div>
@@ -8687,11 +8690,11 @@ function EventsBrowser({ onNavigate = () => {} }) {
   const CATS = [
     // ('★ Stoop picks' chip removed 2026-07-21 — the default view IS the full
     // list now; chips are pure filters you can toggle off.)
-    { key: 'music', label: 'Music' }, { key: 'comedy', label: 'Comedy' },
-    { key: 'theater', label: 'Theater' }, { key: 'sports', label: 'Sports' }, { key: 'family', label: 'Family' },
-    { key: 'free', label: 'Free' },
+    { key: 'music', label: t('Music') }, { key: 'comedy', label: t('Comedy') },
+    { key: 'theater', label: t('Theater') }, { key: 'sports', label: t('Sports') }, { key: 'family', label: t('Family') },
+    { key: 'free', label: t('Free') },
   ]
-  const RANGES = [['tonight', 'Tonight'], ['weekend', 'This weekend'], ['week', 'This week']]
+  const RANGES = [['tonight', t('Tonight')], ['weekend', t('This weekend')], ['week', t('This week')]]
 
   const loading = pool === null
   // Free events are kept as long as they're real PUBLIC happenings — the junk and
@@ -8784,17 +8787,17 @@ function EventsBrowser({ onNavigate = () => {} }) {
   const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   const MO = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
   const whenShort = (e) => {
-    if (e.source === 'market') return e.days ? `Every ${e.days.split(/[,&]/)[0].trim()}` : 'Weekly'
+    if (e.source === 'market') return e.days ? `Every ${e.days.split(/[,&]/)[0].trim()}` : t('Weekly')
     if (!isDate(e.date)) return ''
     const d = e.date
-    const dayLabel = sameDay(d, today0) ? 'Today' : sameDay(d, dPlus(1)) ? 'Tomorrow' : `${WD[d.getDay()]} ${MO[d.getMonth()]} ${d.getDate()}`
+    const dayLabel = sameDay(d, today0) ? t('Today') : sameDay(d, dPlus(1)) ? t('Tomorrow') : `${WD[d.getDay()]} ${MO[d.getMonth()]} ${d.getDate()}`
     if (e.source === 'ticketmaster' && (d.getHours() || d.getMinutes())) {
       const h = (d.getHours() % 12) || 12, mm = d.getMinutes() ? ':' + String(d.getMinutes()).padStart(2, '0') : '', ap = d.getHours() < 12 ? 'am' : 'pm'
       return `${dayLabel} · ${h}${mm}${ap}`
     }
     return dayLabel
   }
-  const rangeWord = range === 'tonight' ? 'tonight' : range === 'weekend' ? 'this weekend' : 'this week'
+  const rangeWord = range === 'tonight' ? t('tonight') : range === 'weekend' ? t('this weekend') : t('this week')
 
   return (
     <div style={{ padding: '4px 0 10px' }}>
@@ -8826,13 +8829,13 @@ function EventsBrowser({ onNavigate = () => {} }) {
             color: areaScope === 'all' ? 'var(--ink-2)' : '#fff',
           }}>
             <span aria-hidden="true">📍</span>
-            <span>{areaScope === 'all' ? 'All NYC' : areaScope}</span>
+            <span>{areaScope === 'all' ? t('All NYC') : areaScope}</span>
             <span style={{ opacity: 0.7 }}>▾</span>
           </button>
           {areaScope !== 'all' && (
             <button onClick={() => setArea('all')} aria-label="Clear location" style={{
               border: 'none', background: 'none', cursor: 'pointer', color: 'var(--ink-3)', fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
-            }}>Clear</button>
+            }}>{t('Clear')}</button>
           )}
         </div>
       )}
@@ -8842,7 +8845,7 @@ function EventsBrowser({ onNavigate = () => {} }) {
       <div className="hide-scrollbar" style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '12px 20px 4px', scrollbarWidth: 'none' }}>
         {/* Explicit "All" chip (2026-07-21) — the default state deserves a
             visible, selected home, not an absence of selection. */}
-        {[{ key: null, label: 'All' }, ...visibleCats].map(c => {
+        {[{ key: null, label: t('All') }, ...visibleCats].map(c => {
           const active = activeCat === c.key
           return (
             <button key={c.key ?? 'all'} onClick={() => setCategory(c.key)} style={{
@@ -8867,10 +8870,10 @@ function EventsBrowser({ onNavigate = () => {} }) {
           <div style={{ textAlign: 'center', color: 'var(--ink-3)', fontSize: 14, padding: '40px 20px', lineHeight: 1.5 }}>
             {areaScope !== 'all'
               ? <>Nothing in <strong>{areaScope}</strong> {rangeWord} for this filter.</>
-              : <>Nothing in this category {rangeWord} yet.<br />Try another filter or range.</>}
+              : <>{t2('Nothing in this category {RANGE} yet.', { RANGE: rangeWord })}<br />{t('Try another filter or range.')}</>}
             {areaScope !== 'all' && (
               <div style={{ marginTop: 14 }}>
-                <button onClick={() => setArea('all')} style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 999, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>📍 Show all NYC</button>
+                <button onClick={() => setArea('all')} style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 999, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>{t('📍 Show all NYC')}</button>
               </div>
             )}
           </div>
@@ -8905,7 +8908,7 @@ function EventsBrowser({ onNavigate = () => {} }) {
               <button onClick={() => setShowAll(true)} style={{
                 width: '100%', background: 'var(--gray-100)', border: 'none', cursor: 'pointer',
                 borderRadius: 12, padding: '11px', fontSize: 13, fontWeight: 700, color: 'var(--ink-2)', fontFamily: 'inherit',
-              }}>Show all {category === 'picks' ? 'picks' : 'events'} →</button>
+              }}>{category === 'picks' ? t('Show all picks →') : t('Show all events →')}</button>
             )}
           </div>
         )}
@@ -8914,9 +8917,9 @@ function EventsBrowser({ onNavigate = () => {} }) {
       {/* Location pop-out — pick your borough (live counts, empties hidden) */}
       <BottomSheet open={areaSheetOpen} onClose={() => setAreaSheetOpen(false)} fit>
         <div style={{ padding: '4px 20px 30px' }}>
-          <div style={{ fontFamily: 'var(--serif)', fontSize: 24, fontWeight: 500, color: 'var(--ink)', marginBottom: 4 }}>Where are you?</div>
-          <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginBottom: 16, lineHeight: 1.45 }}>Filter {rangeWord}&rsquo;s events by borough.</div>
-          {[{ key: 'all', label: 'All NYC' }, ...BOROUGHS.map(b => ({ key: b, label: b })), { key: 'Queens', label: 'Queens', soon: true }].map(opt => {
+          <div style={{ fontFamily: 'var(--serif)', fontSize: 24, fontWeight: 500, color: 'var(--ink)', marginBottom: 4 }}>{t('Where are you?')}</div>
+          <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginBottom: 16, lineHeight: 1.45 }}>{t2('Filter {RANGE}’s events by borough.', { RANGE: rangeWord })}</div>
+          {[{ key: 'all', label: t('All NYC') }, ...BOROUGHS.map(b => ({ key: b, label: b })), { key: 'Queens', label: 'Queens', soon: true }].map(opt => {
             const active = areaScope === opt.key
             return (
               <button key={opt.key} disabled={opt.soon} onClick={opt.soon ? undefined : () => { setArea(opt.key); setAreaSheetOpen(false) }} style={{
@@ -8928,7 +8931,7 @@ function EventsBrowser({ onNavigate = () => {} }) {
                 <span style={{ fontSize: 16 }} aria-hidden="true">{opt.key === 'all' ? '🗽' : '📍'}</span>
                 <span style={{ flex: 1, fontSize: 15, fontWeight: 600, color: 'var(--ink)' }}>{opt.label}</span>
                 {opt.soon
-                  ? <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#92400e', background: '#fef3c7', padding: '3px 8px', borderRadius: 999 }}>Coming soon</span>
+                  ? <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#92400e', background: '#fef3c7', padding: '3px 8px', borderRadius: 999 }}>{t('Coming soon')}</span>
                   : (active && <span style={{ color: 'var(--accent)', fontWeight: 800 }}>✓</span>)}
               </button>
             )
@@ -10158,7 +10161,7 @@ async function printHtmlDoc(html, plainText = null) {
       const M = 54; let y = M
       const lines = String(plainText).split('\n')
       doc.setFont('helvetica', 'bold'); doc.setFontSize(20)
-      doc.text(lines[0] || 'My NYC Trip', M, y); y += 30
+      doc.text(lines[0] || t('My NYC Trip'), M, y); y += 30
       for (const raw of lines.slice(1)) {
         const isDay = /^Day \d/.test(raw.trim())
         doc.setFont('helvetica', isDay ? 'bold' : 'normal')
@@ -10172,7 +10175,7 @@ async function printHtmlDoc(html, plainText = null) {
       }
       const b64 = doc.output('datauristring').split(',')[1]
       const f = await Filesystem.writeFile({ path: 'nyc-stoop-plan.pdf', data: b64, directory: Directory.Cache })
-      await Share.share({ title: 'My NYC Trip', url: f.uri })
+      await Share.share({ title: t('My NYC Trip'), url: f.uri })
       return
     } catch (e) { /* cancelled share throws — treat as done; real failures fall through */ if (/cancel/i.test(String(e?.message || e))) return }
   }
@@ -10298,7 +10301,7 @@ function TabTutorial({ tutKey, title, rows }) {
           width: '100%', marginTop: 4, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
           background: 'var(--gray-900)', color: '#fff', borderRadius: 12,
           padding: '12px 16px', fontSize: 13.5, fontWeight: 700,
-        }}>Got it</button>
+        }}>{t('Got it')}</button>
       </div>
     </div>
   )
@@ -10321,8 +10324,8 @@ function PaywallSheet({ onClose }) {
     setErr(''); setBusy(which)
     try {
       const r = await fn()
-      if (which === 'restore' && !r && !hasPlus()) setErr('No previous purchase found for this Apple ID.')
-    } catch (e) { setErr(e?.message || 'Something went wrong. Please try again.') }
+      if (which === 'restore' && !r && !hasPlus()) setErr(t('No previous purchase found for this Apple ID.'))
+    } catch (e) { setErr(e?.message || t('Something went wrong. Please try again.')) }
     finally { setBusy(null) }
   }
   const Row = ({ icon, children, dim }) => (
@@ -10343,26 +10346,26 @@ function PaywallSheet({ onClose }) {
         maxHeight: '86vh', overflowY: 'auto',
       }}>
         <div style={{ fontFamily: 'var(--serif)', fontSize: 22, fontWeight: 600, color: 'var(--ink)', lineHeight: 1.15 }}>
-          The whole city, forever
+          {t('The whole city, forever')}
         </div>
         <div style={{ fontSize: 12.5, color: 'var(--gray-500)', margin: '6px 0 16px' }}>
-          One-time {plusPrice()} — no subscription, ever.
+          {t2('One-time {P} — no subscription, ever.', { P: plusPrice() })}
         </div>
         <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--gray-400)', marginBottom: 8 }}>
-          Free forever
+          {t('Free forever')}
         </div>
-        <Row icon="✓" dim>Explore, Events & the Map — all of it</Row>
-        <Row icon="✓" dim>Save places and events</Row>
-        <Row icon="✓" dim>A full 1-day routed plan, meals included</Row>
+        <Row icon="✓" dim>{t('Explore, Events & the Map — all of it')}</Row>
+        <Row icon="✓" dim>{t('Save places and events')}</Row>
+        <Row icon="✓" dim>{t('A full 1-day routed plan, meals included')}</Row>
         <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--accent-text, #BE4D2B)', margin: '14px 0 8px' }}>
-          With the unlock
+          {t('With the unlock')}
         </div>
-        <Row icon="🗓️">Multi-day trips — plan 2 to 7 days</Row>
-        <Row icon="💾">Unlimited saved plans</Row>
-        <Row icon="⬇️">Download your schedule as a PDF</Row>
+        <Row icon="🗓️">{t('Multi-day trips — plan 2 to 7 days')}</Row>
+        <Row icon="💾">{t('Unlimited saved plans')}</Row>
+        <Row icon="⬇️">{t('Download your schedule as a PDF')}</Row>
         {owned ? (
           <div style={{ marginTop: 16, textAlign: 'center', fontSize: 14.5, fontWeight: 700, color: '#15803d', padding: '12px 0' }}>
-            ✓ Unlocked — thank you!
+            {t('✓ Unlocked — thank you!')}
           </div>
         ) : (
           <>
@@ -10370,17 +10373,17 @@ function PaywallSheet({ onClose }) {
               width: '100%', marginTop: 16, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
               background: 'var(--accent)', color: '#fff', borderRadius: 12,
               padding: '13px 16px', fontSize: 14.5, fontWeight: 700, opacity: busy ? 0.6 : 1,
-            }}>{busy === 'buy' ? 'Opening App Store…' : `Unlock for ${plusPrice()}`}</button>
+            }}>{busy === 'buy' ? t('Opening App Store…') : t2('Unlock for {P}', { P: plusPrice() })}</button>
             <button disabled={!!busy} onClick={() => run('restore', restorePlus)} style={{
               width: '100%', marginTop: 8, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
               background: 'none', color: 'var(--gray-500)', borderRadius: 12,
               padding: '10px 16px', fontSize: 12.5, fontWeight: 600,
-            }}>{busy === 'restore' ? 'Restoring…' : 'Restore purchases'}</button>
+            }}>{busy === 'restore' ? t('Restoring…') : t('Restore purchases')}</button>
           </>
         )}
         {err && <div style={{ marginTop: 8, fontSize: 12, color: '#b91c1c', textAlign: 'center', lineHeight: 1.4 }}>{err}</div>}
         <div style={{ marginTop: 10, fontSize: 10.5, color: 'var(--gray-400)', textAlign: 'center', lineHeight: 1.5 }}>
-          One-time purchase tied to your Apple ID — restores free on any device.
+          {t('One-time purchase tied to your Apple ID — restores free on any device.')}
         </div>
       </div>
     </div>
@@ -10475,9 +10478,9 @@ function SavedPlanSummary({ snapshot, onBack, onEdit = null }) {
   }
 
   function buildShareText() {
-    const lines = ['🗽 My NYC Trip' + (days.length > 1 ? ` — ${days.length} Days` : ''), '']
+    const lines = ['🗽 ' + t('My NYC Trip') + (days.length > 1 ? ' — ' + t2('{N} Days', { N: days.length }) : ''), '']
     days.forEach((day, di) => {
-      lines.push(`Day ${di + 1}${day.area ? ' · ' + day.area : ''}`)
+      lines.push(t2('Day {N}', { N: di + 1 }) + (day.area ? ' · ' + day.area : ''))
       day.stops.forEach(stop => {
         const v = venues[stop.id]
         const timeStr = stop.startHour != null
@@ -10492,18 +10495,18 @@ function SavedPlanSummary({ snapshot, onBack, onEdit = null }) {
       })
       const lR = lunchAt(di, day)
       const dR = dinnerAt(di, day)
-      if (lR)  lines.push(`  Lunch: ${lR.name}`)
-      if (dR)  lines.push(`  Dinner: ${dR.name}`)
+      if (lR)  lines.push(`  ${t('Lunch')}: ${lR.name}`)
+      if (dR)  lines.push(`  ${t('Dinner')}: ${dR.name}`)
       lines.push('')
     })
-    lines.push('Built with NYC Stoop · nyc-stoop.vercel.app')
+    lines.push(t('Built with NYC Stoop') + ' · nyc-stoop.vercel.app')
     return lines.join('\n')
   }
 
   function handleShare() {
     const text = buildShareText()
     if (navigator.share) {
-      navigator.share({ title: 'My NYC Trip', text }).catch(() => {})
+      navigator.share({ title: t('My NYC Trip'), text }).catch(() => {})
     } else {
       navigator.clipboard?.writeText(text).then(() => {
         setShareCopied(true)
@@ -10518,7 +10521,8 @@ function SavedPlanSummary({ snapshot, onBack, onEdit = null }) {
   // Export this saved plan as a clean, printable PDF (browser "Save as PDF").
   function exportSavedPlanPdf() {
     const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
-    const sub = `${venueIds.length} stop${venueIds.length !== 1 ? 's' : ''}${snapTripDays ? ` · ${snapTripDays} day${snapTripDays !== 1 ? 's' : ''}` : ''}`
+    const sub = (venueIds.length === 1 ? t('1 stop') : t2('{N} stops', { N: venueIds.length }))
+      + (snapTripDays ? ' · ' + (snapTripDays === 1 ? t('1 day') : t2('{N} days', { N: snapTripDays })) : '')
     let body = ''
     days.forEach((day, dayIdx) => {
       const lunchR = lunchAt(dayIdx, day), dinnerR = dinnerAt(dayIdx, day)
@@ -10535,16 +10539,16 @@ function SavedPlanSummary({ snapshot, onBack, onEdit = null }) {
       let rows = ''
       items.forEach(it => {
         if (it.type === 'meal') {
-          rows += `<div class="meal">🍴 ${it.meal === 'lunch' ? 'Lunch' : 'Dinner'}${it.cuisine ? ' · ' + esc(cuisineLabel(it.cuisine)) : ''} — ${esc(it.r.name)}<span class="mm">${[mealPriceApprox(it.r.price), it.r.neighborhood].filter(Boolean).map(esc).join(' · ')}</span></div>`
+          rows += `<div class="meal">🍴 ${esc(it.meal === 'lunch' ? t('Lunch') : t('Dinner'))}${it.cuisine ? ' · ' + esc(t(cuisineLabel(it.cuisine))) : ''} — ${esc(it.r.name)}<span class="mm">${[mealPriceApprox(it.r.price), it.r.neighborhood].filter(Boolean).map(esc).join(' · ')}</span></div>`
           return
         }
         const s = it.stop
-        const meta = [s.period, s.neighborhood].filter(Boolean).map(esc).join(' · ')
+        const meta = [s.period ? t(s.period) : '', s.neighborhood].filter(Boolean).map(esc).join(' · ')
         rows += `<div class="stop"><div class="time">${esc(fmtHour(s.startHour))}</div><div class="b"><div class="name">${esc(s.name)}</div>${meta ? `<div class="meta">${meta}</div>` : ''}</div></div>`
       })
       body += `<div class="day"><div class="dh"><span>${esc(String(getDayLabel(dayIdx, snapshot.tripStartDate || null)).toUpperCase())}${day.area ? ' · ' + esc(day.area) : ''}</span></div>${rows}</div>`
     })
-    const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>My NYC Trip</title><style>
+    const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(t('My NYC Trip'))}</title><style>
 *{box-sizing:border-box}body{font-family:-apple-system,system-ui,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1d2733;margin:0;padding:28px 24px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 h1{font-size:23px;margin:0 0 2px}.sub{color:#7a8694;font-size:13px;margin-bottom:22px}
 .day{margin-bottom:20px;page-break-inside:avoid}
@@ -10559,10 +10563,10 @@ h1{font-size:23px;margin:0 0 2px}.sub{color:#7a8694;font-size:13px;margin-bottom
 .bar button{background:#E0552C;color:#fff;border:none;border-radius:999px;padding:11px 20px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit}
 @media print{.noprint{display:none!important}body{padding:0}@page{margin:14mm}}
 </style></head><body>
-<div class="bar noprint"><button onclick="window.print()">⬇ Save as PDF</button></div>
-<h1>My NYC Trip</h1><div class="sub">${esc(sub)}</div>
+<div class="bar noprint"><button onclick="window.print()">⬇ ${esc(t('Save as PDF'))}</button></div>
+<h1>${esc(t('My NYC Trip'))}</h1><div class="sub">${esc(sub)}</div>
 ${body}
-<div class="foot">Made with NYC Stoop</div>
+<div class="foot">${esc(t('Made with NYC Stoop'))}</div>
 <script>window.addEventListener('load',function(){setTimeout(function(){try{window.print()}catch(e){}},350)})</script>
 </body></html>`
     printHtmlDoc(html, buildShareText())
@@ -10595,9 +10599,9 @@ ${body}
                 const ev = Object.values(snapshot.events || {}).flat().length
                 n = venueIds.length + m + ev
               }
-              return `${n} stop${n !== 1 ? 's' : ''}`
+              return n === 1 ? t('1 stop') : t2('{N} stops', { N: n })
             })()}
-            {snapTripDays ? ` · ${snapTripDays} day${snapTripDays !== 1 ? 's' : ''}` : ''}
+            {snapTripDays ? ' · ' + (snapTripDays === 1 ? t('1 day') : t2('{N} days', { N: snapTripDays })) : ''}
           </div>
         </div>
         <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '4px 10px', borderRadius: 20 }}>✓ Saved</span>
@@ -10826,7 +10830,7 @@ ${body}
                         <span style={{ fontSize: 18, marginTop: 1 }}>🍴</span>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>
-                            {isLunch ? t('Lunch') : t('Dinner')} · {cuisineLabel(item.cuisine)}
+                            {isLunch ? t('Lunch') : t('Dinner')} · {t(cuisineLabel(item.cuisine))}
                           </div>
                           {/* S2: restaurant names speak in the guide's serif voice,
                               matching the live meal cards. */}
@@ -10839,7 +10843,7 @@ ${body}
                               not beside the map chip — reviewer note 2026-07-20:
                               navigation and booking are different mental categories. */}
                           {item.r.walkIn ? (
-                            <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 6 }}>Walk-ins welcome</div>
+                            <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 6 }}>{t('Walk-ins welcome')}</div>
                           ) : item.r.reservationUrl ? (
                             <a href={item.r.reservationUrl} target="_blank" rel="noopener noreferrer"
                               style={{ display: 'inline-block', marginTop: 6, fontSize: 12.5, fontWeight: 700, color: 'var(--accent-text, var(--accent))', textDecoration: 'none' }}>
@@ -11032,7 +11036,7 @@ function SavedEventsSection({ hiddenIds = null }) {
   return (
     <div style={{ padding: '6px 20px 10px' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10 }}>
-        <h2 style={{ fontFamily: 'var(--serif)', fontWeight: 500, fontSize: 22, margin: 0, letterSpacing: '0.01em', color: 'var(--ink)' }}>Saved events</h2>
+        <h2 style={{ fontFamily: 'var(--serif)', fontWeight: 500, fontSize: 22, margin: 0, letterSpacing: '0.01em', color: 'var(--ink)' }}>{t('Saved events')}</h2>
         <span style={{ fontSize: 11, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--field-clay)', fontWeight: 600 }}>{evs.length}</span>
       </div>
       {/* The collect-then-pin model, said out loud. Since 2026-07-20 events
@@ -11388,9 +11392,9 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
 
   // Build plain-text share summary of itinerary
   function buildShareText() {
-    const lines = ['🗽 My NYC Trip' + (days.length > 1 ? ` — ${days.length} Days` : ''), '']
+    const lines = ['🗽 ' + t('My NYC Trip') + (days.length > 1 ? ' — ' + t2('{N} Days', { N: days.length }) : ''), '']
     days.forEach((day, di) => {
-      lines.push(`Day ${di + 1}${day.area ? ' · ' + day.area : ''}`)
+      lines.push(t2('Day {N}', { N: di + 1 }) + (day.area ? ' · ' + day.area : ''))
       day.stops.forEach(stop => {
         const v = venues[stop.id] || userVenues[stop.id]
         const timeStr = stop.startHour != null
@@ -11407,17 +11411,17 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
       // this text feeds Share AND the native PDF; picks aren't plans.
       const _items = computeDayPlan(day, di).reorderedItems
       if (_items.some(it => it.type === 'restaurant' && it.meal === 'lunch') && lunchRestaurants[di]) {
-        lines.push(`  Lunch: ${lunchRestaurants[di].name}`)
+        lines.push(`  ${t('Lunch')}: ${lunchRestaurants[di].name}`)
       }
       if (_items.some(it => it.type === 'restaurant' && it.meal === 'dinner') && dinnerRestaurants[di]) {
-        lines.push(`  Dinner: ${dinnerRestaurants[di].name}`)
+        lines.push(`  ${t('Dinner')}: ${dinnerRestaurants[di].name}`)
       }
       _items.filter(it => it.type === 'event').forEach(it => {
-        lines.push(`  Event: ${it.event.title}${it.event.location ? ' — ' + it.event.location : ''}`)
+        lines.push(`  ${t('Event')}: ${it.event.title}${it.event.location ? ' — ' + it.event.location : ''}`)
       })
       lines.push('')
     })
-    lines.push('Built with NYC Stoop · nyc-stoop.vercel.app')
+    lines.push(t('Built with NYC Stoop') + ' · nyc-stoop.vercel.app')
     return lines.join('\n')
   }
 
@@ -11434,7 +11438,7 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     })
     const text = buildShareText() + '\n\nOpen the live trip: ' + shareUrl
     if (navigator.share) {
-      navigator.share({ title: 'My NYC Trip', text, url: shareUrl }).catch(() => {})
+      navigator.share({ title: t('My NYC Trip'), text, url: shareUrl }).catch(() => {})
     } else {
       navigator.clipboard?.writeText(text).then(() => {
         setShareCopied(true)
@@ -12207,7 +12211,8 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
   function exportItineraryPdf() {
     const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
     const dayCount = days.length
-    const sub = `${totalStops} stop${totalStops !== 1 ? 's' : ''}${dayCount > 1 ? ` · ${dayCount} days` : ''}`
+    const sub = (totalStops === 1 ? t('1 stop') : t2('{N} stops', { N: totalStops }))
+      + (dayCount > 1 ? ' · ' + t2('{N} days', { N: dayCount }) : '')
     let body = ''
     days.forEach((day, dayIdx) => {
       const dp = computeDayPlan(day, dayIdx)
@@ -12216,16 +12221,16 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
       let rows = ''
       dp.reorderedItems.forEach(it => {
         if (it.type === 'restaurant') {
-          rows += `<div class="meal">🍴 ${it.meal === 'lunch' ? 'Lunch' : 'Dinner'}</div>`
+          rows += `<div class="meal">🍴 ${esc(it.meal === 'lunch' ? t('Lunch') : t('Dinner'))}</div>`
           return
         }
         const s = it.stop
         // Match the in-app cards: period derived from the sequenced clock, no
         // per-stop times (users put exact times in their notes).
-        const t = periodForClock(dp.stopClock[s.id] ?? s.startHour, s.period)
+        const periodLbl = periodForClock(dp.stopClock[s.id] ?? s.startHour, s.period)
         const meta = [s.neighborhood].filter(Boolean).map(esc).join(' · ')
         const note = (venueNotes[s.id] || '').trim()
-        rows += `<div class="stop"><div class="time">${esc(t)}</div><div class="b">`
+        rows += `<div class="stop"><div class="time">${esc(t(periodLbl))}</div><div class="b">`
           + `<div class="name">${esc(s.name)}</div>`
           + (meta ? `<div class="meta">${meta}</div>` : '')
           + (note ? `<div class="note">${esc(note)}</div>` : '')
@@ -12233,7 +12238,7 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
       })
       body += `<div class="day"><div class="dh"><span>${esc(String(label).toUpperCase())}${day.area ? ' · ' + esc(day.area) : ''}</span>${range ? `<span class="rg">${esc(range)}</span>` : ''}</div>${rows}</div>`
     })
-    const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>My NYC Trip</title><style>
+    const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(t('My NYC Trip'))}</title><style>
 *{box-sizing:border-box}body{font-family:-apple-system,system-ui,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1d2733;margin:0;padding:28px 24px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 h1{font-size:23px;margin:0 0 2px}.sub{color:#7a8694;font-size:13px;margin-bottom:22px}
 .day{margin-bottom:20px;page-break-inside:avoid}
@@ -12249,10 +12254,10 @@ h1{font-size:23px;margin:0 0 2px}.sub{color:#7a8694;font-size:13px;margin-bottom
 .bar button{background:#E0552C;color:#fff;border:none;border-radius:999px;padding:11px 20px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit}
 @media print{.noprint{display:none!important}body{padding:0}@page{margin:14mm}}
 </style></head><body>
-<div class="bar noprint"><button onclick="window.print()">⬇ Save as PDF</button></div>
-<h1>My NYC Trip</h1><div class="sub">${esc(sub)}</div>
+<div class="bar noprint"><button onclick="window.print()">⬇ ${esc(t('Save as PDF'))}</button></div>
+<h1>${esc(t('My NYC Trip'))}</h1><div class="sub">${esc(sub)}</div>
 ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'}
-<div class="foot">Made with NYC Stoop</div>
+<div class="foot">${esc(t('Made with NYC Stoop'))}</div>
 <script>window.addEventListener('load',function(){setTimeout(function(){try{window.print()}catch(e){}},350)})</script>
 </body></html>`
     printHtmlDoc(html, buildShareText())
@@ -12427,11 +12432,11 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
               but the chip drawer.) Copy still points at parked saves when
               they exist. */}
           <div style={{ fontSize: 40, marginBottom: 12 }}>🗺️</div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--gray-800)', marginBottom: 8 }}>Nothing to plan yet</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--gray-800)', marginBottom: 8 }}>{t('Nothing to plan yet')}</div>
           <div style={{ fontSize: 14, color: 'var(--gray-500)', lineHeight: 1.6, maxWidth: 280, margin: '0 auto 20px' }}>
             {allVenueIds.length > 0
-              ? 'Re-add a spot from My saved places below, tap “+ Add to Planner” in Explore — or start with a sample weekend.'
-              : 'Tap “+ Add to Planner” on any venue in Explore to add it here — or start with a sample weekend.'}
+              ? t('Re-add a spot from My saved places below, tap “+ Add to Planner” in Explore — or start with a sample weekend.')
+              : t('Tap “+ Add to Planner” on any venue in Explore to add it here — or start with a sample weekend.')}
           </div>
           <button
             onClick={() => {
@@ -12461,7 +12466,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
               fontSize: 14, fontWeight: 700, cursor: 'pointer',
             }}
           >
-            Build me a sample weekend
+            {t('Build me a sample weekend')}
           </button>
         </div>
       )}
@@ -13041,7 +13046,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                                 padding: '2px 8px', borderRadius: 999, border: 'none', cursor: 'pointer',
                                 display: 'inline-flex', alignItems: 'center', gap: 3, whiteSpace: 'nowrap',
                               }}>
-                                <span>{cuisineOpt.emoji}</span><span>{cuisineOpt.label}</span>
+                                <span>{cuisineOpt.emoji}</span><span>{t(cuisineOpt.label)}</span>
                                 <span style={{ opacity: 0.6, marginLeft: 2, transition: 'transform 180ms', display: 'inline-block', transform: isPickerOpen ? 'rotate(90deg)' : 'rotate(0)' }}>›</span>
                               </button>
                             ) : (
@@ -13115,7 +13120,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                                   minWidth: 0,
                                 }}>
                                 <span style={{ fontSize: 12 }}>{opt.emoji}</span>
-                                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{opt.label}</span>
+                                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{t(opt.label)}</span>
                               </button>
                             )
                           })}
@@ -13180,7 +13185,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                       {!restaurant && (
                         <div style={{ fontSize: 13, color: 'var(--gray-400)', fontStyle: 'italic' }}>
                           No spots found for this area yet —
-                          <a onClick={(ev) => { ev.preventDefault(); openMapsChooser({ name: (cuisineOpt?.label || 'restaurants'), area: day.area + ', New York', googleUrl: mapsSearchUrl }) }} href="#" style={{ color: 'var(--gray-500)', marginLeft: 4 }}>browse in Maps →</a>
+                          <a onClick={(ev) => { ev.preventDefault(); openMapsChooser({ name: (cuisineOpt?.label || 'restaurants'), area: day.area + ', New York', googleUrl: mapsSearchUrl }) }} href="#" style={{ color: 'var(--gray-500)', marginLeft: 4 }}>{t('browse in Maps →')}</a>
                         </div>
                       )}
                     </div>
@@ -13394,8 +13399,8 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                               fontSize: 11, color: 'var(--gray-400)', textDecoration: 'none',
                             }}
                           >
-                            {stop.nowPlaying?.title ? `🎟 Book tickets →` :
-                             stop.isEvening ? '🎟 Get tickets →' : '🌐 Visit website →'}
+                            {stop.nowPlaying?.title ? t('🎟 Book tickets →') :
+                             stop.isEvening ? t('🎟 Get tickets →') : t('🌐 Visit website →')}
                           </a>
                         )}
                         {/* Restaurant stops drop "⋯ Options" (2026-07-21, product
@@ -14236,8 +14241,8 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
             <div style={{ textAlign: 'center', padding: '14px 0 8px' }}>
               <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: '-0.01em', color: 'var(--ink)', marginBottom: 6 }}>
                 {totalSaved > 0
-                  ? `You have ${totalSaved} place${totalSaved !== 1 ? 's' : ''} added — build tonight's plan`
-                  : 'Add a few places, then build tonight’s plan'}
+                  ? (totalSaved === 1 ? t("You have 1 place added — build tonight's plan") : t2("You have {N} places added — build tonight's plan", { N: totalSaved }))
+                  : t('Add a few places, then build tonight’s plan')}
               </div>
               {/* 3-step how-it-works row */}
               <div style={{
@@ -14245,9 +14250,9 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                 margin: '14px 0 18px',
               }}>
                 {[
-                  { n: 1, label: 'Add places', sub: 'Tap “+ Add to Planner”' },
-                  { n: 2, label: 'Pick your days', sub: 'Set trip length below' },
-                  { n: 3, label: 'Get a plan', sub: 'We route your day' },
+                  { n: 1, label: t('Add places'), sub: t('Tap “+ Add to Planner”') },
+                  { n: 2, label: t('Pick your days'), sub: t('Set trip length below') },
+                  { n: 3, label: t('Get a plan'), sub: t('We route your day') },
                 ].map(step => (
                   <div key={step.n} style={{
                     background: 'var(--gray-100)', borderRadius: 16, padding: '12px 8px',
@@ -14272,7 +14277,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                   boxShadow: '0 6px 16px rgba(224,85,44,.35)',
                 }}
               >
-                Build tonight&rsquo;s plan
+                {t('Build tonight’s plan')}
               </button>
             </div>
           )
@@ -14290,7 +14295,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                 display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                 gap: 16, padding: '20px 24px',
               }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gray-900)' }}>Remove this plan?</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gray-900)' }}>{t('Remove this plan?')}</div>
                 <div style={{ display: 'flex', gap: 10, width: '100%' }}>
                   <button
                     onClick={() => {
@@ -14303,7 +14308,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                       background: 'var(--gray-900)', color: '#fff', fontWeight: 700, fontSize: 14,
                     }}
                   >
-                    Yes, remove
+                    {t('Yes, remove')}
                   </button>
                   <button
                     onClick={() => setConfirmDelete(false)}
@@ -14313,7 +14318,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                       border: '1px solid var(--gray-200)',
                     }}
                   >
-                    No, keep it
+                    {t('No, keep it')}
                   </button>
                 </div>
               </div>
@@ -14378,18 +14383,18 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                       aria-label="Rename plan"
                       style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', fontSize: 13, color: 'var(--gray-400)', lineHeight: 1, flexShrink: 0 }}
                     >✎</button>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '2px 8px', borderRadius: 20, flexShrink: 0 }}>✓ Saved</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '2px 8px', borderRadius: 20, flexShrink: 0 }}>{t('✓ Saved')}</span>
                   </div>
                 )}
                 <div style={{ fontSize: 12, color: 'var(--gray-500)', lineHeight: 1.5 }}>
                   {/* Meals count as stops — matches the live day summary. */}
-                  {(() => { const ord = snap.itemOrder; let n; if (Array.isArray(ord) && ord.length) { n = ord.reduce((s, d) => s + (Array.isArray(d) ? d.length : 0), 0) } else { const m = Object.values(snap.lunchRestaurants || {}).filter(Boolean).length + Object.values(snap.dinnerRestaurants || {}).filter(Boolean).length; const ev = Object.values(snap.events || {}).flat().length; n = (snap.venueIds?.length || 0) + m + ev } return `${n} stop${n !== 1 ? 's' : ''}` })()}
-                  {snap.tripDays ? ` · ${snap.tripDays} day${snap.tripDays !== 1 ? 's' : ''}` : ''}
+                  {(() => { const ord = snap.itemOrder; let n; if (Array.isArray(ord) && ord.length) { n = ord.reduce((s, d) => s + (Array.isArray(d) ? d.length : 0), 0) } else { const m = Object.values(snap.lunchRestaurants || {}).filter(Boolean).length + Object.values(snap.dinnerRestaurants || {}).filter(Boolean).length; const ev = Object.values(snap.events || {}).flat().length; n = (snap.venueIds?.length || 0) + m + ev } return n === 1 ? t('1 stop') : t2('{N} stops', { N: n }) })()}
+                  {snap.tripDays ? ' · ' + (snap.tripDays === 1 ? t('1 day') : t2('{N} days', { N: snap.tripDays })) : ''}
                   {/* Show count of meals with cuisine set (new mealCuisines shape) or fall back to old format */}
                   {(() => {
                     const mealCount = snap.mealCuisines ? Object.keys(snap.mealCuisines).length
                       : ((snap.lunchCuisine ? 1 : 0) + (snap.dinnerCuisine ? 1 : 0))
-                    return mealCount > 0 ? ` · ${mealCount} meal${mealCount !== 1 ? 's' : ''} picked` : ''
+                    return mealCount > 0 ? ' · ' + (mealCount === 1 ? t('1 meal picked') : t2('{N} meals picked', { N: mealCount })) : ''
                   })()}
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 3, lineHeight: 1.4 }}>
@@ -14489,15 +14494,15 @@ function MyPlansScreen({ userVenues = {}, onStartBuilding = () => {}, onEditPlan
                   display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                   gap: 16, padding: '20px 24px',
                 }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gray-900)' }}>Remove this plan?</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--gray-900)' }}>{t('Remove this plan?')}</div>
                   <div style={{ display: 'flex', gap: 10, width: '100%' }}>
                     <button onClick={() => { writePlanSnapshots(readPlanSnapshots().filter(sn => sn.id !== snap.id)); bump(); setConfirmDelete(false) }}
                       style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', cursor: 'pointer', background: 'var(--gray-900)', color: '#fff', fontWeight: 700, fontSize: 14 }}>
-                      Yes, remove
+                      {t('Yes, remove')}
                     </button>
                     <button onClick={() => setConfirmDelete(false)}
                       style={{ flex: 1, padding: '10px 0', borderRadius: 10, cursor: 'pointer', background: 'var(--gray-100)', color: 'var(--gray-700)', fontWeight: 600, fontSize: 14, border: '1px solid var(--gray-200)' }}>
-                      No, keep it
+                      {t('No, keep it')}
                     </button>
                   </div>
                 </div>
@@ -14544,13 +14549,13 @@ function MyPlansScreen({ userVenues = {}, onStartBuilding = () => {}, onEditPlan
                         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', fontSize: 13, color: 'var(--gray-400)', lineHeight: 1, flexShrink: 0 }}
                       >✎</button>
                       {snap.id === flashId && (
-                        <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '2px 8px', borderRadius: 20, flexShrink: 0 }}>✓ Saved</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '2px 8px', borderRadius: 20, flexShrink: 0 }}>{t('✓ Saved')}</span>
                       )}
                     </div>
                   )}
                   <div style={{ fontSize: 12, color: 'var(--gray-500)', lineHeight: 1.5 }}>
-                    {(() => { const ord = snap.itemOrder; let n; if (Array.isArray(ord) && ord.length) { n = ord.reduce((s, d) => s + (Array.isArray(d) ? d.length : 0), 0) } else { const m = Object.values(snap.lunchRestaurants || {}).filter(Boolean).length + Object.values(snap.dinnerRestaurants || {}).filter(Boolean).length; const ev = Object.values(snap.events || {}).flat().length; n = (snap.venueIds?.length || 0) + m + ev } return `${n} stop${n !== 1 ? 's' : ''}` })()}
-                    {snap.tripDays ? ` · ${snap.tripDays} day${snap.tripDays !== 1 ? 's' : ''}` : ''}
+                    {(() => { const ord = snap.itemOrder; let n; if (Array.isArray(ord) && ord.length) { n = ord.reduce((s, d) => s + (Array.isArray(d) ? d.length : 0), 0) } else { const m = Object.values(snap.lunchRestaurants || {}).filter(Boolean).length + Object.values(snap.dinnerRestaurants || {}).filter(Boolean).length; const ev = Object.values(snap.events || {}).flat().length; n = (snap.venueIds?.length || 0) + m + ev } return n === 1 ? t('1 stop') : t2('{N} stops', { N: n }) })()}
+                    {snap.tripDays ? ' · ' + (snap.tripDays === 1 ? t('1 day') : t2('{N} days', { N: snap.tripDays })) : ''}
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--gray-400)', marginTop: 3, lineHeight: 1.4 }}>
                     {(snap.venueIds || []).map(id => venues[id]?.name || userVenues[id]?.name).filter(Boolean).join(' · ')}
@@ -15439,7 +15444,7 @@ function ImportTakeoutModal({ onClose, onImport }) {
                   type="text"
                   value={neighborhoodLabel}
                   onChange={e => setNeighborhoodLabel(e.target.value)}
-                  placeholder="e.g. Bars I want to try"
+                  placeholder={t('e.g. Bars I want to try')}
                   style={{
                     width: '100%', padding: '10px 12px', fontSize: 14,
                     background: 'var(--gray-100)', border: '1px solid var(--gray-200)',
@@ -15514,7 +15519,7 @@ function ImportTakeoutModal({ onClose, onImport }) {
               opacity: busy ? 0.6 : 1,
             }}
           >
-            {busy ? 'Importing…' : parsed.length > 0 ? `Import ${parsed.length} place${parsed.length !== 1 ? 's' : ''}` : 'Import'}
+            {busy ? t('Importing…') : parsed.length > 0 ? (parsed.length === 1 ? t('Import 1 place') : t2('Import {N} places', { N: parsed.length })) : t('Import')}
           </button>
         </div>
       </div>
@@ -15676,7 +15681,7 @@ function AddStopToDayModal({ onClose, onSelect, userVenues = {}, dayLabel = '' }
             <input
               autoFocus
               type="search"
-              placeholder="Search venues by name…"
+              placeholder={t('Search venues by name…')}
               value={query}
               onChange={e => setQuery(e.target.value)}
               style={{
@@ -15821,9 +15826,9 @@ function AddStopToDayModal({ onClose, onSelect, userVenues = {}, dayLabel = '' }
                 <div style={{ textAlign: 'center', padding: '24px 12px', color: 'var(--gray-400)' }}>
                   <div style={{ fontSize: 24, marginBottom: 6 }}>🔍</div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--gray-600)', marginBottom: 4 }}>
-                    No matches for &ldquo;{query}&rdquo;
+                    {t2('No matches for “{Q}”', { Q: query })}
                   </div>
-                  <div style={{ fontSize: 11 }}>Try a shorter or different name.</div>
+                  <div style={{ fontSize: 11 }}>{t('Try a shorter or different name.')}</div>
                 </div>
               )}
             </>
@@ -16027,7 +16032,7 @@ function AddPlaceModal({ onClose, userVenues, onAdd, onRemove }) {
                   type="text"
                   value={importQuery}
                   onChange={e => setImportQuery(e.target.value)}
-                  placeholder={`Search ${importedExisting.length} imported place${importedExisting.length !== 1 ? 's' : ''}…`}
+                  placeholder={t2('Search {N} imported places…', { N: importedExisting.length })}
                   style={{
                     width: '100%', padding: '8px 12px', fontSize: 13,
                     background: 'var(--card)', border: '1px solid var(--gray-200)',
@@ -16323,21 +16328,21 @@ function OnboardingModal({ onDismiss }) {
   // verbatim in the app ("+ Add to Planner", Planner, My Plans).
   const slides = [
     {
-      eyebrow: 'STEP 1 · SAVE',
-      title: 'Save what\ncatches your eye.',
-      body: 'Places, restaurants, shows — one button everywhere: “+ Add to Planner.” Your saves collect in My saved places.',
+      eyebrow: t('STEP 1 · SAVE'),
+      title: t('Save what\ncatches your eye.'),
+      body: t('Places, restaurants, shows — one button everywhere: “+ Add to Planner.” Your saves collect in My saved places.'),
       art: 1,
     },
     {
-      eyebrow: 'STEP 2 · BUILD A TRIP',
-      title: 'Build your trip\nin the Planner.',
-      body: 'Pick your dates and days, arrange your saves, add a restaurant when you want one — it auto-saves as you edit.',
+      eyebrow: t('STEP 2 · BUILD A TRIP'),
+      title: t('Build your trip\nin the Planner.'),
+      body: t('Pick your dates and days, arrange your saves, add a restaurant when you want one — it auto-saves as you edit.'),
       art: 3,
     },
     {
-      eyebrow: 'STEP 3 · GENERATE ITINERARY',
-      title: 'Generate your\nrouted itinerary.',
-      body: 'Each day grouped by neighborhood with subway directions door to door — save a copy to My Plans and go.',
+      eyebrow: t('STEP 3 · GENERATE ITINERARY'),
+      title: t('Generate your\nrouted itinerary.'),
+      body: t('Each day grouped by neighborhood with subway directions door to door — save a copy to My Plans and go.'),
       art: 2,
     },
   ]
@@ -16369,7 +16374,7 @@ function OnboardingModal({ onDismiss }) {
             fontSize: 13, fontWeight: 700, cursor: 'pointer',
             letterSpacing: '0.02em',
             boxShadow: '0 4px 14px rgba(29,39,51,.08)',
-          }}>Skip</button>
+          }}>{t('Skip')}</button>
         )}
       </div>
 
@@ -16438,7 +16443,7 @@ function OnboardingModal({ onDismiss }) {
           boxShadow: '0 10px 22px rgba(224,85,44,.45)',
           letterSpacing: '-0.005em',
         }}>
-          {isLast ? 'Start Exploring!' : 'Next'}
+          {isLast ? t('Start Exploring!') : t('Next')}
         </button>
       </div>
     </div>
@@ -16464,8 +16469,9 @@ const PROFILE_GLOBAL_KEYS = new Set([
   'nyc_onboarded_v2', 'nyc_map_tut_v1', 'nyc_temp_unit', 'nyc_lang',
   'nyc_tut_explore_v1', 'nyc_tut_tonight_v1', 'nyc_tut_trip_v1', 'nyc_tut_plans_v1',
   // Entitlement is per-device/Apple-ID, NOT per app account — switching
-  // accounts must never lock a purchase the person paid for.
-  'nyc_plus_v1',
+  // accounts must never lock a purchase the person paid for. Same for the
+  // founding-user grant (installed during the free v1.0 era).
+  'nyc_plus_v1', 'nyc_founder_v1', 'nyc_founder_checked_v1',
   'nyc_last_visit', 'nyc_whats_new_dismissed_for', 'nyc_profile_overlays',
 ])
 function _profileDataKeys() {
@@ -16860,9 +16866,31 @@ function SettingsModal({
         </div>
         </div>
 
-        {/* ── Temperature unit — one quiet row, house light-segmented style.
-            (Language toggle held for v1.1 — dictionary + t() wiring live in
-            src/lib/i18n.js; re-add a row like this and unforce 'en'.) ── */}
+        {/* ── Language — same quiet segmented row as Temperature. The label
+            of the *other* language is shown in its own script (中文) so a
+            user stuck in the wrong language can always find the way out. ── */}
+        <div style={{ padding: '0 20px 12px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ flex: 1, fontSize: 14.5, color: 'var(--gray-900)' }}>{t('Language')}</span>
+          <div role="tablist" style={{ display: 'inline-flex', background: 'var(--gray-100)', borderRadius: 999, padding: 3 }}>
+            {[['en', 'English'], ['zh', '中文']].map(([code, label]) => {
+              const on = getLang() === code
+              return (
+                <button key={code} role="tab" aria-selected={on}
+                  onClick={() => { setLang(code); onPrefsChange() }}
+                  style={{
+                    border: 'none', cursor: 'pointer', padding: '5px 14px', borderRadius: 999,
+                    fontSize: 13, fontWeight: on ? 700 : 500, fontFamily: 'inherit',
+                    background: on ? 'var(--white)' : 'transparent',
+                    color: on ? 'var(--gray-900)' : 'var(--gray-500)',
+                    boxShadow: on ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                    transition: 'all 0.15s ease',
+                  }}>{label}</button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* ── Temperature unit — one quiet row, house light-segmented style. ── */}
         <div style={{ padding: '0 20px 12px', display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ flex: 1, fontSize: 14.5, color: 'var(--gray-900)' }}>{t('Temperature')}</span>
           <div role="tablist" style={{ display: 'inline-flex', background: 'var(--gray-100)', borderRadius: 999, padding: 3 }}>
@@ -16933,7 +16961,7 @@ function SettingsModal({
                       autoFocus value={nameDraft}
                       onChange={e => setNameDraft(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') handleSaveName() }}
-                      placeholder="Display name"
+                      placeholder={t('Display name')}
                       style={{
                         flex: 1, padding: '6px 10px', fontSize: 14,
                         border: '1px solid var(--gray-300)', borderRadius: 8,
@@ -17015,7 +17043,15 @@ function SettingsModal({
         <div style={{ borderTop: '1px solid var(--gray-100)' }}>
           {/* Lifetime unlock — hidden while IAP_ENABLED is false (v1.0 ships
               fully free; the purchase arrives with v1.1, see iap.js). */}
-          {IAP_ENABLED && (
+          {IAP_ENABLED && (isFounder() ? (
+            // Founding member — installed during the free v1.0 era: everything
+            // stays unlocked, on the house. Say so instead of selling.
+            <div style={{ ...rowStyle, cursor: 'default' }}>
+              <span style={{ display: 'inline-flex', color: 'var(--gray-500)', fontSize: 15 }}>🏛️</span>
+              <span style={labelStyle}>{t('Founding member')}</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '3px 8px', borderRadius: 20 }}>✓ {t('Everything free, forever')}</span>
+            </div>
+          ) : (
             <button onClick={() => openPaywall('settings')} style={rowStyle}>
               <span style={{ display: 'inline-flex', color: 'var(--gray-500)', fontSize: 15 }}>⭐</span>
               <span style={labelStyle}>{t('Lifetime unlock')}</span>
@@ -17023,7 +17059,7 @@ function SettingsModal({
                 ? <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', background: '#dcfce7', padding: '3px 8px', borderRadius: 20 }}>✓ Unlocked</span>
                 : <span style={{ fontSize: 14, color: 'var(--gray-400)' }}>›</span>}
             </button>
-          )}
+          ))}
           {/* My saved places — the one row that's the user's own content.
               (Import from Google Maps moved INTO that page — an importer is
               by definition thinking about their saved places.) */}
@@ -17221,7 +17257,7 @@ function SharedTripView({ trip, onAdopt, onDismiss }) {
         </div>
         <div style={{ fontSize: 13, opacity: 0.9, lineHeight: 1.5 }}>
           {resolvedItems.length} {resolvedItems.length === 1 ? 'stop' : 'stops'}
-          {trip.days ? ` · ${trip.days} day${trip.days !== 1 ? 's' : ''}` : ''}
+          {trip.days ? ' · ' + (trip.days === 1 ? t('1 day') : t2('{N} days', { N: trip.days })) : ''}
           {trip.start ? ` · arriving ${trip.start.slice(5)}` : ''}
         </div>
       </div>
@@ -17272,7 +17308,7 @@ function SharedTripView({ trip, onAdopt, onDismiss }) {
             fontFamily: 'inherit', fontSize: 14, fontWeight: 700, marginBottom: 10,
           }}
         >
-          {resolvedItems.length === 0 ? 'Nothing to copy' : `Copy ${resolvedItems.length} stop${resolvedItems.length !== 1 ? 's' : ''} to my trip`}
+          {resolvedItems.length === 0 ? t('Nothing to copy') : resolvedItems.length === 1 ? t('Copy 1 stop to my trip') : t2('Copy {N} stops to my trip', { N: resolvedItems.length })}
         </button>
         <button
           onClick={onDismiss}
@@ -17299,10 +17335,10 @@ function PlanNightSheet({ onClose, onBuild }) {
   // admissions and (low tier) seeds the Budget meal cuisine.
   const [start, setStart] = React.useState('night')
   const [budget, setBudget] = React.useState('mid')
-  const whenOpts = [['tonight', 'Today'], ['weekend', 'This weekend']]
-  const startOpts = [['morning', 'Morning'], ['afternoon', 'Afternoon'], ['night', 'Night']]
-  const budgetOpts = [['low', 'Under $25'], ['mid', '$25–50'], ['high', '$50+']]
-  const areaOpts = [['nearme', '📍 Near me'], ['manhattan', 'Manhattan'], ['brooklyn', 'Brooklyn'], ['queens', 'Queens']]
+  const whenOpts = [['tonight', t('Today')], ['weekend', t('This weekend')]]
+  const startOpts = [['morning', t('Morning')], ['afternoon', t('Afternoon')], ['night', t('Night')]]
+  const budgetOpts = [['low', t('Under $25')], ['mid', '$25–50'], ['high', '$50+']]
+  const areaOpts = [['nearme', t('📍 Near me')], ['manhattan', 'Manhattan'], ['brooklyn', 'Brooklyn'], ['queens', 'Queens']]
   const chip = active => ({
     padding: '9px 14px', borderRadius: 999, border: 'none', cursor: 'pointer',
     fontSize: 14, fontWeight: 700,
@@ -17315,24 +17351,24 @@ function PlanNightSheet({ onClose, onBuild }) {
       <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 430, background: 'var(--card)', borderTop: '1px solid rgba(33,27,20,0.08)', borderRadius: '20px 20px 0 0', padding: '18px 20px calc(20px + env(safe-area-inset-bottom, 0px))' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <div>
-            <div style={{ fontSize: 9.5, letterSpacing: '0.24em', color: 'var(--field-clay)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 3 }}>Curated, routed</div>
+            <div style={{ fontSize: 9.5, letterSpacing: '0.24em', color: 'var(--field-clay)', fontWeight: 600, textTransform: 'uppercase', marginBottom: 3 }}>{t('Curated, routed')}</div>
             <div style={{ fontFamily: 'var(--serif)', fontSize: 26, fontWeight: 500, color: 'var(--ink)', lineHeight: 1.05 }}>{t('Plan it!')}</div>
           </div>
           <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--gray-400)', cursor: 'pointer' }}>✕</button>
         </div>
-        <div style={label}>When</div>
+        <div style={label}>{t('When')}</div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
           {whenOpts.map(([k, l]) => <button key={k} onClick={() => setWhen(k)} style={chip(when === k)}>{l}</button>)}
         </div>
-        <div style={label}>When do you want to start?</div>
+        <div style={label}>{t('When do you want to start?')}</div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
           {startOpts.map(([k, l]) => <button key={k} onClick={() => setStart(k)} style={chip(start === k)}>{l}</button>)}
         </div>
-        <div style={label}>Budget per person</div>
+        <div style={label}>{t('Budget per person')}</div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
           {budgetOpts.map(([k, l]) => <button key={k} onClick={() => setBudget(k)} style={chip(budget === k)}>{l}</button>)}
         </div>
-        <div style={label}>Where</div>
+        <div style={label}>{t('Where')}</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 22 }}>
           {areaOpts.map(([k, l]) => <button key={k} onClick={() => setArea(k)} style={chip(area === k)}>{l}</button>)}
         </div>
@@ -17340,7 +17376,7 @@ function PlanNightSheet({ onClose, onBuild }) {
           width: '100%', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 14,
           padding: '15px', fontSize: 16, fontWeight: 800, cursor: 'pointer', boxShadow: '0 6px 16px rgba(190,77,43,.35)',
         }}>
-          Build my plan →
+          {t('Build my plan →')}
         </button>
       </div>
     </div>
@@ -17940,10 +17976,10 @@ export default function App() {
   function getExploreNavTitle() {
     switch (current.screen) {
       case 'home':      return 'NYC Stoop'
-      case 'domain':    return domains[current.domainId]?.name
-      case 'topic':     return topics[current.topicId]?.name
-      case 'venueGroup':return domains[current.domainId]?.venueGroups?.[current.groupIndex]?.label
-      case 'neighborhood': return current.subAreaName || NEIGHBORHOOD_GROUPS.find(g => g.key === current.neighborhoodKey)?.label || 'Neighborhood'
+      case 'domain':    return t(domains[current.domainId]?.name)
+      case 'topic':     { const tp = topics[current.topicId]; return tp ? tTopicF(tp.id, 'name', tp.name) : tp }
+      case 'venueGroup':{ const gl = domains[current.domainId]?.venueGroups?.[current.groupIndex]; const nm = gl?.name || gl?.label; return nm ? tGroupF(nm, 'name', nm) : nm }
+      case 'neighborhood': return current.subAreaName || t(NEIGHBORHOOD_GROUPS.find(g => g.key === current.neighborhoodKey)?.label || 'Neighborhood')
       case 'sight':     return ALL_SIGHTS[current.sightId]?.name || 'Sight'
       case 'venue':     return venues[current.venueId]?.name
       case 'figure':    return figures[current.figureId]?.name
@@ -17989,10 +18025,10 @@ export default function App() {
               stacked ON TOP of the onboarding overlay (z 3000 vs 1000) and
               swallowed its taps on a fresh install. Mounting only after
               dismissal also makes it re-read its localStorage key then. */}
-          {!showOnboarding && <TabTutorial key="nyc_tut_explore_v1" tutKey="nyc_tut_explore_v1" title="Start here" rows={[
-            ['✨', <>Pick a mood — <b>Eat, Drink…</b> — and get a short, curated list.</>],
-            ['🗽', <>Or browse by <b>neighborhood</b> and <b>topic</b> to go deeper.</>],
-            ['🔖', <>Tap <b>+ Add to Planner</b> on anything — your picks build the itinerary.</>],
+          {!showOnboarding && <TabTutorial key="nyc_tut_explore_v1" tutKey="nyc_tut_explore_v1" title={t('Start here')} rows={[
+            ['✨', <>{t('Pick a mood — ')}<b>{t('Eat, Drink…')}</b>{t(' — and get a short, curated list.')}</>],
+            ['🗽', <>{t('Or browse by ')}<b>{t('neighborhood')}</b>{t(' and ')}<b>{t('topic')}</b>{t(' to go deeper.')}</>],
+            ['🔖', <>{t('Tap ')}<b>{t('+ Add to Planner')}</b>{t(' on anything — your picks build the itinerary.')}</>],
           ]} />}
           <HomeScreen push={push} savedItems={savedItems} toggleSave={toggleSave} onSeeAllTonight={() => setActiveTab('tonight')} onOpenSettings={() => setSettingsOpen(true)} onPlanNight={() => setPlanNightOpen(true)} userVenues={userVenues} weather={weather} user={user} />
         </>
@@ -18043,10 +18079,10 @@ export default function App() {
         }
         return (
           <>
-            <TabTutorial key="nyc_tut_tonight_v1" tutKey="nyc_tut_tonight_v1" title="What's on events" rows={[
-              ['🌙', <>The evening lineup — jazz sets, shows, and live events, <b>night by night</b>.</>],
-              ['🗓️', <>Use the <b>day selector</b> to look ahead; the lineup changes with the night.</>],
-              ['🎟️', <>Tap any card for details — <b>On Sale</b> events link straight to tickets.</>],
+            <TabTutorial key="nyc_tut_tonight_v1" tutKey="nyc_tut_tonight_v1" title={t("What's on events")} rows={[
+              ['🌙', <>{t('The evening lineup — jazz sets, shows, and live events, ')}<b>{t('night by night')}</b>{t('.')}</>],
+              ['🗓️', <>{t('Use the ')}<b>{t('day selector')}</b>{t(' to look ahead; the lineup changes with the night.')}</>],
+              ['🎟️', <>{t('Tap any card for details — ')}<b>{t('On Sale')}</b>{t(' events link straight to tickets.')}</>],
             ]} />
             <TonightScreen
               savedItems={savedItems}
@@ -18071,9 +18107,9 @@ export default function App() {
       case 'plans':
         return (
           <>
-            <TabTutorial key="nyc_tut_plans_v1" tutKey="nyc_tut_plans_v1" title="Your saved plans" rows={[
-              ['📁', <>Every plan you <b>Save copy</b> in the Planner lands here — ready to reopen anytime.</>],
-              ['📄', <>Open one for the full itinerary: directions, notes, tickets, and the <b>PDF download</b>.</>],
+            <TabTutorial key="nyc_tut_plans_v1" tutKey="nyc_tut_plans_v1" title={t('Your saved plans')} rows={[
+              ['📁', <>{t('Every plan you ')}<b>{t('Save copy')}</b>{t(' in the Planner lands here — ready to reopen anytime.')}</>],
+              ['📄', <>{t('Open one for the full itinerary: directions, notes, tickets, and the ')}<b>{t('PDF download')}</b>{t('.')}</>],
             ]} />
             <MyPlansScreen userVenues={userVenues} onStartBuilding={() => setActiveTab('saved')} onEditPlan={editPlanInPlanner} />
           </>
@@ -18089,10 +18125,10 @@ export default function App() {
         }
         return (
           <PlanErrorBoundary>
-            <TabTutorial key="nyc_tut_trip_v1" tutKey="nyc_tut_trip_v1" title="Your trip, planned" rows={[
-              ['🗓️', <>Your picks become a routed <b>day-by-day itinerary</b> — drag cards to reorder.</>],
-              ['🍴', <>Lunch & dinner picks appear between stops — <b>Change</b> swaps them, ✕ removes.</>],
-              ['💾', <>Everything <b>auto-saves</b> as you edit — <b>Save copy</b> keeps a named version in Saved plans.</>],
+            <TabTutorial key="nyc_tut_trip_v1" tutKey="nyc_tut_trip_v1" title={t('Your trip, planned')} rows={[
+              ['🗓️', <>{t('Your picks become a routed ')}<b>{t('day-by-day itinerary')}</b>{t(' — drag cards to reorder.')}</>],
+              ['🍴', <>{t('Lunch & dinner picks appear between stops — ')}<b>{t('Change')}</b>{t(' swaps them, ✕ removes.')}</>],
+              ['💾', <>{t('Everything ')}<b>{t('auto-saves')}</b>{t(' as you edit — ')}<b>{t('Save copy')}</b>{t(' keeps a named version in Saved plans.')}</>],
             ]} />
             <PlanScreen
               savedItems={savedItems}

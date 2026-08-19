@@ -30,11 +30,38 @@ export const IAP_ENABLED = false
 const isNativeIos = () =>
   Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios'
 
+// ── Founding users (2026-08-14, product call) ───────────────────────────────
+// Everyone who installed while v1.0 was fully free keeps the FULL app free,
+// forever. Evaluated exactly once, at the first launch of the build carrying
+// this code: if the device already holds NYC Stoop data (v1.0 left
+// nyc_onboarded_v2 / saves / plans behind), the install predates the gate →
+// founder. Fresh installs run this before onboarding writes anything, so
+// they are correctly NOT founders. Device-scoped (like the entitlement);
+// a delete-and-reinstall after 1.1 ships loses it — acceptable.
+const FOUNDER_KEY = 'nyc_founder_v1'
+const FOUNDER_CHECKED_KEY = 'nyc_founder_checked_v1'
+try {
+  if (!localStorage.getItem(FOUNDER_CHECKED_KEY)) {
+    const preexisting = !!(
+      localStorage.getItem('nyc_onboarded_v2') ||
+      localStorage.getItem('nyc_saved') ||
+      localStorage.getItem('nyc_plan_snapshots')
+    )
+    if (preexisting) localStorage.setItem(FOUNDER_KEY, '1')
+    localStorage.setItem(FOUNDER_CHECKED_KEY, '1')
+  }
+} catch {}
+
+export function isFounder() {
+  try { return localStorage.getItem(FOUNDER_KEY) === '1' } catch { return false }
+}
+
 export function hasPlus() {
   try {
     if (!IAP_ENABLED) return true // v1.0: everything free
+    if (localStorage.getItem('nyc_iap_gate_test') === '1') return false // dev: force gates ON
     if (localStorage.getItem(OWNED_KEY) === '1') return true
-    if (localStorage.getItem('nyc_iap_gate_test') === '1') return false
+    if (localStorage.getItem(FOUNDER_KEY) === '1') return true // installed during the free era
     return !isNativeIos() // web: free
   } catch { return true }
 }

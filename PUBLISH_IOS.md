@@ -211,3 +211,7 @@ say: "The app is fully free; no purchases."
 3. Submit the IAP together with the v1.1 version in ASC.
 Note: v1.0 users who built multi-day plans keep them; gates only apply
 going forward (existing snapshots still open).
+
+
+## Founding users (added 2026-08-14)
+Installs that predate the IAP gate (any v1.0 data on device at first 1.1 launch) get `nyc_founder_v1` → fully free forever. Settings shows a Founding member row. Ships dormant; activates automatically when IAP_ENABLED flips.
