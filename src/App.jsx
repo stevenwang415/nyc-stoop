@@ -10419,11 +10419,23 @@ function SavedPlanSummary({ snapshot, onBack, onEdit = null }) {
     return _url
   }
 
+  // A meal belongs in exports ONLY if its card is in the saved sequence
+  // (2026-08-19): the snapshot stores lunch/dinnerRestaurants as reference
+  // data even when the user ✕'d the card before saving — deriving exports
+  // from their mere presence resurrected removed meals in the PDF while the
+  // on-screen saved view (which replays itemOrder) correctly hid them.
+  // Legacy snapshots without itemOrder keep the old presence-based behavior.
+  function mealInSavedOrder(dayIdx, meal) {
+    const ord = snapshot.itemOrder?.[dayIdx]
+    if (!Array.isArray(ord) || !ord.length) return true
+    return ord.some(o => o.t === 'm' && o.meal === meal)
+  }
+
   function buildShareText() {
     const lines = ['🗽 ' + t('My NYC Trip') + (days.length > 1 ? ' — ' + t2('{N} Days', { N: days.length }) : ''), '']
     days.forEach((day, di) => {
       lines.push(t2('Day {N}', { N: di + 1 }) + (day.area ? ' · ' + day.area : ''))
-      day.stops.forEach(stop => {
+      const stopLine = (stop) => {
         const v = venues[stop.id]
         const timeStr = stop.startHour != null
           ? (() => {
@@ -10434,11 +10446,26 @@ function SavedPlanSummary({ snapshot, onBack, onEdit = null }) {
             })()
           : ''
         lines.push(`  ${timeStr ? timeStr + ' · ' : ''}${v?.name || stop.id}${v?.neighborhood ? ' (' + v.neighborhood + ')' : ''}`)
-      })
-      const lR = lunchAt(di, day)
-      const dR = dinnerAt(di, day)
-      if (lR)  lines.push(`  ${t('Lunch')}: ${lR.name}`)
-      if (dR)  lines.push(`  ${t('Dinner')}: ${dR.name}`)
+      }
+      const lR = mealInSavedOrder(di, 'lunch') ? lunchAt(di, day) : null
+      const dR = mealInSavedOrder(di, 'dinner') ? dinnerAt(di, day) : null
+      const _ord = snapshot.itemOrder?.[di]
+      if (Array.isArray(_ord) && _ord.length) {
+        // SHARE ORDER = SCREEN ORDER (2026-08-19): meals interleave where the
+        // user placed them instead of trailing after every stop.
+        const stopById = {}; (day.stops || []).forEach(s => { stopById[s.id] = s })
+        _ord.forEach(o => {
+          if (o.t === 's' && stopById[o.id]) stopLine(stopById[o.id])
+          else if (o.t === 'm') {
+            const r = o.meal === 'lunch' ? lR : dR
+            if (r) lines.push(`  ${o.meal === 'lunch' ? t('Lunch') : t('Dinner')}: ${r.name}`)
+          }
+        })
+      } else {
+        day.stops.forEach(stopLine)
+        if (lR)  lines.push(`  ${t('Lunch')}: ${lR.name}`)
+        if (dR)  lines.push(`  ${t('Dinner')}: ${dR.name}`)
+      }
       lines.push('')
     })
     lines.push(t('Built with NYC Stoop') + ' · nyc-stoop.vercel.app')
@@ -10467,17 +10494,34 @@ function SavedPlanSummary({ snapshot, onBack, onEdit = null }) {
       + (snapTripDays ? ' · ' + (snapTripDays === 1 ? t('1 day') : t2('{N} days', { N: snapTripDays })) : '')
     let body = ''
     days.forEach((day, dayIdx) => {
-      const lunchR = lunchAt(dayIdx, day), dinnerR = dinnerAt(dayIdx, day)
+      const lunchR = mealInSavedOrder(dayIdx, 'lunch') ? lunchAt(dayIdx, day) : null
+      const dinnerR = mealInSavedOrder(dayIdx, 'dinner') ? dinnerAt(dayIdx, day) : null
       const hasAfternoon = (day.stops || []).some(s => s.period === 'Afternoon')
       const items = []
-      let la = false, da = false
-      ;(day.stops || []).forEach(stop => {
-        if (!la && lunchR && (stop.period === 'Afternoon' || (!hasAfternoon && stop.period === 'Evening'))) { items.push({ type: 'meal', meal: 'lunch', r: lunchR, cuisine: lunchCuisineAt(dayIdx) }); la = true }
-        if (!da && dinnerR && stop.period === 'Evening') { items.push({ type: 'meal', meal: 'dinner', r: dinnerR, cuisine: dinnerCuisineAt(dayIdx) }); da = true }
-        items.push({ type: 'stop', stop })
-      })
-      if (!la && lunchR) items.push({ type: 'meal', meal: 'lunch', r: lunchR, cuisine: lunchCuisineAt(dayIdx) })
-      if (!da && dinnerR) items.push({ type: 'meal', meal: 'dinner', r: dinnerR, cuisine: dinnerCuisineAt(dayIdx) })
+      const _ord = snapshot.itemOrder?.[dayIdx]
+      if (Array.isArray(_ord) && _ord.length) {
+        // PDF ORDER = SCREEN ORDER (2026-08-19): replay the snapshot's exact
+        // card sequence, same as the on-screen saved view — the old period-
+        // based re-derivation pushed restaurants after all the stops.
+        const stopById = {}; (day.stops || []).forEach(s => { stopById[s.id] = s })
+        _ord.forEach(o => {
+          if (o.t === 's' && stopById[o.id]) items.push({ type: 'stop', stop: stopById[o.id] })
+          else if (o.t === 'm') {
+            const r = o.meal === 'lunch' ? lunchR : dinnerR
+            if (r) items.push({ type: 'meal', meal: o.meal, r, cuisine: o.meal === 'lunch' ? lunchCuisineAt(dayIdx) : dinnerCuisineAt(dayIdx) })
+          }
+        })
+      } else {
+        // Legacy snapshots (pre-itemOrder): period-based derivation.
+        let la = false, da = false
+        ;(day.stops || []).forEach(stop => {
+          if (!la && lunchR && (stop.period === 'Afternoon' || (!hasAfternoon && stop.period === 'Evening'))) { items.push({ type: 'meal', meal: 'lunch', r: lunchR, cuisine: lunchCuisineAt(dayIdx) }); la = true }
+          if (!da && dinnerR && stop.period === 'Evening') { items.push({ type: 'meal', meal: 'dinner', r: dinnerR, cuisine: dinnerCuisineAt(dayIdx) }); da = true }
+          items.push({ type: 'stop', stop })
+        })
+        if (!la && lunchR) items.push({ type: 'meal', meal: 'lunch', r: lunchR, cuisine: lunchCuisineAt(dayIdx) })
+        if (!da && dinnerR) items.push({ type: 'meal', meal: 'dinner', r: dinnerR, cuisine: dinnerCuisineAt(dayIdx) })
+      }
       let rows = ''
       items.forEach(it => {
         if (it.type === 'meal') {
@@ -11337,29 +11381,32 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     const lines = ['🗽 ' + t('My NYC Trip') + (days.length > 1 ? ' — ' + t2('{N} Days', { N: days.length }) : ''), '']
     days.forEach((day, di) => {
       lines.push(t2('Day {N}', { N: di + 1 }) + (day.area ? ' · ' + day.area : ''))
-      day.stops.forEach(stop => {
-        const v = venues[stop.id] || userVenues[stop.id]
-        const timeStr = stop.startHour != null
-          ? (() => {
-              const h = Math.floor(stop.startHour)
-              const mm = stop.startHour % 1 === 0.5 ? '30' : '00'
-              const ampm = h >= 12 ? 'pm' : 'am'
-              return (h > 12 ? h - 12 : h || 12) + ':' + mm + ampm
-            })()
-          : ''
-        lines.push(`  ${timeStr ? timeStr + ' · ' : ''}${v?.name || stop.name || stop.id}${v?.neighborhood ? ' (' + v.neighborhood + ')' : ''}`)
-      })
-      // Meals only when their card is actually IN the day (2026-07-21) —
-      // this text feeds Share AND the native PDF; picks aren't plans.
-      const _items = computeDayPlan(day, di).reorderedItems
-      if (_items.some(it => it.type === 'restaurant' && it.meal === 'lunch') && lunchRestaurants[di]) {
-        lines.push(`  ${t('Lunch')}: ${lunchRestaurants[di].name}`)
-      }
-      if (_items.some(it => it.type === 'restaurant' && it.meal === 'dinner') && dinnerRestaurants[di]) {
-        lines.push(`  ${t('Dinner')}: ${dinnerRestaurants[di].name}`)
-      }
-      _items.filter(it => it.type === 'event').forEach(it => {
-        lines.push(`  ${t('Event')}: ${it.event.title}${it.event.location ? ' — ' + it.event.location : ''}`)
+      // EXPORT ORDER = SCREEN ORDER (2026-08-19): iterate the same reconciled
+      // card sequence the Planner renders (stops, meals, and events interleaved
+      // exactly where the user placed them) instead of stops-then-meals-then-
+      // events, which shoved every restaurant to the bottom of the day in the
+      // PDF. Times come from the sequenced stopClock, matching the cards.
+      const _dp = computeDayPlan(day, di)
+      _dp.reorderedItems.forEach(it => {
+        if (it.type === 'stop') {
+          const stop = it.stop
+          const v = venues[stop.id] || userVenues[stop.id]
+          const hr = _dp.stopClock?.[stop.id] ?? stop.startHour
+          const timeStr = hr != null
+            ? (() => {
+                const h = Math.floor(hr)
+                const mm = hr % 1 >= 0.5 ? '30' : '00'
+                const ampm = h >= 12 ? 'pm' : 'am'
+                return (h > 12 ? h - 12 : h || 12) + ':' + mm + ampm
+              })()
+            : ''
+          lines.push(`  ${timeStr ? timeStr + ' · ' : ''}${v?.name || stop.name || stop.id}${v?.neighborhood ? ' (' + v.neighborhood + ')' : ''}`)
+        } else if (it.type === 'restaurant') {
+          const r = it.meal === 'lunch' ? lunchRestaurants[di] : dinnerRestaurants[di]
+          if (r) lines.push(`  ${it.meal === 'lunch' ? t('Lunch') : t('Dinner')}: ${r.name}`)
+        } else if (it.type === 'event') {
+          lines.push(`  ${t('Event')}: ${it.event.title}${it.event.location ? ' — ' + it.event.location : ''}`)
+        }
       })
       lines.push('')
     })
