@@ -5516,13 +5516,15 @@ function BoroughReferenceMap({ borough, pins, selectedArea, height = 280 }) {
     pins.forEach(p => {
       const isInSelected = selectedArea && p.areaId === selectedArea
       const isDimmed     = selectedArea && !isInSelected
-      const marker = L.circleMarker([p.lat, p.lng], {
-        radius: isInSelected ? 8 : 5,
-        fillColor: p.color || '#1d4ed8',
-        color: '#ffffff',
-        weight: isInSelected ? 2 : 1.5,
-        fillOpacity: isDimmed ? 0.25 : 0.95,
-        opacity:     isDimmed ? 0.4  : 1,
+      const marker = L.marker([p.lat, p.lng], {
+        icon: mapDotIcon(L, {
+          color: p.color || '#1d4ed8',
+          size: isInSelected ? 16 : 10,
+          ring: '#ffffff',
+          ringW: isInSelected ? 2 : 1.5,
+          opacity: isDimmed ? 0.3 : 0.95,
+        }),
+        keyboard: false,
       })
       marker.bindTooltip(p.name, { direction: 'top', offset: [0, -8], opacity: 0.95 })
       marker.addTo(map)
@@ -7786,6 +7788,22 @@ const MAP_DOMAIN_COLORS = {
   hip_hop:        '#3A3A8C',
   food:           '#C1876B',
 }
+
+// ── Map dot icons ───────────────────────────────────────────────────────────
+// HTML divIcon dots instead of L.circleMarker: vector circleMarkers are frozen
+// (or hidden) during Leaflet's zoom animation, so pins visibly "stick" mid-
+// pinch and jump when the zoom settles. DOM markers ride the marker pane's
+// CSS transform, tracking the map continuously while staying glued to their
+// true lat/lng. Fixed pixel size at every zoom, same as the old radii.
+function mapDotIcon(L, { color, size = 16, ring = '#fff', ringW = 2.5, opacity = 1 }) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};border:${ringW}px solid ${ring};box-sizing:border-box;opacity:${opacity};box-shadow:0 1px 3px rgba(0,0,0,.25)"></div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  })
+}
+
 const MAP_DOMAIN_LEGEND_LABELS = {
   visual_art: 'Art', jazz: 'Jazz', classical_music: 'Classical', sports: 'Sports',
   architecture: 'Architecture', theater: 'Theater', history: 'History', hip_hop: 'Hip-Hop', food: 'Food',
@@ -8025,18 +8043,12 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
       const isSaved = !!savedItems[`venue:${venueId}`]
 
       // Saved venues: bigger, pink outline ring, full opacity to pop on the map
-      const marker = L.circleMarker([info.lat, info.lng], isSaved ? {
-        radius: 11,
-        fillColor: color,
-        color: '#ff4d7d',
-        weight: 3,
-        fillOpacity: 1,
-      } : {
-        radius: 8,
-        fillColor: color,
-        color: '#fff',
-        weight: 2.5, // thicker white halo so muted category colors stay glanceable on the light basemap
-        fillOpacity: 0.95,
+      const marker = L.marker([info.lat, info.lng], {
+        icon: isSaved
+          ? mapDotIcon(L, { color, size: 22, ring: '#ff4d7d', ringW: 3 })
+          // thicker white halo so muted category colors stay glanceable on the light basemap
+          : mapDotIcon(L, { color, size: 16, ring: '#fff', ringW: 2.5, opacity: 0.95 }),
+        keyboard: false,
       })
       marker.on('click', () => { setSelectedRest(null); setSelectedVenueId(venueId) })
       marker.bindTooltip(venue.name, { permanent: false, direction: 'top', offset: [0, -8] })
@@ -8055,10 +8067,11 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
         if (!c) return
         const exUv = Object.values(userVenues || {}).find(v => v?.name === r.name)
         const isSaved = !!(exUv && savedItems[`user_venue:${exUv.id}`])
-        const marker = L.circleMarker([c[0], c[1]], isSaved ? {
-          radius: 11, fillColor: MAP_DOMAIN_COLORS.food, color: '#ff4d7d', weight: 3, fillOpacity: 1,
-        } : {
-          radius: 7, fillColor: MAP_DOMAIN_COLORS.food, color: '#fff', weight: 2, fillOpacity: 0.92,
+        const marker = L.marker([c[0], c[1]], {
+          icon: isSaved
+            ? mapDotIcon(L, { color: MAP_DOMAIN_COLORS.food, size: 22, ring: '#ff4d7d', ringW: 3 })
+            : mapDotIcon(L, { color: MAP_DOMAIN_COLORS.food, size: 14, ring: '#fff', ringW: 2, opacity: 0.92 }),
+          keyboard: false,
         })
         marker.on('click', () => { setSelectedVenueId(null); setSelectedRest(r) })
         marker.bindTooltip(r.name, { permanent: false, direction: 'top', offset: [0, -8] })
