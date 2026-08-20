@@ -83,6 +83,14 @@ translations live in sidecar files.
   joined key exists in the dict ('MIDTOWN WEST'). Add joined keys per language.
 - **Language switch re-render**: `setLang()` + `onPrefsChange()` re-renders the
   tree; language persists in `nyc_lang` (device-scoped, in PROFILE_GLOBAL_KEYS).
-- **PDF export**: jsPDF has no CJK font by default — zh may need a bundled
-  NotoSansTC subset (still untested on device). Latin-script languages are fine.
+- **PDF export**: jsPDF has no CJK font by default — SOLVED 2026-08-19 for zh:
+  `src/lib/pdfFontZh.js` holds a 915KB NotoSansTC subset (all 2,727 CJK chars
+  in our translations + Latin + punctuation + date/price vocabulary),
+  lazy-loaded only on the zh PDF path in `printHtmlDoc`. Caveat: rare chars a
+  user types into a note can render blank. Regenerate when dictionaries grow:
+  extract unique CJK chars from i18n.js + both sidecars → `pyftsubset
+  NotoSansTC_400Regular.ttf --text-file=chars.txt
+  --unicodes="U+0020-007E,U+00A0-00FF,U+2013-2026" --layout-features=''
+  --no-hinting --desubroutinize` → base64 into pdfFontZh.js. Latin-script
+  languages (Spanish) need nothing.
 - **Search** matches English names/fields regardless of UI language — keep it so.

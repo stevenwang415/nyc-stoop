@@ -10085,14 +10085,28 @@ async function printHtmlDoc(html, plainText = null) {
   if (_isNative && plainText) {
     try {
       const doc = new jsPDF({ unit: 'pt', format: 'letter' })
+      // Chinese export: jsPDF's built-in fonts are Latin-only — CJK text
+      // renders as garbage. Lazy-load the NotoSansTC subset (~1.2MB, only on
+      // this path) and use it for BOTH weights (the subset has one weight;
+      // registering it as 'bold' too keeps the setFont calls uniform).
+      let FONT = 'helvetica'
+      if (getLang() === 'zh') {
+        try {
+          const { NOTO_TC_B64 } = await import('./lib/pdfFontZh.js')
+          doc.addFileToVFS('NotoSansTC.ttf', NOTO_TC_B64)
+          doc.addFont('NotoSansTC.ttf', 'NotoTC', 'normal')
+          doc.addFont('NotoSansTC.ttf', 'NotoTC', 'bold')
+          FONT = 'NotoTC'
+        } catch { /* font load failed → Latin fallback (better than no PDF) */ }
+      }
       const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight()
       const M = 54; let y = M
       const lines = String(plainText).split('\n')
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(20)
+      doc.setFont(FONT, 'bold'); doc.setFontSize(20)
       doc.text(lines[0] || t('My NYC Trip'), M, y); y += 30
       for (const raw of lines.slice(1)) {
-        const isDay = /^Day \d/.test(raw.trim())
-        doc.setFont('helvetica', isDay ? 'bold' : 'normal')
+        const isDay = /^Day \d/.test(raw.trim()) || /^第 ?\d+ ?天/.test(raw.trim())
+        doc.setFont(FONT, isDay ? 'bold' : 'normal')
         doc.setFontSize(isDay ? 13 : 11)
         const wrapped = doc.splitTextToSize(raw || ' ', W - M * 2)
         for (const wl of wrapped) {
