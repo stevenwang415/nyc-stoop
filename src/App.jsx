@@ -11943,6 +11943,19 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     setMealSkipped(dayIdx, 'dinner', false)
     setMealSkipped(dayIdx, 'lunch', false)
   }
+  // Ghost-click guard (2026-08-19): the meal-✕ fires on BOTH pointerup and
+  // click (WKWebView tap-swallow workaround). On touch screens the tap's
+  // pointerup removes the card, the layout collapses upward, and the trailing
+  // click event lands on the NEXT meal card's ✕ that slid under the finger —
+  // deleting both meals with one tap. Two skips within 400ms are physically
+  // the same tap, so the second is dropped.
+  const mealSkipTapRef = React.useRef(0)
+  const skipMealTap = (dayIdx, meal) => {
+    const now = Date.now()
+    if (now - mealSkipTapRef.current < 400) return
+    mealSkipTapRef.current = now
+    setMealSkipped(dayIdx, meal, true)
+  }
   function setMealSkipped(dayIdx, meal, on) {
     setSkippedMeals(prev => {
       const day = { ...(prev[dayIdx] || {}) }
@@ -13001,11 +13014,12 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                                 "+ Lunch/Dinner" chip below the day. */}
                             <button
                               type="button"
-                              onClick={() => setMealSkipped(dayIdx, item.meal, true)}
+                              onClick={() => skipMealTap(dayIdx, item.meal)}
                               // WKWebView belt-and-braces: if the synthesized
                               // click is swallowed on-device, pointerup still
-                              // fires. Idempotent action → double-fire is fine.
-                              onPointerUp={() => setMealSkipped(dayIdx, item.meal, true)}
+                              // fires. skipMealTap dedupes the double-fire AND
+                              // blocks the ghost-click on the next card's ✕.
+                              onPointerUp={() => skipMealTap(dayIdx, item.meal)}
                               aria-label={`Remove ${item.meal} from this day`}
                               style={{
                                 // Plain ✕ glyph (matches the band ✕s on place
