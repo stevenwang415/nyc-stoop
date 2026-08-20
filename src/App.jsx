@@ -4983,10 +4983,21 @@ function weatherLine(weather, hour) {
   return null
 }
 
-// Browser geolocation → Promise<{ lat, lng }>. The "allow location" prompt is
-// the browser's own native dialog; we just call this. Rejects on denial,
-// unsupported, or timeout — callers disable "Near me" in those cases.
+// Geolocation → Promise<{ lat, lng }>. On NATIVE iOS this must go through the
+// Capacitor plugin: the webview's own geolocation prompt names the webview
+// origin — users see «"localhost" would like to use your location» instead of
+// the app. The plugin triggers the real iOS dialog («Allow "NYC Stoop"…») with
+// the NSLocationWhenInUseUsageDescription purpose string from Info.plist.
+// On the web we keep navigator.geolocation (the browser names the domain).
+// Rejects on denial, unsupported, or timeout — callers disable "Near me".
 function getUserLocation() {
+  const isNative = (() => { try { return Capacitor.isNativePlatform() } catch { return false } })()
+  if (isNative) {
+    return import('@capacitor/geolocation').then(({ Geolocation }) =>
+      Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: 9000, maximumAge: 300000 })
+        .then(pos => ({ lat: pos.coords.latitude, lng: pos.coords.longitude }))
+    )
+  }
   return new Promise((resolve, reject) => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) { reject(new Error('unsupported')); return }
     navigator.geolocation.getCurrentPosition(
@@ -17616,14 +17627,9 @@ export default function App() {
     // Denied/unavailable → quietly falls back to the whole city.
     let userPos = null
     if (areaKey === 'nearme') {
-      userPos = await new Promise(resolve => {
-        if (!navigator.geolocation) return resolve(null)
-        navigator.geolocation.getCurrentPosition(
-          p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
-          () => resolve(null),
-          { timeout: 6000, maximumAge: 300000 }
-        )
-      })
+      // Route through getUserLocation() so native iOS gets the app-named
+      // permission dialog (not the webview's "localhost" prompt).
+      userPos = await getUserLocation().catch(() => null)
     }
     // "Tonight" must actually feel like a NIGHT: pick evening venues (jazz /
     // classical / theater) so the itinerary builder routes them into Evening
