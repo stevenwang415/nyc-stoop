@@ -381,6 +381,14 @@ const ZH = {
   "What to listen for": "聆聽重點",
   "What to look for": "觀看重點",
   "Why it matters": "為什麼重要",
+  // ── Map filters + user place categories ──
+  "Art": "藝術",
+  "Classical": "經典",
+  "Food": "食物",
+  "Art / Museum": "藝術／博物館",
+  "Shopping": "購物",
+  "Activity": "活動體驗",
+  "Other": "其他",
 }
 
 // ── Editorial content lookup (place descriptions / insider tips) ────────────

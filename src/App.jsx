@@ -9234,7 +9234,7 @@ function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onV
                 color: isActive ? 'var(--white)' : 'var(--gray-600)',
                 display: 'inline-flex', alignItems: 'center', gap: 6,
               }}>
-                <span>{f.label}</span>
+                <span>{t(f.label)}</span>
                 <span style={{
                   fontSize: 11, fontWeight: 700,
                   color: isActive ? 'rgba(255,255,255,0.8)' : 'var(--gray-500)',
@@ -9352,7 +9352,7 @@ function TonightScreen({ onNavigate, savedItems = {}, toggleSave = () => {}, onV
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {picks.map(pick => {
                   const tint = domainColors[pick.domain] || '#666'
-                  const label = TONIGHT_DOMAIN_LABELS[pick.domain] || pick.domain
+                  const label = t(TONIGHT_DOMAIN_LABELS[pick.domain] || pick.domain)
                   const isSaved = !!savedItems[`venue:${pick.venueId}`]
                   const domainObj = domains[pick.domain]
                   return (
@@ -15438,7 +15438,7 @@ function ImportTakeoutModal({ onClose, onImport }) {
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
                       }}>
                         <span style={{ fontSize: 12 }}>{c.emoji}</span>
-                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.label}</span>
+                        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t(c.label)}</span>
                       </button>
                     )
                   })}
@@ -16137,7 +16137,7 @@ function AddPlaceModal({ onClose, userVenues, onAdd, onRemove }) {
                     color: active ? '#fff' : 'var(--gray-600)',
                   }}>
                     <span style={{ fontSize: 12 }}>{c.emoji}</span>
-                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.label}</span>
+                    <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t(c.label)}</span>
                   </button>
                 )
               })}
