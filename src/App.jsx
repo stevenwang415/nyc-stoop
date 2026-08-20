@@ -4498,13 +4498,13 @@ function EatScreen({ push, savedItems = {}, userVenues = {}, toggleSave = () => 
         <div style={{ padding: '0 20px 8px', fontSize: 12, fontWeight: 700, letterSpacing: '0.03em', color: 'var(--gray-700)' }}>Where are you?</div>
         <div className="hide-scrollbar" style={{ display: 'flex', gap: 6, overflowX: 'auto', padding: '0 20px 2px' }}>
           <Pill active={!nearArea} onClick={() => { setNearArea(null); setWhereBorough('all') }}>🗽 All NYC</Pill>
-          <Pill active={whereBorough === 'manhattan'} onClick={() => { setWhereBorough('manhattan'); setNearArea({ borough: 'manhattan', areaId: null, label: 'Manhattan' }) }}>Manhattan</Pill>
-          <Pill active={whereBorough === 'brooklyn'} onClick={() => { setWhereBorough('brooklyn'); setNearArea({ borough: 'brooklyn', areaId: null, label: 'Brooklyn' }) }}>Brooklyn</Pill>
-          <Pill active={false} onClick={handleNearMeEat} style={geoStatus === 'denied' ? { opacity: 0.5 } : {}}>📍 {geoStatus === 'locating' ? 'Locating…' : geoStatus === 'denied' ? 'Location off' : 'Near me'}</Pill>
+          <Pill active={whereBorough === 'manhattan'} onClick={() => { setWhereBorough('manhattan'); setNearArea({ borough: 'manhattan', areaId: null, label: 'Manhattan' }) }}>{t('Manhattan')}</Pill>
+          <Pill active={whereBorough === 'brooklyn'} onClick={() => { setWhereBorough('brooklyn'); setNearArea({ borough: 'brooklyn', areaId: null, label: 'Brooklyn' }) }}>{t('Brooklyn')}</Pill>
+          <Pill active={false} onClick={handleNearMeEat} style={geoStatus === 'denied' ? { opacity: 0.5 } : {}}>📍 {geoStatus === 'locating' ? t('Locating…') : geoStatus === 'denied' ? t('Location off') : t('Near me')}</Pill>
         </div>
         {whereBorough !== 'all' && (
           <div className="hide-scrollbar" style={{ display: 'flex', gap: 6, overflowX: 'auto', padding: '8px 20px 2px' }}>
-            <Pill active={!!nearArea && !nearArea.areaId} onClick={() => setNearArea({ borough: whereBorough, areaId: null, label: whereBorough === 'manhattan' ? 'Manhattan' : 'Brooklyn' })}>All {whereBorough === 'manhattan' ? 'Manhattan' : 'Brooklyn'}</Pill>
+            <Pill active={!!nearArea && !nearArea.areaId} onClick={() => setNearArea({ borough: whereBorough, areaId: null, label: whereBorough === 'manhattan' ? 'Manhattan' : 'Brooklyn' })}>{t(whereBorough === 'manhattan' ? 'All Manhattan' : 'All Brooklyn')}</Pill>
             {(MOOD_MAP_AREAS[whereBorough] || []).map(a => (
               <Pill key={a.id} active={!!nearArea && nearArea.areaId === a.id} onClick={() => setNearArea({ borough: whereBorough, areaId: a.id, label: a.label })}>{a.label}</Pill>
             ))}
@@ -4567,7 +4567,7 @@ function EatScreen({ push, savedItems = {}, userVenues = {}, toggleSave = () => 
         </FilterRow>
         <FilterRow label="Where" count={nearArea ? 1 : 0}>
           <Pill active={!!nearArea} onClick={nearArea ? () => setNearArea(null) : handleNearMeEat} style={geoStatus === 'denied' ? { opacity: 0.5 } : {}}>
-            📍 {geoStatus === 'locating' ? 'Locating…' : nearArea ? `Near me · ${nearArea.label}` : geoStatus === 'denied' ? 'Location off' : 'Near me'}
+            📍 {geoStatus === 'locating' ? t('Locating…') : nearArea ? `${t('Near me')} · ${t(nearArea.label)}` : geoStatus === 'denied' ? t('Location off') : t('Near me')}
           </Pill>
           <span style={{ fontSize: 11, color: 'var(--gray-400)', alignSelf: 'center', whiteSpace: 'nowrap', paddingLeft: 2 }}>or tap an area on the map below ↓</span>
         </FilterRow>
@@ -5103,6 +5103,15 @@ const MOOD_MAP_SVG = {
   },
 }
 
+
+// zh: schematic-map area names render as ONE line in Chinese (上城, 中城西…)
+// when a translation exists for the joined English label; otherwise the
+// original (possibly multi-line array) label passes through untouched.
+function mapAreaLabel(label) {
+  const joined = (Array.isArray(label) ? label.join(' ') : label).replace(/- /g, '')
+  const zh = t(joined)
+  return zh !== joined ? zh : label
+}
 // ── Detailed Manhattan neighborhood map (Map tab "Neighborhoods" view) ──────
 // The richer 19-area split, rendered as a tappable schematic. Tapping an area
 // pans the real Leaflet map (see MANHATTAN_DETAIL_CENTERS + MapScreen).
@@ -5228,7 +5237,7 @@ function ManhattanDetailMap({ selectedArea = null, onSelectArea = () => {} }) {
           <text key={'r' + i} x={r.at[0]} y={r.at[1]}
             transform={r.rotate ? `rotate(${r.rotate} ${r.at[0]} ${r.at[1]})` : undefined}
             fontSize="9" fill="#7aa0c4" fontStyle="italic" textAnchor="middle"
-            style={{ pointerEvents: 'none', fontFamily: 'inherit' }}>{r.label}</text>
+            style={{ pointerEvents: 'none', fontFamily: 'inherit' }}>{t(r.label)}</text>
         ))}
         {D.areas.map(a => {
           const active = selectedArea === a.id
@@ -5238,13 +5247,13 @@ function ManhattanDetailMap({ selectedArea = null, onSelectArea = () => {} }) {
                 stroke={active ? '#0f172a' : '#ffffff'} strokeWidth={active ? 3 : 1.4} strokeLinejoin="round" />
               <text x={a.labelAt[0]} y={a.labelAt[1]} fontSize={a.labelSize || 11} fontWeight="800"
                 fill="#33414d" textAnchor="middle" letterSpacing="0.02"
-                style={{ pointerEvents: 'none', fontFamily: 'inherit' }}>{a.label}</text>
+                style={{ pointerEvents: 'none', fontFamily: 'inherit' }}>{(l => Array.isArray(l) ? l.join(' ') : l)(mapAreaLabel(a.label))}</text>
             </g>
           )
         })}
         <polygon points={D.park.points} fill="#bbf7d0" stroke="#86efac" strokeWidth="1" />
         <text x={D.park.labelAt[0]} y={D.park.labelAt[1]} fontSize="7" fontWeight="700" fill="#166534"
-          textAnchor="middle" style={{ pointerEvents: 'none', fontFamily: 'inherit' }}>C.P.</text>
+          textAnchor="middle" style={{ pointerEvents: 'none', fontFamily: 'inherit' }}>{t('C.P.')}</text>
         <polygon points={D.timesSq.points} fill="#f3e1bd" stroke="#bfae73" strokeWidth="1.2" />
         <text x={D.timesSq.labelAt[0]} y={D.timesSq.labelAt[1]} fontSize="6" fontWeight="800" fill="#6b5a1f"
           textAnchor="middle" style={{ pointerEvents: 'none', fontFamily: 'inherit' }}>TSQ</text>
@@ -5274,7 +5283,7 @@ function BrooklynDetailMap({ selectedArea = null, onSelectArea = () => {} }) {
               <text key={'wl' + i} x={g.at[0]} y={g.at[1]}
                 transform={g.rotate ? `rotate(${g.rotate} ${g.at[0]} ${g.at[1]})` : undefined}
                 fontSize="9" fill="#7aa0c4" fontStyle="italic" textAnchor="middle"
-                style={{ pointerEvents: 'none', fontFamily: 'inherit' }}>{g.label}</text>
+                style={{ pointerEvents: 'none', fontFamily: 'inherit' }}>{t(g.label)}</text>
             )
           }
           return (
@@ -5282,7 +5291,7 @@ function BrooklynDetailMap({ selectedArea = null, onSelectArea = () => {} }) {
               <path d={g.d} fill="#f1f5f9" stroke="#e2e8f0" strokeWidth="1" />
               {g.label && (
                 <text x={g.labelAt[0]} y={g.labelAt[1]} fontSize="10" fontWeight="700" fill="#94a3b8"
-                  textAnchor="middle" style={{ pointerEvents: 'none', fontFamily: 'inherit' }}>{g.label}</text>
+                  textAnchor="middle" style={{ pointerEvents: 'none', fontFamily: 'inherit' }}>{t(g.label)}</text>
               )}
             </g>
           )
@@ -5414,11 +5423,11 @@ function BoroughAreaMap({ borough, countsByArea, selectedArea, onSelectArea, hei
                 letterSpacing="0.04em"
                 style={{ pointerEvents: 'none', fontFamily: 'inherit' }}
               >
-                {Array.isArray(a.label)
-                  ? a.label.map((ln, i) => (
-                      <tspan key={i} x={a.labelAt[0]} dy={i === 0 ? `${-(a.label.length - 1) * 0.55}em` : '1.1em'}>{ln}</tspan>
+                {(lbl => Array.isArray(lbl)
+                  ? lbl.map((ln, i) => (
+                      <tspan key={i} x={a.labelAt[0]} dy={i === 0 ? `${-(lbl.length - 1) * 0.55}em` : '1.1em'}>{ln}</tspan>
                     ))
-                  : a.label}
+                  : lbl)(mapAreaLabel(a.label))}
               </text>
             </g>
           )
@@ -6105,21 +6114,21 @@ function MoodFlowScreen({ moodId, push, savedItems = {}, toggleSave = () => {}, 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
             <Dots n={initialActivity ? 2 : 1} />
           </div>
-          <h2 style={{ ...heading, margin: '4px 0' }}>Where are you headed?</h2>
-          <div style={{ fontSize: 13, color: 'var(--ink-2)', marginBottom: 14 }}>Pick a neighborhood, or let us roam the whole city.</div>
+          <h2 style={{ ...heading, margin: '4px 0' }}>{t('Where are you headed?')}</h2>
+          <div style={{ fontSize: 13, color: 'var(--ink-2)', marginBottom: 14 }}>{t('Pick a neighborhood, or let us roam the whole city.')}</div>
           <div style={{ display: 'flex', gap: 10, marginBottom: 6 }}>
-            <button onClick={handleNearMe} disabled={geoStatus === 'denied'} style={{ flex: 1, border: 'none', borderRadius: 999, padding: '13px', background: geoStatus === 'denied' ? 'var(--gray-100)' : 'var(--accent)', color: geoStatus === 'denied' ? 'var(--gray-400)' : '#fff', fontWeight: 700, fontSize: 13.5, cursor: geoStatus === 'denied' ? 'default' : 'pointer', fontFamily: 'inherit', boxShadow: geoStatus === 'denied' ? 'none' : 'var(--shadow-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>📍 {geoStatus === 'locating' ? 'Locating…' : geoStatus === 'denied' ? 'Location off' : 'Near me'}</button>
-            <button onClick={() => { setPlace({ scope: 'anywhere' }); setStep(afterPlace) }} style={{ flex: 1, border: '1.5px solid var(--gray-200)', borderRadius: 999, padding: '13px', background: 'var(--white)', color: 'var(--ink)', fontWeight: 700, fontSize: 13.5, cursor: 'pointer', fontFamily: 'inherit' }}>Anywhere</button>
+            <button onClick={handleNearMe} disabled={geoStatus === 'denied'} style={{ flex: 1, border: 'none', borderRadius: 999, padding: '13px', background: geoStatus === 'denied' ? 'var(--gray-100)' : 'var(--accent)', color: geoStatus === 'denied' ? 'var(--gray-400)' : '#fff', fontWeight: 700, fontSize: 13.5, cursor: geoStatus === 'denied' ? 'default' : 'pointer', fontFamily: 'inherit', boxShadow: geoStatus === 'denied' ? 'none' : 'var(--shadow-accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>📍 {geoStatus === 'locating' ? t('Locating…') : geoStatus === 'denied' ? t('Location off') : t('Near me')}</button>
+            <button onClick={() => { setPlace({ scope: 'anywhere' }); setStep(afterPlace) }} style={{ flex: 1, border: '1.5px solid var(--gray-200)', borderRadius: 999, padding: '13px', background: 'var(--white)', color: 'var(--ink)', fontWeight: 700, fontSize: 13.5, cursor: 'pointer', fontFamily: 'inherit' }}>{t('Anywhere')}</button>
           </div>
-          <div style={{ fontSize: 11, color: 'var(--ink-3)', textAlign: 'center', marginBottom: 16, lineHeight: 1.4 }}>{geoStatus === 'denied' ? 'Location is off — turn it on in your browser to use Near me.' : 'We use your location only to find spots nearby — you can say no.'}</div>
+          <div style={{ fontSize: 11, color: 'var(--ink-3)', textAlign: 'center', marginBottom: 16, lineHeight: 1.4 }}>{geoStatus === 'denied' ? t('Location is off — turn it on in your browser to use Near me.') : t('We use your location only to find spots nearby — you can say no.')}</div>
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
             <div style={{ display: 'inline-flex', background: 'var(--gray-100)', borderRadius: 999, padding: 3 }}>
               {['manhattan', 'brooklyn'].map(b => (
-                <button key={b} onClick={() => setMapBorough(b)} style={{ border: 'none', cursor: 'pointer', padding: '6px 16px', borderRadius: 999, fontSize: 12.5, fontWeight: 700, fontFamily: 'inherit', textTransform: 'capitalize', background: mapBorough === b ? 'var(--white)' : 'transparent', color: mapBorough === b ? 'var(--gray-900)' : 'var(--gray-500)', boxShadow: mapBorough === b ? '0 1px 2px rgba(0,0,0,0.08)' : 'none' }}>{b}</button>
+                <button key={b} onClick={() => setMapBorough(b)} style={{ border: 'none', cursor: 'pointer', padding: '6px 16px', borderRadius: 999, fontSize: 12.5, fontWeight: 700, fontFamily: 'inherit', textTransform: 'capitalize', background: mapBorough === b ? 'var(--white)' : 'transparent', color: mapBorough === b ? 'var(--gray-900)' : 'var(--gray-500)', boxShadow: mapBorough === b ? '0 1px 2px rgba(0,0,0,0.08)' : 'none' }}>{t(b)}</button>
               ))}
             </div>
           </div>
-          <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--gray-400)', textAlign: 'center', marginBottom: 8 }}>TAP A NEIGHBORHOOD</div>
+          <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.08em', color: 'var(--gray-400)', textAlign: 'center', marginBottom: 8 }}>{t('TAP A NEIGHBORHOOD')}</div>
           <BoroughAreaMap
             borough={mapBorough}
             countsByArea={{}}
