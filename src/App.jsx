@@ -2,6 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { tonightPicks } from './data/tonight.js'
 import { moods, moodById, flattenMoodPicks, ACTIVITIES, ACTIVITY_ORDER } from './data/moods.js'
+import { CUISINE_OPTIONS, RESTAURANT_DATA, RESTAURANT_COORDS, PLANNER_RESTAURANTS } from './data/restaurants.js'
 import { userPicks, mapsUrl } from './data/userPicks.js'
 import {
   domains, topics, figures, works, venues,
@@ -8535,7 +8536,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
             <div style={{ fontWeight: 800, fontSize: 17, color: 'var(--gray-900)', lineHeight: 1.2, marginBottom: 4 }}>{r.name}</div>
             <div style={{ fontSize: 12, color: 'var(--gray-600)', marginBottom: 6 }}>{[mealPriceApprox(r.price), r.neighborhood || r.area].filter(Boolean).join(' · ')}</div>
             {r.description && (
-              <div style={{ fontSize: 12.5, color: 'var(--gray-600)', lineHeight: 1.5, marginBottom: 12 }}>{r.description}</div>
+              <div style={{ fontSize: 12.5, color: 'var(--gray-600)', lineHeight: 1.5, marginBottom: 12 }}>{tDesc(r, r.description)}</div>
             )}
             <div style={{ display: 'flex', gap: 8 }}>
               {r.reservationUrl && (
@@ -9729,113 +9730,6 @@ function fmtHour(h) {
 }
 
 
-// ── Restaurant Data ──────────────────────────────────────────────────────────
-const CUISINE_OPTIONS = [
-  // Budget is a PRICE filter wearing the cuisine picker's clothes (2026-07-21):
-  // ≤ ~$20/person (the '$' tier). restaurantPool special-cases the id.
-  { id: 'budget',     label: 'Budget',      emoji: '💸', color: '#0d9488' },
-  { id: 'japanese',   label: 'Japanese',    emoji: '🍣', color: '#e11d48' },
-  { id: 'korean',     label: 'Korean',      emoji: '🍲', color: '#ea580c' },
-  { id: 'italian',    label: 'Italian',     emoji: '🍝', color: '#16a34a' },
-  { id: 'pizza',      label: 'Pizza',       emoji: '🍕', color: '#dc2626' },
-  { id: 'burger',     label: 'Burger',      emoji: '🍔', color: '#92400e' },
-  { id: 'bar_tavern', label: 'Bar',         emoji: '🍺', color: '#6d28d9' },
-  { id: 'steakhouse', label: 'Steak',       emoji: '🥩', color: '#991b1b' },
-  { id: 'american',   label: 'American',    emoji: '🍳', color: '#1e40af' },
-]
-
-const RESTAURANT_DATA = [
-  // ── MIDTOWN ──
-  { id: 'sushi_yasuda',    name: 'Sushi Yasuda',       cuisines: ['japanese'],   area: 'Midtown', price: '$$$', neighborhood: 'Midtown East',   description: 'Pristine traditional Edomae sushi in a serene bamboo-walled room. One of NYC\'s finest.',      reservationUrl: 'https://www.sushiyasuda.com/reservations.html',    mapsUrl: 'https://maps.google.com/?q=Sushi+Yasuda+New+York' },
-  { id: 'ootoya_midtown',  name: 'Ootoya',             cuisines: ['japanese'],   area: 'Midtown', price: '$$',  neighborhood: 'Midtown',         description: 'Homestyle Japanese teishoku sets — rice, miso soup, pickles, grilled fish or tonkatsu.',      reservationUrl: 'https://www.opentable.com/ootoya-chelsea',          mapsUrl: 'https://maps.google.com/?q=Ootoya+Midtown+New+York' },
-  { id: 'marea',           name: 'Marea',              cuisines: ['italian'],    area: 'Midtown', price: '$$$$',neighborhood: 'Central Park South', description: 'Michelin-starred coastal Italian — impeccable seafood pastas and crudo overlooking the park.', reservationUrl: 'https://www.opentable.com/marea',                   mapsUrl: 'https://maps.google.com/?q=Marea+Restaurant+New+York' },
-  { id: 'the_modern',      name: 'The Modern',         cuisines: ['american'],   area: 'Midtown', price: '$$$$',neighborhood: 'Midtown (MoMA)',   description: 'Danny Meyer\'s MoMA restaurant with floor-to-ceiling sculpture garden views and seasonal tasting menus.', reservationUrl: 'https://www.opentable.com/the-modern',         mapsUrl: 'https://maps.google.com/?q=The+Modern+Restaurant+MoMA+New+York' },
-  { id: 'campbell',        name: 'The Campbell',       cuisines: ['bar_tavern'], area: 'Midtown', price: '$$',  neighborhood: 'Grand Central',    description: 'Jaw-dropping 1920s Gilded Age bar inside Grand Central — gilded ceiling, roaring fireplace, craft cocktails.', reservationUrl: 'https://thecampbellnyc.com',                    mapsUrl: 'https://maps.google.com/?q=The+Campbell+Grand+Central+New+York' },
-  { id: 'benjamin_steak',  name: 'Benjamin Steakhouse',cuisines: ['steakhouse'], area: 'Midtown', price: '$$$$',neighborhood: 'Midtown East',    description: 'Classic NYC prime steakhouse — USDA prime dry-aged porterhouses in an elegant Helmsley Building room.', reservationUrl: 'https://www.opentable.com/benjamin-steakhouse', mapsUrl: 'https://maps.google.com/?q=Benjamin+Steakhouse+New+York' },
-  { id: 'jongno_midtown',  name: 'Jongno Gopchang',   cuisines: ['korean'],     area: 'Midtown', price: '$$',  neighborhood: 'Koreatown',       description: 'Sizzling Korean BBQ specializing in beef intestines and offcuts — bold, smoky, deeply satisfying.', reservationUrl: null,mapsUrl: 'https://maps.google.com/?q=Jongno+Gopchang+New+York' },
-
-  // ── UPPER EAST SIDE ──
-  { id: 'sushi_of_gari',   name: 'Sushi of Gari',     cuisines: ['japanese'],   area: 'Upper East Side', price: '$$$', neighborhood: 'Upper East Side', description: 'Chef Gari\'s legendary omakase — creative toppings and sauces that transformed NYC sushi culture.',  reservationUrl: 'https://www.sushiofgari.com',           mapsUrl: 'https://maps.google.com/?q=Sushi+of+Gari+New+York' },
-  { id: 'caravaggio',      name: 'Caravaggio',         cuisines: ['italian'],    area: 'Upper East Side', price: '$$$', neighborhood: 'Upper East Side', description: 'Refined northern Italian — handmade pastas, excellent osso buco, hushed elegant room favored by locals.', reservationUrl: 'https://www.opentable.com/caravaggio-new-york', mapsUrl: 'https://maps.google.com/?q=Caravaggio+Restaurant+New+York' },
-  { id: 'jg_melon',        name: 'J.G. Melon',         cuisines: ['burger','american'], area: 'Upper East Side', price: '$$', neighborhood: 'Upper East Side', description: 'NYC burger institution since 1972 — thick patty on a bun with cottage fries, cash only, always packed.', reservationUrl: null, mapsUrl: 'https://maps.google.com/?q=JG+Melon+New+York' },
-  { id: 'burnside_ues',    name: 'Burnside',            cuisines: ['bar_tavern'], area: 'Upper East Side', price: '$$', neighborhood: 'Upper East Side', description: 'Warm neighborhood whiskey bar — long list of Irish and Scotch whiskeys, excellent cocktails, cozy booths.', reservationUrl: null, mapsUrl: 'https://maps.google.com/?q=Burnside+Bar+New+York' },
-  { id: 'mezzaluna',       name: 'Mezzaluna',           cuisines: ['italian','pizza'], area: 'Upper East Side', price: '$$', neighborhood: 'Upper East Side', description: 'Beloved UES neighborhood Italian — thin-crust pizza from a wood-burning oven and classic pastas.',    reservationUrl: 'https://www.opentable.com/mezzaluna',   mapsUrl: 'https://maps.google.com/?q=Mezzaluna+New+York' },
-  { id: 'mono_mono',       name: 'Mono+Mono',           cuisines: ['korean'],     area: 'Upper East Side', price: '$$', neighborhood: 'Upper East Side', description: 'Modern Korean comfort food — crispy rice, japchae, galbi, and rice-cake stir-fry in a sleek room.',     reservationUrl: 'https://www.opentable.com/mono-mono',   mapsUrl: 'https://maps.google.com/?q=Mono+Mono+New+York' },
-
-  // ── UPPER WEST SIDE ──
-  { id: 'carmines_uws',    name: 'Carmine\'s',          cuisines: ['italian'],    area: 'Upper West Side', price: '$$', neighborhood: 'Upper West Side', description: 'Legendary family-style Italian — enormous platters of linguine alle vongole and chicken parmigiana built for sharing.', reservationUrl: 'https://www.carminesnyc.com', mapsUrl: 'https://maps.google.com/?q=Carmine\'s+Upper+West+Side+New+York' },
-  { id: 'amsterdam_ale',   name: 'Amsterdam Ale House', cuisines: ['bar_tavern'], area: 'Upper West Side', price: '$$', neighborhood: 'Upper West Side', description: '60 taps of craft and import beer in a classic neighborhood tavern — excellent wings and a relaxed vibe.', reservationUrl: null, mapsUrl: 'https://maps.google.com/?q=Amsterdam+Ale+House+New+York' },
-  { id: 'sushi_yasaka',    name: 'Sushi Yasaka',        cuisines: ['japanese'],   area: 'Upper West Side', price: '$$', neighborhood: 'Upper West Side', description: 'Quiet neighborhood sushi bar known for generous omakase value and pristine fish sourced daily.',           reservationUrl: 'https://www.opentable.com/sushi-yasaka', mapsUrl: 'https://maps.google.com/?q=Sushi+Yasaka+New+York' },
-  { id: 'juliana_uws',     name: 'Juliana\'s (UWS)',    cuisines: ['pizza'],      area: 'Upper West Side', price: '$$', neighborhood: 'Upper West Side', description: 'Coal-fired Neapolitan pizza — charred blistered crust, San Marzano tomatoes, fresh mozzarella.',         reservationUrl: null, mapsUrl: 'https://maps.google.com/?q=Juliana\'s+Pizza+New+York' },
-
-  // ── DOWNTOWN VILLAGE ──
-  { id: 'carbone',         name: 'Carbone',             cuisines: ['italian'],    area: 'Downtown Village', price: '$$$$', neighborhood: 'Greenwich Village', description: 'The most coveted reservation in NYC — theatrical red-sauce Italian with tuxedoed captains and legendary spicy rigatoni.', reservationUrl: 'https://www.exploretock.com/carbone', mapsUrl: 'https://maps.google.com/?q=Carbone+New+York' },
-  { id: 'lupa',            name: 'Lupa Osteria Romana', cuisines: ['italian'],    area: 'Downtown Village', price: '$$$', neighborhood: 'Greenwich Village', description: 'Mario Batali\'s warm Roman trattoria — impeccable house-made pastas and an extensive all-Italian wine list.', reservationUrl: 'https://www.opentable.com/lupa', mapsUrl: 'https://maps.google.com/?q=Lupa+Osteria+Romana+New+York' },
-  { id: 'momofuku_noodle', name: 'Momofuku Noodle Bar', cuisines: ['japanese'],   area: 'Downtown Village', price: '$$', neighborhood: 'East Village',      description: 'David Chang\'s original noodle bar — rich tonkotsu ramen, inventive pork buns, and the bowl that started it all.', reservationUrl: 'https://www.momofuku.com/noodle-bar', mapsUrl: 'https://maps.google.com/?q=Momofuku+Noodle+Bar+New+York' },
-  { id: 'corner_bistro',   name: 'Corner Bistro',       cuisines: ['burger'],     area: 'Downtown Village', price: '$',   neighborhood: 'West Village',      description: 'NYC dive bar legend since 1961 — the Bistro Burger (8oz, cheese, bacon, fried onion) for under $10.',      reservationUrl: null, mapsUrl: 'https://maps.google.com/?q=Corner+Bistro+New+York' },
-  { id: 'employees_only',  name: 'Employees Only',      cuisines: ['bar_tavern'], area: 'Downtown Village', price: '$$$', neighborhood: 'West Village',      description: 'Legendary speakeasy cocktail bar behind a psychic\'s storefront — brilliant pre-Prohibition drinks and late-night food.', reservationUrl: 'https://www.employeesonlynyc.com', mapsUrl: 'https://maps.google.com/?q=Employees+Only+New+York' },
-  { id: 'artichoke_pizza', name: 'Artichoke Basille\'s', cuisines: ['pizza'],     area: 'Downtown Village', price: '$',   neighborhood: 'East Village',      description: 'Thick square Sicilian slices — the artichoke-cream slice is a NYC late-night institution. Enormous portions.',   reservationUrl: null, walkIn: true, mapsUrl: 'https://maps.google.com/?q=Artichoke+Basille\'s+New+York' },
-  { id: 'jeju_noodle',     name: 'Jeju Noodle Bar',     cuisines: ['korean'],     area: 'Downtown Village', price: '$$',  neighborhood: 'Greenwich Village', description: 'Creative Korean noodles rooted in Jeju Island tradition — the signature ramen broth simmers for days.',         reservationUrl: 'https://www.opentable.com/jeju-noodle-bar', mapsUrl: 'https://maps.google.com/?q=Jeju+Noodle+Bar+New+York' },
-
-  // ── LOWER MANHATTAN ──
-  { id: 'nobu_downtown',   name: 'Nobu Downtown',       cuisines: ['japanese'],   area: 'Lower Manhattan', price: '$$$$', neighborhood: 'Tribeca',          description: 'Nobu Matsuhisa\'s original NYC flagship — black cod miso and yellowtail jalapeño remain the gold standard.',  reservationUrl: 'https://www.noburestaurants.com/new-york/experience/', mapsUrl: 'https://maps.google.com/?q=Nobu+Downtown+New+York' },
-  { id: 'adriennes_pizza', name: 'Adrienne\'s Pizzabar', cuisines: ['pizza'],     area: 'Lower Manhattan', price: '$$',  neighborhood: 'Financial District',  description: 'Old-school FiDi square pizza — thin-crusted, crispy-bottomed rectangular pies beloved by Wall Street workers.', reservationUrl: null, mapsUrl: 'https://maps.google.com/?q=Adrienne\'s+Pizzabar+New+York' },
-  { id: 'dead_rabbit',     name: 'The Dead Rabbit',     cuisines: ['bar_tavern'], area: 'Lower Manhattan', price: '$$$', neighborhood: 'Financial District',  description: 'World\'s best bar (multiple awards) — impeccably researched 19th-century cocktails in a Victorian Irish pub.', reservationUrl: 'https://www.deadrabbitnyc.com', mapsUrl: 'https://maps.google.com/?q=The+Dead+Rabbit+New+York' },
-  { id: 'fraunces_tavern', name: 'Fraunces Tavern',     cuisines: ['american','bar_tavern'], area: 'Lower Manhattan', price: '$$', neighborhood: 'Financial District', description: 'Where Washington bade farewell to his officers in 1783 — history in every brick, classic pub fare, beer.', reservationUrl: 'https://www.frauncestavern.com', mapsUrl: 'https://maps.google.com/?q=Fraunces+Tavern+New+York' },
-  { id: 'bareburger_fidi', name: 'Bareburger',          cuisines: ['burger'],     area: 'Lower Manhattan', price: '$$',  neighborhood: 'Financial District',  description: 'Organic, all-natural burgers with creative toppings — bison, elk, turkey, or beef on a pretzel bun.',       reservationUrl: null, walkIn: true, mapsUrl: 'https://maps.google.com/?q=Bareburger+Financial+District+New+York' },
-  { id: 'delmonicos',      name: 'Delmonico\'s',        cuisines: ['steakhouse'], area: 'Lower Manhattan', price: '$$$$', neighborhood: 'Financial District', description: 'America\'s oldest restaurant (1837) — the birthplace of Delmonico steak, Eggs Benedict, and Baked Alaska.', reservationUrl: 'https://www.opentable.com/delmonicos', mapsUrl: 'https://maps.google.com/?q=Delmonico\'s+New+York' },
-
-  // ── HARLEM ──
-  { id: 'sylvias',         name: 'Sylvia\'s',           cuisines: ['american'],   area: 'Harlem', price: '$$',  neighborhood: 'Harlem',            description: 'Harlem\'s soul food institution since 1962 — smothered chicken, candied yams, cornbread, and legendary gospel brunch.', reservationUrl: 'https://www.sylviasrestaurant.com', mapsUrl: 'https://maps.google.com/?q=Sylvia\'s+Restaurant+Harlem+New+York' },
-  { id: 'raos',            name: 'Rao\'s',              cuisines: ['italian'],    area: 'Harlem', price: '$$$$', neighborhood: 'East Harlem',       description: 'The most impossible table in NYC — 10-table Italian red-sauce institution since 1896. Try their jarred sauce.', reservationUrl: null, mapsUrl: 'https://maps.google.com/?q=Rao\'s+New+York' },
-  { id: 'patsys_pizza',    name: 'Patsy\'s Pizzeria',   cuisines: ['pizza'],      area: 'Harlem', price: '$',   neighborhood: 'East Harlem',       description: 'The original 1933 location — coal-fired pies that Frank Sinatra famously had flown across the country.',        reservationUrl: null, mapsUrl: 'https://maps.google.com/?q=Patsy\'s+Pizzeria+East+Harlem+New+York' },
-  { id: 'ginnys',          name: 'Ginny\'s Supper Club', cuisines: ['bar_tavern','american'], area: 'Harlem', price: '$$$', neighborhood: 'Harlem', description: 'Marcus Samuelsson\'s underground jazz supper club at Red Rooster — live music, cocktails, and soulful bites.', reservationUrl: 'https://www.ginnyssupperclub.com', mapsUrl: 'https://maps.google.com/?q=Ginny\'s+Supper+Club+Harlem+New+York' },
-  { id: 'lonni_bar',       name: 'Lonni\'s Bar & Lounge', cuisines: ['bar_tavern'], area: 'Harlem', price: '$$', neighborhood: 'Harlem',           description: 'Iconic Harlem neighborhood bar with a deep history in the local jazz and arts community.',                   reservationUrl: null, mapsUrl: 'https://maps.google.com/?q=Harlem+bar+New+York' },
-
-  // ── BROOKLYN ──
-  { id: 'lucali',          name: 'Lucali',              cuisines: ['pizza'],      area: 'Brooklyn', price: '$$',  neighborhood: 'Carroll Gardens',   description: 'Arguably NYC\'s best pizza — thin-crust masterpieces handmade by Mark Iacono in a tiny cash-only BYOB room.', reservationUrl: null, mapsUrl: 'https://maps.google.com/?q=Lucali+Pizza+Brooklyn' },
-  { id: 'peter_luger',     name: 'Peter Luger Steak House', cuisines: ['steakhouse'], area: 'Brooklyn', price: '$$$$', neighborhood: 'Williamsburg', description: 'NYC\'s most iconic steakhouse since 1887 — cash-only, porterhouse-only, tableside creamed spinach, no frills.', reservationUrl: null, mapsUrl: 'https://maps.google.com/?q=Peter+Luger+Steak+House+Brooklyn' },
-  { id: 'frankies_457',    name: 'Frankies 457 Spuntino', cuisines: ['italian'], area: 'Brooklyn', price: '$$',  neighborhood: 'Carroll Gardens',   description: 'Rustic neighborhood Italian — hand-rolled meatballs, cacio e pepe, ricotta toasts in a candle-lit garden.', reservationUrl: 'https://www.frankiesspuntino.com', mapsUrl: 'https://maps.google.com/?q=Frankies+457+Spuntino+Brooklyn' },
-  { id: 'insa_korean',     name: 'Insa',                cuisines: ['korean'],     area: 'Brooklyn', price: '$$$', neighborhood: 'Gowanus',           description: 'Korean BBQ and karaoke under one roof — premium galbi, wagyu short ribs, and private karaoke rooms.',        reservationUrl: 'https://www.insabrooklyn.com', mapsUrl: 'https://maps.google.com/?q=Insa+Korean+BBQ+Brooklyn' },
-  { id: 'okonomi_bk',      name: 'Okonomi',             cuisines: ['japanese'],   area: 'Brooklyn', price: '$$',  neighborhood: 'Williamsburg',      description: 'Intimate all-day Japanese breakfast and lunch omakase — pristine simplicity using the finest seasonal ingredients.', reservationUrl: 'https://www.opentable.com/okonomi', mapsUrl: 'https://maps.google.com/?q=Okonomi+Williamsburg+Brooklyn' },
-  { id: 'brooklyn_inn',    name: 'Brooklyn Inn',         cuisines: ['bar_tavern'], area: 'Brooklyn', price: '$',   neighborhood: 'Cobble Hill',       description: 'Historic 1800s bar with original mahogany furniture — quiet, literary, the perfect neighborhood pub.',         reservationUrl: null, mapsUrl: 'https://maps.google.com/?q=Brooklyn+Inn+Cobble+Hill' },
-
-  // ── BRONX ──
-  { id: 'roberto_bronx',   name: 'Roberto Restaurant',  cuisines: ['italian'],    area: 'Bronx', price: '$$$',  neighborhood: 'Belmont (Bronx)',   description: 'Arthur Avenue\'s finest — authentic Calabrian Italian in the heart of the Bronx\'s Little Italy since 1983.', reservationUrl: 'https://www.opentable.com/roberto-restaurant-the-bronx', mapsUrl: 'https://maps.google.com/?q=Roberto+Restaurant+Bronx+New+York' },
-  { id: 'zero_otto_nove',  name: 'Zero Otto Nove',      cuisines: ['pizza','italian'], area: 'Bronx', price: '$$', neighborhood: 'Belmont (Bronx)',  description: 'Wood-fired Neapolitan pizza on Arthur Avenue — the real Bronx Italian neighborhood experience.',             reservationUrl: 'https://www.opentable.com/zero-otto-nove', mapsUrl: 'https://maps.google.com/?q=Zero+Otto+Nove+Bronx+New+York' },
-  { id: 'yankee_tavern',   name: 'Yankee Tavern',       cuisines: ['bar_tavern'], area: 'Bronx', price: '$$',   neighborhood: 'South Bronx',       description: 'Historic 1927 bar steps from Yankee Stadium — cold beer and classic bar food before the game.',              reservationUrl: null, mapsUrl: 'https://maps.google.com/?q=Yankee+Tavern+Bronx+New+York' },
-
-  // ── QUEENS ──
-  { id: 'sik_gaek',        name: 'Sik Gaek',            cuisines: ['korean'],     area: 'Queens', price: '$$',   neighborhood: 'Woodside, Queens',  description: 'Outdoor Korean BBQ in a festive tent setting — whole octopus, kalbi, and soju by the bottle.',              reservationUrl: null, mapsUrl: 'https://maps.google.com/?q=Sik+Gaek+Queens+New+York' },
-  { id: 'nan_xiang',       name: 'Nan Xiang Xiao Long Bao', cuisines: ['japanese'], area: 'Queens', price: '$', neighborhood: 'Flushing, Queens',  description: 'Flushing\'s most celebrated soup dumplings — paper-thin skin bursting with broth and pork.',               reservationUrl: null, mapsUrl: 'https://maps.google.com/?q=Nan+Xiang+Xiao+Long+Bao+Queens' },
-  { id: 'de_mole',         name: 'De Mole',             cuisines: ['american'],   area: 'Queens', price: '$$',   neighborhood: 'Sunnyside, Queens', description: 'Beloved neighborhood Mexican-American spot — complex moles, chiles rellenos, margaritas worth the trip.',    reservationUrl: null, mapsUrl: 'https://maps.google.com/?q=De+Mole+Sunnyside+Queens' },
-]
-
-// Approx [lat, lng] for the curated restaurants above. Used to rank meal
-// suggestions by walking distance from the stop you're coming from. Block-level
-// accuracy is plenty for ordering candidates within a neighborhood.
-const RESTAURANT_COORDS = {
-  sushi_yasuda: [40.7516, -73.9730], ootoya_midtown: [40.7546, -73.9863], marea: [40.7681, -73.9819],
-  the_modern: [40.7615, -73.9776], shake_shack_midtown: [40.7415, -73.9881], campbell: [40.7527, -73.9772],
-  benjamin_steak: [40.7518, -73.9785], jongno_midtown: [40.7472, -73.9862],
-  sushi_of_gari: [40.7714, -73.9526], caravaggio: [40.7726, -73.9655], jg_melon: [40.7706, -73.9580],
-  burnside_ues: [40.7765, -73.9520], mezzaluna: [40.7707, -73.9579], mono_mono: [40.7736, -73.9566],
-  carmines_uws: [40.7917, -73.9740], shake_shack_uws: [40.7806, -73.9758], amsterdam_ale: [40.7800, -73.9800],
-  sushi_yasaka: [40.7785, -73.9820], juliana_uws: [40.7850, -73.9750],
-  carbone: [40.7281, -74.0003], lupa: [40.7284, -74.0008], momofuku_noodle: [40.7295, -73.9847],
-  corner_bistro: [40.7384, -74.0027], employees_only: [40.7339, -74.0065],
-  artichoke_pizza: [40.7327, -73.9840], jeju_noodle: [40.7345, -74.0075],
-  nobu_downtown: [40.7110, -74.0095], adriennes_pizza: [40.7041, -74.0113], dead_rabbit: [40.7028, -74.0113],
-  fraunces_tavern: [40.7033, -74.0114], bareburger_fidi: [40.7045, -74.0070], delmonicos: [40.7045, -74.0110],
-  sylvias: [40.8081, -73.9447], raos: [40.7943, -73.9344], patsys_pizza: [40.7977, -73.9347],
-  ginnys: [40.8083, -73.9455], lonni_bar: [40.8089, -73.9482],
-  lucali: [40.6810, -74.0010], peter_luger: [40.7099, -73.9626], frankies_457: [40.6790, -73.9990],
-  insa_korean: [40.6790, -73.9860], okonomi_bk: [40.7140, -73.9490], brooklyn_inn: [40.6873, -73.9890],
-  shake_bk: [40.7029, -73.9933],
-  roberto_bronx: [40.8540, -73.8870], zero_otto_nove: [40.8546, -73.8880], yankee_tavern: [40.8275, -73.9270],
-  sik_gaek: [40.7458, -73.9060], nan_xiang: [40.7595, -73.8310], de_mole: [40.7430, -73.9230],
-}
-
 // Itinerary area-cluster labels don't always equal the restaurant `area` field
 // (e.g. "Greenwich Village" → "Downtown Village"; "Evening Out" / "Central Park"
 // have no restaurants of their own). Map the common ones so meal lookups resolve;
@@ -9860,7 +9754,8 @@ const AREA_TO_RESTAURANT_AREA = {
 // when RESTAURANT_DATA is non-empty, so cuisine selection always re-picks and
 // no day (incl. evening-only "Evening Out" plans) loses its meal suggestion.
 function restaurantPool(area, cuisineId) {
-  const byArea = a => RESTAURANT_DATA.filter(r => r.area === a)
+  // Full pool: curated list + 200+ enriched food seeds (see restaurants.js).
+  const byArea = a => PLANNER_RESTAURANTS.filter(r => r.area === a)
   const narrow = list => {
     // "Budget" = the '$' tier (≈$20/person and under), not a cuisine.
     if (cuisineId === 'budget') return list.filter(r => r.price === '$')
@@ -9868,8 +9763,8 @@ function restaurantPool(area, cuisineId) {
   }
   let pool = narrow(byArea(area))
   if (pool.length === 0 && AREA_TO_RESTAURANT_AREA[area]) pool = narrow(byArea(AREA_TO_RESTAURANT_AREA[area]))
-  if (pool.length === 0) pool = narrow(RESTAURANT_DATA)   // that cuisine, anywhere
-  if (pool.length === 0) pool = RESTAURANT_DATA           // last resort: anything
+  if (pool.length === 0) pool = narrow(PLANNER_RESTAURANTS)   // that cuisine, anywhere
+  if (pool.length === 0) pool = PLANNER_RESTAURANTS           // last resort: anything
   return pool
 }
 
@@ -9881,7 +9776,7 @@ function getRestaurantSuggestionNear(area, cuisineId, offset = 0, anchor = null)
   if (pool.length === 0) return null
   if (anchor && typeof anchor.lat === 'number') {
     const dist = r => {
-      const c = RESTAURANT_COORDS[r.id]
+      const c = RESTAURANT_COORDS[r.id] || (typeof r.lat === 'number' ? [r.lat, r.lng] : null)
       return c ? distanceMiles(anchor, { lat: c[0], lng: c[1] }) : Infinity
     }
     pool = [...pool].sort((a, b) => dist(a) - dist(b))
@@ -13173,7 +13068,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                             {mealPriceApprox(restaurant.price)} · {restaurant.neighborhood}
                           </div>
                           <div style={{ fontSize: 13, color: 'var(--gray-600)', lineHeight: 1.55, marginBottom: 4 }}>
-                            {restaurant.description}
+                            {tDesc(restaurant, restaurant.description)}
                           </div>
                           {/* Meal note — "what do I want to eat here?" Keyed by
                               restaurant id (same store as stop notes), so a note

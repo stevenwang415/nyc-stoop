@@ -462,6 +462,22 @@ const ZH = {
   "Museums kids actually like, parks with room to run, baseball games, dinosaurs, an aquarium by the sea.": "小孩真的會喜歡的博物館、可以盡情奔跑的公園、棒球賽、恐龍，還有海邊的水族館。",
   "Indoor-only picks for when the weather's against you. Museums, food halls, basement jazz, movies — no umbrella required.": "天氣不賞臉時的室內精選。博物館、美食廣場、地下爵士、電影 — 不用帶傘。",
   "The canonical hits. Yes some are touristy. They're touristy because they're great. Hit these once, then go find the rest.": "經典必訪清單。有些確實很觀光，但正因為夠好才成為觀光名點。先走完這些，再去探索其他。",
+  // ── Cuisine picker ──
+  "Chinese": "中式",
+  "Japanese": "日式",
+  "Korean": "韓式",
+  "Italian": "義式",
+  "Pizza": "披薩",
+  "Burger": "漢堡",
+  "Bar": "酒吧",
+  "Steak": "牛排",
+  "American": "美式",
+  "Budget": "省錢",
+  "Thai": "泰式",
+  "Mexican": "墨西哥",
+  "French": "法式",
+  "Seafood": "海鮮",
+  "Cafe": "咖啡輕食",
 }
 
 // ── Editorial content lookup (place descriptions / insider tips) ────────────
