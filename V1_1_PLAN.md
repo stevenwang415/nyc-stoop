@@ -86,3 +86,15 @@ All batches done, see docs/ZH_QA_2026-08-19.md + docs/TRANSLATION_GUIDE.md.
 Places 524 · topics 44 · domains 8 · groups 7 · venues 103 · figures 139 ·
 works 184 · UI dict ~460 keys, 100% coverage · schematic maps, mood heroes,
 map filters all translated · build passing · 5-tab visual pass clean.
+
+## Coverage expansion status (2026-08-19 evening)
+Pillar 1 executed: +173 researched places (validated against the area
+classifier, deduped, zh at write time). Dataset 695→868. Coverage cells
+below 3: **68 → 20**. Manhattan is fully green (every activity × area ≥3;
+Coffee–Chelsea 1→4). The 20 remaining are all brownstone-Brooklyn music/art/
+outdoors where (a) venues genuinely don't exist inside the polygon, or
+(b) real candidates fall in POLYGON DEAD-ZONES — e.g. Fort Greene Park
+classifies to NO area (gap between bk_downtown and bk_clinton polys), and
+Sunny's Bar / Valentino Pier / Pioneer Works sit just outside bk_lower.
+Follow-up options: widen BK_AREA_POLYS to close dead-zones (recovers ~8
+real places already researched), or accept 1-2 picks in those cells.
