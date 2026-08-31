@@ -11,7 +11,10 @@
 
 // Same Vite gotcha as in components.jsx: must be plain `import.meta.env.X`,
 // no optional chaining, or the build-time replacement doesn't fire.
-const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '')
+// DEV: same-origin — the Vite dev server proxies /auth/* to prod (see
+// vite.config.js), which lets phones on the LAN sign in without CORS.
+// Builds (including iOS) use the real API URL as before.
+const API_URL = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '')
 
 const TOKEN_KEY    = 'nyc_token'
 const USER_KEY     = 'nyc_user'

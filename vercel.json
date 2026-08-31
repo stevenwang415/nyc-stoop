@@ -2,9 +2,25 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "vite",
   "rewrites": [
-    { "source": "/auth/:path*", "destination": "/api/index" },
-    { "source": "/health", "destination": "/api/index" },
-    { "source": "/feedback", "destination": "/api/index" },
-    { "source": "/((?!api/|assets/).*)", "destination": "/index.html" }
+    {
+      "source": "/auth/:path*",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/health",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/feedback",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/share/:path*",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/((?!api/|assets/).*)",
+      "destination": "/index.html"
+    }
   ]
 }

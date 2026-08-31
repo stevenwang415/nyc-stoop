@@ -64,3 +64,8 @@ android/local.properties
 _*
 scripts/_*
 .env*
+.dev-share.json
+backend/dev.db
+*.db
+official-photos/
+*.p8

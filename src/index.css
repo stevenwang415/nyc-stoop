@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500;1,6..72,600&display=swap');
+/* Fonts are bundled locally (public/fonts) — no Google Fonts import. */
 
 *, *::before, *::after {
   box-sizing: border-box;
@@ -11,39 +11,46 @@
    Legacy --gray-* names are remapped onto the warm taupe scale so the 1,100+
    inline styles in App.jsx inherit the reskin. Headings use --serif (Newsreader). */
 :root {
-  --serif:  'Newsreader', Georgia, 'Times New Roman', serif;
-  --ink:    #211B14;  /* primary text — warm near-black */
-  --ink-2:  #5A5247;  /* secondary text */
-  --ink-3:  #6E655A;  /* tertiary text */
-  --canvas: #F3EBDC;  /* cream page background */
-  --card:   #FBF6EC;  /* warm off-white surface */
-  --accent: #BE4D2B;  /* terracotta — action FILLS: pills, FAB, glows, large text */
-  --accent-text: #A93C1E; /* darker terracotta for small text */
-  --love:   #C4542F;  /* warm red — hearts/saves */
-  --shadow: 0 10px 28px rgba(33,27,20,.10);
-  --shadow-accent: 0 10px 22px rgba(190,77,43,.35);
+  /* ── 2026-08-26 redesign tokens (Figma handoff, collection "Stoop") ──────
+     Contrast values are the MEASURED, corrected ones from the a11y record —
+     do not eyeball substitutes. --serif keeps its name (200+ call sites) but
+     now points at the display face, Bricolage Grotesque. */
+  --serif:  'Bricolage Grotesque', 'Newsreader', Georgia, serif;
+  --ink:    #17130F;  /* text-primary (17.4:1 on bg) */
+  --ink-2:  #5C5147;  /* text-secondary (7.3:1) */
+  --ink-3:  #736658;  /* text-tertiary (4.78:1 — a11y-corrected) */
+  --canvas: #FBF8F3;  /* bg — warm paper */
+  --card:   #FFFFFF;  /* surface */
+  --accent: #C8321A;  /* vermilion — ACTIONS ONLY: buttons, links, Post */
+  --accent-text: #C8321A; /* 5.05:1 on bg — passes as text */
+  --love:   #C8321A;  /* hearts/saves = action family */
+  --live:   #96590A;  /* sodium amber TEXT (5.31:1) — live/time status, never actions */
+  --live-fill: #F0A32B; /* amber fill — LIVE pill/dot; ink text on it, never white */
+  --shadow: 0 10px 28px rgba(23,19,15,.10);
+  --shadow-accent: 0 10px 22px rgba(200,50,26,.30);
 
-  /* Legacy aliases → warm taupe palette */
-  --black: #211B14;
+  /* Legacy aliases → new warm neutral ramp */
+  --black: #17130F;
   --white: #ffffff;
-  --gray-50:  #FBF6EC;
-  --gray-100: #EFE6D6;
-  --gray-200: #E3D6C0;
-  --gray-300: #CBBCA4;
-  --gray-400: #9A8E7E;
-  --gray-500: #7A7062;
-  --gray-600: #6E655A;
-  --gray-700: #5A5247;
-  --gray-800: #3A3128;
-  --gray-900: #211B14;
-  --accent-warm: #BE4D2B;
-  --surface: #FBF6EC;
-  --field-red:   #B7472A;
-  --field-gold:  #C6892F;
-  --field-olive: #6F7A45;
-  --field-slate: #475A66;
-  --field-mauve: #6B4453;
-  --field-clay:  #A8826B;
+  --gray-50:  #FBF8F3;
+  --gray-100: #F2EDE4;  /* bg-subtle */
+  --gray-200: #E6DED1;  /* border */
+  --gray-300: #CFC4B2;
+  --gray-400: #94836D;  /* border-strong (3.46:1 — WCAG 1.4.11) */
+  --gray-500: #736658;
+  --gray-600: #5C5147;
+  --gray-700: #5C5147;
+  --gray-800: #2E2823;
+  --gray-900: #17130F;
+  --accent-warm: #C8321A;
+  --surface: #FFFFFF;
+  /* Category colors (cat/* in the handoff) */
+  --field-red:   #C8321A;  /* food */
+  --field-gold:  #96590A;  /* jazz/amber as text-safe */
+  --field-olive: #1F6B45;  /* sports/open-free green */
+  --field-slate: #1D5FA8;  /* art */
+  --field-mauve: #B02A63;  /* theater */
+  --field-clay:  #7A6248;  /* architecture */
   --max-width: 480px;
   --nav-height: 56px;
 }
@@ -58,7 +65,7 @@ html, body {
 }
 
 body {
-  font-family: 'Hanken Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Instrument Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: var(--ink);
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
@@ -168,7 +175,7 @@ body {
   width: 38px;
   height: 38px;
   border-radius: 999px;
-  background: linear-gradient(135deg, #E0552C, #F0997B);
+  background: linear-gradient(135deg, #C8321A, #E86A50);
   color: #fff;
   font-size: 14px;
   font-weight: 800;
@@ -249,7 +256,7 @@ body {
 
 /* ── Typography ─────────────────────────────────────── */
 .serif {
-  font-family: 'Playfair Display', serif;
+  font-family: var(--serif);
 }
 
 h1.display {
@@ -474,10 +481,12 @@ h2.display {
 }
 
 .home-wordmark {
-  font-size: 30px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
+  /* display/xl from the Figma type ramp: Bricolage Bold 32/38, −2.5% */
+  font-family: var(--serif);
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.19;
   color: var(--ink);
 }
 
@@ -753,7 +762,7 @@ h2.display {
 
 /* ── Lede with serif drop cap (Detail screens) ───── */
 .lede::first-letter {
-  font-family: 'Playfair Display', serif;
+  font-family: var(--serif);
   font-size: 46px;
   font-weight: 800;
   float: left;
@@ -875,4 +884,44 @@ h2.display {
   .app-shell {
     margin: 0 auto;
   }
+}
+
+/* Trips merge (2026-08-25): the segmented switch sits above the screen's own
+   wordmark header, and it already clears the status bar — so inside the Trips
+   shell the header must not add the inset again (double gap otherwise). */
+.trips-shell .home-header {
+  padding-top: 12px;
+}
+
+/* Share photo viewer (2026-08-25): overlay fades in; full image fades over
+   the instant blurred thumb (blur-up loading). */
+.stoop-viewer { animation: stoopFade 160ms ease; }
+.stoop-viewer-full { animation: stoopFade 260ms ease; }
+@keyframes stoopFade { from { opacity: 0; } to { opacity: 1; } }
+
+/* ── Warm map (brand motif #4, 2026-08-26): tint the raster basemap toward the
+   handoff's map/* tokens (land #F2ECE1) — a CSS filter approximation until a
+   vector style exists. Applies to every Leaflet map (Map tab + Stoop maps). */
+.leaflet-tile-pane { filter: sepia(0.22) saturate(0.85) brightness(1.03) contrast(0.97); }
+
+/* Figma map rebuild: the places sheet peeks 148px from the bottom — lift
+   Leaflet's bottom controls (rotate compass, attribution) clear of it. */
+.main-map .leaflet-bottom { bottom: 154px; }
+
+/* Search-target ring on the Map (2026-08-27): identifies WHICH dot you
+   searched among neighbors. Static ring + one soft outward pulse. */
+.map-highlight-ring {
+  width: 44px; height: 44px; border-radius: 999px;
+  border: 3px solid #C8321A;
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.85), 0 2px 10px rgba(23,19,15,0.25);
+  position: relative;
+}
+.map-highlight-ring span {
+  position: absolute; inset: -3px; border-radius: 999px;
+  border: 3px solid #C8321A;
+  animation: stoopPing 1.6s ease-out infinite;
+}
+@keyframes stoopPing {
+  0%   { transform: scale(1);    opacity: 0.8; }
+  100% { transform: scale(1.9);  opacity: 0; }
 }

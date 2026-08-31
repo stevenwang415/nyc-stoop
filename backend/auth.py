@@ -340,10 +340,12 @@ def delete_me(
 ) -> dict:
     """Permanently delete the authenticated account (App Review 5.1.1(v)).
 
-    Hard delete: the user row goes away (password-reset tokens cascade via FK
-    or are orphan-safe). Trip data lives client-side in localStorage, so there
-    is nothing else server-side to scrub. Idempotent from the client's view —
-    the JWT stops resolving the moment the row is gone.
+    Hard delete: the user row goes away, and Share v2.0 data cascades with it
+    at the database level — share_photos, share_comments (both directions:
+    theirs, and theirs-on-deleted-photos via photo_id), and friendships all
+    declare ON DELETE CASCADE. Trip data lives client-side in localStorage.
+    Idempotent from the client's view — the JWT stops resolving the moment
+    the row is gone.
     """
     db.query(PasswordResetToken).filter(
         PasswordResetToken.user_id == current_user.id

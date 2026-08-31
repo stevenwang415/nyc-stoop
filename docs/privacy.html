@@ -72,7 +72,7 @@
     <a href="index.html" class="back">← NYC Stoop</a>
 
     <h1>Privacy Policy</h1>
-    <p class="updated">Last updated: May 29, 2026</p>
+    <p class="updated">Last updated: August 25, 2026</p>
 
     <p>
       NYC Stoop ("we", "the app") is built with privacy as the default.
@@ -81,19 +81,45 @@
     </p>
 
     <div class="note">
-      <strong>Short version:</strong> NYC Stoop runs entirely on your device.
-      We don't collect, store, or transmit any personal information.
-      Your saves, trip plans, notes, and custom places live in your device's
-      local storage and never leave it.
+      <strong>Short version:</strong> the guide works without an account and
+      keeps your plans on your device. If you sign in, we store your account
+      details. If you use Share, the photos, captions, and comments you post
+      are stored on our servers and shown <em>only to friends you approve</em>
+      — nothing you share is ever public.
     </div>
+
+    <h2>Account information (optional)</h2>
+    <p>
+      You can use the guide and planner without an account. If you create one
+      (email, Sign in with Apple, or Google), we store: your email address, a
+      salted hash of your password (never the password itself; none for
+      social sign-ins), your display name if you set one, and a small profile
+      picture if you add one. Accounts exist to identify you to friends in
+      Share and to let you delete your data. You can delete your account in
+      Settings at any time — this permanently removes your account and all
+      your Share content (photos, comments, friendships) from our servers.
+    </p>
+
+    <h2>Share — photos, friends, and comments</h2>
+    <p>
+      Share is friends-only. There is no public content, no follower system,
+      and no user search — people connect only by exchanging friend codes in
+      person or by invitation.
+    </p>
+    <ul>
+      <li><strong>Visibility:</strong> photos, captions, and comments you post are visible only to you and friends you have accepted. Removing or blocking a friend immediately hides your content from them (and theirs from you).</li>
+      <li><strong>Photo metadata is stripped:</strong> we remove EXIF data — including embedded GPS — from every uploaded image.</li>
+      <li><strong>Location is explicit and optional:</strong> if a photo is pinned to a place, that location is a separate field you can see, edit, or remove before and after posting. The app asks your permission before using your device's location, and only uses it to suggest a pin.</li>
+      <li><strong>Moderation:</strong> any photo or comment can be reported. Reported content is automatically hidden after multiple reports and reviewed within 24 hours. Photo owners can delete any comment on their own photos.</li>
+      <li><strong>Feedback</strong> you send through the app (message + your email if signed in) is stored so we can respond.</li>
+    </ul>
 
     <h2>What we don't collect</h2>
     <ul>
-      <li>No account is required to use NYC Stoop.</li>
-      <li>We do not collect your name, email address, phone number, or any other personally identifiable information.</li>
-      <li>We do not track your location.</li>
+      <li>We do not track your location in the background, and we never attach location to anything without showing you first.</li>
       <li>We do not use third-party analytics or advertising SDKs.</li>
-      <li>We do not sell or share any data with third parties (because we don't have any to sell or share).</li>
+      <li>We do not access your contacts.</li>
+      <li>We do not sell or share your data with third parties.</li>
     </ul>
 
     <h2>What stays on your device</h2>
@@ -116,13 +142,15 @@
 
     <h2>Third-party services</h2>
     <p>
-      The map view loads tiles from
-      <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>,
-      a public collaborative mapping project. When you view the map, your
-      device requests tiles from OpenStreetMap's servers. OpenStreetMap
-      logs these requests for operational purposes; see their
-      <a href="https://wiki.osmfoundation.org/wiki/Privacy_Policy">privacy policy</a>
-      for details. We do not send any user identifiers or saved data along with these requests.
+      Map views load tiles from
+      <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> and
+      <a href="https://carto.com/">CARTO</a>. When you search for a place to
+      tag a photo, the search text is sent to OpenStreetMap's
+      <a href="https://nominatim.org/">Nominatim</a> geocoding service. These
+      services log requests for operational purposes (see their privacy
+      policies); we do not send any user identifiers or saved data along with
+      these requests. Our servers are hosted on Vercel, and account and Share
+      data is stored in a managed Postgres database (Neon).
     </p>
     <p>
       Some external links in the app (ticket booking, restaurant reservations,

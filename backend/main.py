@@ -23,6 +23,7 @@ from fastapi import FastAPI  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 
 from auth import router as auth_router  # noqa: E402
+from share import router as share_router  # noqa: E402
 from database import Base, engine  # noqa: E402
 
 logging.basicConfig(
@@ -41,10 +42,19 @@ def _bootstrap_db() -> None:
     Base.metadata.create_all(bind=engine)
     # create_all never adds columns to EXISTING tables — patch later additions
     # here (Postgres IF NOT EXISTS keeps this idempotent on every boot).
+    # SQLite (local Share-testing DB) skips them: create_all built the full
+    # current schema from models.py, so there is nothing to patch.
+    if engine.dialect.name != "postgresql":
+        logger.info("Non-Postgres database (%s) — skipping column patches.", engine.dialect.name)
+        return
     from sqlalchemy import text
     with engine.begin() as conn:
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS apple_sub VARCHAR(255)"))
         conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_apple_sub ON users (apple_sub)"))
+        # Share v2.0 (2026-08-20): friend codes on existing users tables.
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS friend_code VARCHAR(16)"))
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_friend_code ON users (friend_code)"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_b64 TEXT"))
         # In-app feedback (2026-07-14): replaces the mailto round-trip.
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS feedback (
@@ -78,6 +88,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(share_router)
 
 
 @app.get("/health")
