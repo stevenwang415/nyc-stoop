@@ -1903,7 +1903,7 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
               line below still carries the temperature; this slot is the
               notifications bell now. */}
           <div style={{ minWidth: 40, height: 40, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5, zIndex: 1 }}>
-            {user && onOpenNotifs && (
+            {onOpenNotifs && (
               <button onClick={onOpenNotifs} aria-label={t('Notifications')} style={{
                 position: 'relative', background: 'none', border: 'none', cursor: 'pointer',
                 padding: 2, marginLeft: 4, display: 'inline-flex', color: 'var(--ink)' }}>
@@ -18640,7 +18640,16 @@ export default function App() {
             border: '1px solid rgba(23,19,15,0.12)', boxShadow: '0 12px 40px rgba(23,19,15,0.20)',
             maxHeight: '62vh', overflowY: 'auto', padding: 8 }}>
             <div style={{ fontFamily: 'var(--serif)', fontSize: 16, fontWeight: 600, color: 'var(--ink)', padding: '8px 10px 6px' }}>{t('Notifications')}</div>
-            {notifEvents.length === 0 && (
+            {!getUser() ? (
+              <div style={{ padding: '18px 14px 22px', textAlign: 'center', fontSize: 13, color: 'var(--gray-500)', lineHeight: 1.6 }}>
+                {t('Sign in to see photos and comments from your friends here.')}
+                <div style={{ marginTop: 12 }}>
+                  <button onClick={() => { setNotifOpen(false); setSettingsOpen(true) }}
+                    style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 999, padding: '9px 18px',
+                      fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>{t('Sign in')}</button>
+                </div>
+              </div>
+            ) : notifEvents.length === 0 && (
               <div style={{ padding: '18px 14px 22px', textAlign: 'center', fontSize: 13, color: 'var(--gray-500)', lineHeight: 1.6 }}>
                 {t('Nothing yet — friend photos and comments on your photos land here.')}
               </div>
