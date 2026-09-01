@@ -13,15 +13,33 @@
 // skips any place_name it already posted — safe to re-run.
 import fs from 'node:fs'
 
-const [, , base, token] = process.argv
+let [, , base, token] = process.argv
+// Long JWTs get mangled by terminal pastes — accept quotes/whitespace debris,
+// and sanity-check the shape before burning a request.
+token = (token || '').trim().replace(/^["'<]+|[>"']+$/g, '')
 if (!base || !token) {
   console.error('usage: node scripts/seed-official.mjs <API_BASE> <OFFICIAL_JWT>')
   process.exit(1)
 }
+if (token.split('.').length !== 3) {
+  console.error('✗ that does not look like a complete JWT (need 3 dot-separated parts, got ' + token.split('.').length + ') — re-copy it from the console in one piece')
+  process.exit(1)
+}
+try {
+  const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString())
+  console.log('token: user', payload.sub, '·', payload.email, '· expires', new Date(payload.exp * 1000).toLocaleString())
+  if (payload.exp * 1000 < Date.now()) { console.error('✗ token is EXPIRED — sign in again and re-copy'); process.exit(1) }
+} catch { console.error('✗ could not decode token — it is corrupted; re-copy it'); process.exit(1) }
 const H = { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }
 const payloads = JSON.parse(fs.readFileSync('official-photos/payloads.json', 'utf8'))
 
-const existing = await fetch(base + '/share/photos/mine', { headers: H }).then(r => r.json())
+const listRes = await fetch(base + '/share/photos/mine', { headers: H })
+if (!listRes.ok) {
+  console.error('✗ auth check failed:', listRes.status, await listRes.text())
+  console.error('  → the token is not being accepted; re-copy it exactly (no <>, no quotes, one line)')
+  process.exit(1)
+}
+const existing = await listRes.json()
 const have = new Set((existing.photos || []).map(p => p.place_name))
 console.log(`account has ${have.size} photos; seeding ${payloads.length} candidates…`)
 

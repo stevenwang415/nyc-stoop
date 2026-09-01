@@ -384,6 +384,8 @@ export default function ShareSheetHost({ embedded = false }) {
 
   const explainErr = (e) => e?.status === 404
     ? t('The server does not have the Share update yet — deploy the backend (git push), then reload.')
+    : (e?.status === 401 || e?.status === 403)
+    ? t('Your session expired — sign out and back in (Settings).')
     : (e?.message === 'signed-out' ? t('Sign in first') : t('Could not reach the server. Check your connection and reload.'))
 
   // One-shot avatar sync (08-25): the profile photo lives in a device-local

@@ -414,6 +414,19 @@ export function AuthModal({ onClose, onSuccess, initialTab = 'signin' }) {
               :                    t('Sign in')}
           </button>
 
+          {/* Guideline 1.2: users must agree to terms (zero-tolerance UGC
+              clause lives in the Terms of Use). Shown on every auth path —
+              email AND Apple/Google both create accounts through this screen. */}
+          <div style={{ fontSize: 12, color: '#6b6257', lineHeight: 1.5, textAlign: 'center', padding: '2px 6px 0' }}>
+            {t('By continuing, you agree to our')}{' '}
+            <a href="https://island-lime-fa1.notion.site/NYC-Stoop-Terms-of-Use-39f129b450be813f8524c05685743d60"
+              target="_blank" rel="noopener noreferrer" style={{ color: '#6b6257', textDecoration: 'underline' }}>
+              {t('Terms of Use')}</a>{' '}{t('and')}{' '}
+            <a href="https://island-lime-fa1.notion.site/NYC-Stoop-Privacy-Policy-39f129b450be81d6bcc0f966ea97c410"
+              target="_blank" rel="noopener noreferrer" style={{ color: '#6b6257', textDecoration: 'underline' }}>
+              {t('Privacy Policy')}</a>.
+          </div>
+
           {/* Footer links */}
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0 12px' }}>
             {tab === 'signin' && (
