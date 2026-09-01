@@ -443,7 +443,7 @@ export default function ShareSheetHost({ embedded = false }) {
   if (!user) {
     return (
       <div style={wrapStyle}>
-        <div style={S.header}><h1 style={S.h1}>{t('Your Stoop')}</h1>{!embedded && <button onClick={close} style={S.iconBtn}>✕</button>}</div>
+        <div style={S.header}><h1 style={S.h1}>{t('My Stoop')}</h1>{!embedded && <button onClick={close} style={S.iconBtn}>✕</button>}</div>
         <div style={{ padding: '30px 24px', textAlign: 'center', color: 'var(--gray-600)', fontSize: 14, lineHeight: 1.6 }}>
           {t('Sign in to add friends and share photos of your trip.')}<br />
           <span style={S.meta}>{t('Settings → Sign in')}</span>
@@ -670,7 +670,7 @@ export default function ShareSheetHost({ embedded = false }) {
   const title = view === 'compose' ? (editId ? t('Edit photo') : t('Add a photo'))
     : friendView ? friendView.display_name
     : view === 'friends' ? t('Friends')
-    : t('Your Stoop')
+    : t('My Stoop')
 
   const canGoBack = view === 'compose' || !!friendView
 
@@ -684,7 +684,7 @@ export default function ShareSheetHost({ embedded = false }) {
 
       {!canGoBack && (
         <div style={S.tabs}>
-          <button onClick={() => setView('me')} style={S.tab(view === 'me')}>{t('Your Stoop')}</button>
+          <button onClick={() => setView('me')} style={S.tab(view === 'me')}>{t('My Stoop')}</button>
           <button onClick={() => setView('friends')} style={S.tab(view === 'friends')}>{t('Friends')}{friends.length ? ` (${friends.length})` : ''}</button>
           <button onClick={() => setView('discover')} style={S.tab(view === 'discover')}>{t('From friends')}</button>
         </div>
