@@ -528,6 +528,24 @@ export default function ShareSheetHost({ embedded = false }) {
   }
 
   const [activeIdx, setActiveIdx] = React.useState(0) // compose stage: which photo is on stage
+  // Drag-to-reorder on the thumb strip (compose only — a saved post keeps its
+  // order). Pointer events cover mouse AND touch; bookkeeping lives in a ref
+  // so dragging doesn't re-render, only the actual reorders do. Slot width =
+  // 54px thumb + 7px gap.
+  const dragRef = React.useRef(null)
+  const THUMB_SLOT = 61
+  const thumbDragMove = (e) => {
+    const d = dragRef.current
+    if (!d) return
+    const shift = Math.round((e.clientX - d.startX) / THUMB_SLOT)
+    const to = Math.max(0, Math.min(files.length - 1, d.from + shift))
+    if (to !== d.from) {
+      setFiles(prev => { const next = [...prev]; const [m] = next.splice(d.from, 1); next.splice(to, 0, m); return next })
+      setActiveIdx(to)
+      d.startX += (to - d.from) * THUMB_SLOT
+      d.from = to
+    }
+  }
   // The main "Where was this?" + caption fields belong to the ACTIVE photo
   // (device report 2026-08-29: the shared field bled into every image). Each
   // photo is typed independently — no inheritance between photos. EDIT MODE
@@ -853,8 +871,17 @@ export default function ShareSheetHost({ embedded = false }) {
                   <div style={{ display: 'flex', gap: 7, marginTop: 9, overflowX: 'auto' }}>
                     {files.map((it, i) => (
                       <button key={it.url} onClick={() => setActiveIdx(i)}
+                        onPointerDown={e => {
+                          if (editId) return
+                          try { e.currentTarget.setPointerCapture(e.pointerId) } catch {}
+                          dragRef.current = { from: i, startX: e.clientX }
+                        }}
+                        onPointerMove={thumbDragMove}
+                        onPointerUp={() => { dragRef.current = null }}
+                        onPointerCancel={() => { dragRef.current = null }}
                         style={{ position: 'relative', padding: 0, border: i === a ? '2px solid var(--accent)' : '2px solid transparent',
-                          borderRadius: 11, cursor: 'pointer', background: 'none', flexShrink: 0 }}>
+                          borderRadius: 11, cursor: editId ? 'pointer' : 'grab', background: 'none', flexShrink: 0,
+                          touchAction: editId ? 'auto' : 'none' }}>
                         <img src={it.url} alt="" style={{ width: 54, height: 54, objectFit: 'cover', borderRadius: 9, display: 'block',
                           opacity: i === a ? 1 : 0.75 }} />
                         <span style={{ position: 'absolute', top: 2, right: 2, width: 17, height: 17, borderRadius: 999,
@@ -868,6 +895,9 @@ export default function ShareSheetHost({ embedded = false }) {
                           color: 'var(--gray-400)', fontSize: 20, cursor: 'pointer', flexShrink: 0 }}>＋</button>
                     )}
                   </div>
+                  {!editId && files.length > 1 && (
+                    <div style={{ ...S.meta, marginTop: 5 }}>{t('Drag a thumbnail to reorder')}</div>
+                  )}
                   {/* Caption for the photo on stage (place lives in the main
                       "Where was this?" field below, also per-photo). */}
                   <input value={cur.caption || ''} maxLength={200}

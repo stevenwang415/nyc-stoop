@@ -103,6 +103,7 @@ const ZH = {
   'Forgot password?': '忘記密碼？',
   'By continuing, you agree to our': '繼續即表示您同意我們的',
   'The photos stay — tap a thumbnail, then edit that photo’s place and caption.': '照片不會變——點選縮圖，即可編輯該張照片的地點與說明。',
+  'Drag a thumbnail to reorder': '拖曳縮圖即可調整順序',
   'Terms of Use': '使用條款',
   'and': '與',
   'Privacy Policy': '隱私權政策',
