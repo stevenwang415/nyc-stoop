@@ -12359,6 +12359,25 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     // a meal slot is still hidden (see the render gate).
     const firstOptIn = !mealOptIns[dayIdx]
     const dinnerHidden = firstOptIn || !!skippedMeals[dayIdx]?.dinner
+    // Append the revealed card at the BOTTOM of the day (2026-08-31): the
+    // default slotting inserts meals between existing stops (before the first
+    // Evening stop etc.), which reads as a random insertion. Write a saved
+    // order = what's visible right now + the new meal last; computed BEFORE
+    // the reveal state lands, so defaultItemIds still excludes the meal.
+    const mealId = dinnerHidden ? '__dinner__' : '__lunch__'
+    try {
+      const { defaultItemIds } = computeDayPlan(days[dayIdx], dayIdx)
+      const saved = dayItemOrders[dayIdx]
+      const cur = saved
+        ? [...saved.filter(id => defaultItemIds.includes(id)), ...defaultItemIds.filter(id => !saved.includes(id))]
+        : [...defaultItemIds]
+      const nextOrder = [...cur.filter(id => id !== mealId), mealId]
+      setDayItemOrders(prev => {
+        const n = { ...prev, [dayIdx]: nextOrder }
+        try { lsSet('nyc_day_item_orders', JSON.stringify(n)) } catch {}
+        return n
+      })
+    } catch {}
     setMealOptIns(prev => {
       const next = { ...prev, [dayIdx]: true }
       try { lsSet('nyc_meal_optins', JSON.stringify(next)) } catch {}
