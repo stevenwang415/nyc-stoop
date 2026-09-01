@@ -37,6 +37,7 @@ const ZH = {
   'What do you feel like?': '現在想做什麼？',
   'Eat': '吃飯', 'Restaurants': '餐廳',
   'Drinks': '喝一杯', 'Bars, cocktails, wine': '酒吧、調酒、葡萄酒',
+  'Restaurant': '餐廳', '1 restaurant': '1 間餐廳', '{N} restaurants': '{N} 間餐廳',
   'Coffee': '咖啡', 'Cafés & bakeries': '咖啡館與烘焙坊',
   'Outdoors': '戶外', 'Parks & waterfront': '公園與河濱',
   'Culture': '文化', 'Museums & landmarks': '博物館與地標',

@@ -11158,7 +11158,7 @@ ${body}
                         <span style={{ fontSize: 18, marginTop: 1 }}>🍴</span>
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>
-                            {isLunch ? t('Lunch') : t('Dinner')} · {t(cuisineLabel(item.cuisine))}
+                            {t('Restaurant')} · {t(cuisineLabel(item.cuisine))}
                           </div>
                           {/* S2: restaurant names speak in the guide's serif voice,
                               matching the live meal cards. */}
@@ -13032,13 +13032,13 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
         // event labels that follow are detail, not additional items.
         const _cardCount = dayPlan.reorderedItems.length
         summaryBits.push(t2(_cardCount === 1 ? '1 stop' : '{N} stops', { N: _cardCount }))
-        // Meal label reflects the meals ACTUALLY in the plan (✕-removed ones out).
+        // Meal label reflects the meals ACTUALLY in the plan (✕-removed ones
+        // out). Neutral counts (2026-08-31) — we no longer claim lunch/dinner.
+        // (_hasLunchItem/_hasDinnerItem still feed the budget estimate below.)
         const _hasLunchItem = dayPlan.reorderedItems.some(it => it.type === 'restaurant' && it.meal === 'lunch')
         const _hasDinnerItem = dayPlan.reorderedItems.some(it => it.type === 'restaurant' && it.meal === 'dinner')
-        const mealLabel = _hasLunchItem && _hasDinnerItem ? t('Lunch + Dinner')
-          : _hasDinnerItem ? t('Dinner')
-          : _hasLunchItem ? t('Lunch') : ''
-        if (mealLabel) summaryBits.push(mealLabel)
+        const _mealCount = dayPlan.reorderedItems.filter(it => it.type === 'restaurant').length
+        if (_mealCount) summaryBits.push(t2(_mealCount === 1 ? '1 restaurant' : '{N} restaurants', { N: _mealCount }))
         const dayEventCount = (eventsByDay[dayIdx] || []).length
         if (dayEventCount) summaryBits.push(t2(dayEventCount === 1 ? '1 event' : '{N} events', { N: dayEventCount }))
 
@@ -13424,8 +13424,10 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                         return (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'nowrap', marginLeft: -20, minWidth: 0 }}>
                             {routeNumBadge(_routeNum['meal:' + item.meal])}
-                            <span style={{ fontSize: 12, fontWeight: 700, color: isLunch ? '#A96F22' : '#6B4453', textTransform: 'uppercase', letterSpacing: '0.07em', flexShrink: 0 }}>
-                              {isLunch ? t('Lunch') : t('Dinner')}
+                            {/* Neutral label (2026-08-31): the user decides which
+                                meal this is — we can't know, so don't claim it. */}
+                            <span style={{ fontSize: 12, fontWeight: 700, color: '#6B4453', textTransform: 'uppercase', letterSpacing: '0.07em', flexShrink: 0 }}>
+                              {t('Restaurant')}
                             </span>
                             {cuisineOpt ? (
                               <button onClick={() => toggleMealPicker(dayIdx, item.meal)} aria-label="Change cuisine for this meal" style={{
