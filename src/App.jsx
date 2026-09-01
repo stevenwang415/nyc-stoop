@@ -17263,27 +17263,8 @@ function SettingsModal({
           </div>
         </div>
 
-        {/* ── Temperature unit — one quiet row, house light-segmented style. ── */}
-        <div style={{ padding: '0 20px 12px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ flex: 1, fontSize: 14.5, color: 'var(--gray-900)' }}>{t('Temperature')}</span>
-          <div role="tablist" style={{ display: 'inline-flex', background: 'var(--gray-100)', borderRadius: 999, padding: 3 }}>
-            {[['f', '°F'], ['c', '°C']].map(([code, label]) => {
-              const on = getUnit() === code
-              return (
-                <button key={code} role="tab" aria-selected={on}
-                  onClick={() => { setUnit(code); onPrefsChange() }}
-                  style={{
-                    border: 'none', cursor: 'pointer', padding: '5px 14px', borderRadius: 999,
-                    fontSize: 13, fontWeight: on ? 700 : 500, fontFamily: 'inherit',
-                    background: on ? 'var(--white)' : 'transparent',
-                    color: on ? 'var(--gray-900)' : 'var(--gray-500)',
-                    boxShadow: on ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                    transition: 'all 0.15s ease',
-                  }}>{label}</button>
-              )
-            })}
-          </div>
-        </div>
+        {/* Temperature-unit row removed 2026-08-31 (pre-2.0 build) — weather
+            chips in Planner keep using the stored/default unit (°F). */}
 
         {/* ── Account section ─────────────────────────────────────────── */}
         {user ? (
