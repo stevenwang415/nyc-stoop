@@ -13425,8 +13425,11 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'nowrap', marginLeft: -20, minWidth: 0 }}>
                             {routeNumBadge(_routeNum['meal:' + item.meal])}
                             {/* Neutral label (2026-08-31): the user decides which
-                                meal this is — we can't know, so don't claim it. */}
-                            <span style={{ fontSize: 12, fontWeight: 700, color: '#6B4453', textTransform: 'uppercase', letterSpacing: '0.07em', flexShrink: 0 }}>
+                                meal this is — we can't know, so don't claim it.
+                                Shrinkable + ellipsis: "RESTAURANT" is longer than
+                                the old "DINNER" and pushed the ✕ out of the card
+                                on phones when both chips were present. */}
+                            <span style={{ fontSize: 12, fontWeight: 700, color: '#6B4453', textTransform: 'uppercase', letterSpacing: '0.07em', flexShrink: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {t('Restaurant')}
                             </span>
                             {cuisineOpt ? (
@@ -13435,6 +13438,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                                 color: cuisineOpt.color, background: cuisineOpt.color + '18',
                                 padding: '2px 8px', borderRadius: 999, border: 'none', cursor: 'pointer',
                                 display: 'inline-flex', alignItems: 'center', gap: 3, whiteSpace: 'nowrap',
+                                flexShrink: 1, minWidth: 0, overflow: 'hidden',
                               }}>
                                 <span>{cuisineOpt.emoji}</span><span>{t(cuisineOpt.label)}</span>
                                 <span style={{ opacity: 0.6, marginLeft: 2, transition: 'transform 180ms', display: 'inline-block', transform: isPickerOpen ? 'rotate(90deg)' : 'rotate(0)' }}>›</span>
@@ -13445,6 +13449,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                                 color: 'var(--gray-500)', background: 'var(--gray-100)',
                                 padding: '2px 8px', borderRadius: 999, border: 'none', cursor: 'pointer',
                                 display: 'inline-flex', alignItems: 'center', gap: 3, whiteSpace: 'nowrap',
+                                flexShrink: 1, minWidth: 0, overflow: 'hidden',
                               }}>
                                 + Choose cuisine
                               </button>
