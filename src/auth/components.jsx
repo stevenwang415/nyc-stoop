@@ -150,10 +150,20 @@ export function AuthModal({ onClose, onSuccess, initialTab = 'signin' }) {
   const [error, setError] = React.useState('')
   const [info, setInfo] = React.useState('')
   const [busy, setBusy] = React.useState(false)
+  // Guideline 1.2 (App Review rejection 2026-09-01): users must EXPLICITLY
+  // agree to the Terms — which carry the zero-tolerance UGC clause — before
+  // registering or logging in. A passive "by continuing" line was not enough;
+  // this checkbox gates every auth path (Apple, Google, email).
+  const [agreed, setAgreed] = React.useState(false)
+  const requireAgree = () => {
+    if (!agreed) { setError(t('Please agree to the Terms of Use to continue.')); return false }
+    return true
+  }
 
   async function handleSubmit(e) {
     e?.preventDefault?.()
     setError(''); setInfo('')
+    if (tab !== 'forgot' && !requireAgree()) return
 
     if (tab === 'forgot') {
       if (!email.trim()) { setError('Enter your email.'); return }
@@ -187,6 +197,7 @@ export function AuthModal({ onClose, onSuccess, initialTab = 'signin' }) {
   }
 
   async function handleAppleSignIn() {
+    if (!requireAgree()) return
     setError(''); setInfo(''); setBusy(true)
     try {
       const result = await SignInWithApple.authorize({
@@ -212,6 +223,7 @@ export function AuthModal({ onClose, onSuccess, initialTab = 'signin' }) {
 
   // Native Google flow for the iOS shell (web build keeps the GIS button below).
   async function handleGoogleNative() {
+    if (!requireAgree()) return
     setError(''); setInfo(''); setBusy(true)
     try {
       await ensureSocialLogin()
@@ -297,6 +309,39 @@ export function AuthModal({ onClose, onSuccess, initialTab = 'signin' }) {
           </div>
         )}
 
+        {/* Guideline 1.2: explicit EULA agreement BEFORE registering or
+            logging in — the Terms carry the zero-tolerance UGC clause and
+            it's restated here so the reviewer sees it on this screen. Every
+            auth path below is gated on this checkbox. */}
+        {tab !== 'forgot' && (
+          <div style={{ padding: '0 20px 14px' }}>
+            <label style={{
+              display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer',
+              background: 'var(--gray-50)', border: '1px solid var(--gray-200)',
+              borderRadius: 12, padding: '10px 12px',
+              fontSize: 12.5, color: '#57503F', lineHeight: 1.5,
+            }}>
+              <input
+                type="checkbox" checked={agreed}
+                onChange={e => { setAgreed(e.target.checked); if (e.target.checked) setError('') }}
+                style={{ marginTop: 2, width: 18, height: 18, flexShrink: 0, accentColor: '#C8321A' }}
+              />
+              <span>
+                {t('I agree to the')}{' '}
+                <a href="https://island-lime-fa1.notion.site/NYC-Stoop-Terms-of-Use-39f129b450be813f8524c05685743d60"
+                  target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                  style={{ color: '#57503F', textDecoration: 'underline', fontWeight: 600 }}>
+                  {t('Terms of Use')}</a>{' '}{t('and')}{' '}
+                <a href="https://island-lime-fa1.notion.site/NYC-Stoop-Privacy-Policy-39f129b450be81d6bcc0f966ea97c410"
+                  target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                  style={{ color: '#57503F', textDecoration: 'underline', fontWeight: 600 }}>
+                  {t('Privacy Policy')}</a>
+                {t(' — there is no tolerance for objectionable content or abusive users.')}
+              </span>
+            </label>
+          </div>
+        )}
+
         {/* Social sign-in block — hidden in forgot tab. Apple first on iOS
             (App Review expects it at least as prominent as other providers). */}
         {tab !== 'forgot' && (
@@ -348,10 +393,19 @@ export function AuthModal({ onClose, onSuccess, initialTab = 'signin' }) {
                 </button>
               ) : null
             ) : (
-              <GoogleButton
-                onCredential={handleGoogleCredential}
-                onError={() => setError('Google sign-in failed. Try email + password.')}
-              />
+              // Web GIS button renders its own iframe — gate it by blocking
+              // pointer events until the Terms are agreed (1.2 parity).
+              <div
+                onClickCapture={() => { if (!agreed) requireAgree() }}
+                style={{ opacity: agreed ? 1 : 0.55, pointerEvents: 'auto' }}
+              >
+                <div style={{ pointerEvents: agreed ? 'auto' : 'none' }}>
+                  <GoogleButton
+                    onCredential={handleGoogleCredential}
+                    onError={() => setError('Google sign-in failed. Try email + password.')}
+                  />
+                </div>
+              </div>
             )}
             <div style={{
               display: 'flex', alignItems: 'center', gap: 10,
@@ -413,19 +467,6 @@ export function AuthModal({ onClose, onSuccess, initialTab = 'signin' }) {
               : tab === 'forgot' ? 'Send reset link'
               :                    t('Sign in')}
           </button>
-
-          {/* Guideline 1.2: users must agree to terms (zero-tolerance UGC
-              clause lives in the Terms of Use). Shown on every auth path —
-              email AND Apple/Google both create accounts through this screen. */}
-          <div style={{ fontSize: 12, color: '#6b6257', lineHeight: 1.5, textAlign: 'center', padding: '2px 6px 0' }}>
-            {t('By continuing, you agree to our')}{' '}
-            <a href="https://island-lime-fa1.notion.site/NYC-Stoop-Terms-of-Use-39f129b450be813f8524c05685743d60"
-              target="_blank" rel="noopener noreferrer" style={{ color: '#6b6257', textDecoration: 'underline' }}>
-              {t('Terms of Use')}</a>{' '}{t('and')}{' '}
-            <a href="https://island-lime-fa1.notion.site/NYC-Stoop-Privacy-Policy-39f129b450be81d6bcc0f966ea97c410"
-              target="_blank" rel="noopener noreferrer" style={{ color: '#6b6257', textDecoration: 'underline' }}>
-              {t('Privacy Policy')}</a>.
-          </div>
 
           {/* Footer links */}
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0 12px' }}>
