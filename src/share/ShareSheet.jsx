@@ -879,11 +879,15 @@ export default function ShareSheetHost({ embedded = false }) {
                         onPointerMove={thumbDragMove}
                         onPointerUp={() => { dragRef.current = null }}
                         onPointerCancel={() => { dragRef.current = null }}
+                        onDragStart={e => e.preventDefault()}
+                        onContextMenu={e => { if (!editId) e.preventDefault() }}
                         style={{ position: 'relative', padding: 0, border: i === a ? '2px solid var(--accent)' : '2px solid transparent',
                           borderRadius: 11, cursor: editId ? 'pointer' : 'grab', background: 'none', flexShrink: 0,
-                          touchAction: editId ? 'auto' : 'none' }}>
-                        <img src={it.url} alt="" style={{ width: 54, height: 54, objectFit: 'cover', borderRadius: 9, display: 'block',
-                          opacity: i === a ? 1 : 0.75 }} />
+                          touchAction: editId ? 'auto' : 'none', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}>
+                        <img src={it.url} alt="" draggable={false} onDragStart={e => e.preventDefault()}
+                          style={{ width: 54, height: 54, objectFit: 'cover', borderRadius: 9, display: 'block',
+                            opacity: i === a ? 1 : 0.75, pointerEvents: 'none', userSelect: 'none',
+                            WebkitUserSelect: 'none', WebkitUserDrag: 'none', WebkitTouchCallout: 'none' }} />
                         <span style={{ position: 'absolute', top: 2, right: 2, width: 17, height: 17, borderRadius: 999,
                           background: '#17130F', color: '#F7F2EA', fontSize: 10, fontWeight: 700,
                           display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
