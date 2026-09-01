@@ -527,46 +527,50 @@ export default function ShareSheetHost({ embedded = false }) {
     setCommentBusy(false)
   }
 
-  const [editGroupIds, setEditGroupIds] = React.useState([]) // [{id, caption}]
   const [activeIdx, setActiveIdx] = React.useState(0) // compose stage: which photo is on stage
   // The main "Where was this?" + caption fields belong to the ACTIVE photo
   // (device report 2026-08-29: the shared field bled into every image). Each
-  // photo is typed independently — no inheritance between photos.
+  // photo is typed independently — no inheritance between photos. EDIT MODE
+  // uses the exact same per-photo bindings (device report 2026-08-31: editing
+  // a multi-image post only reached the first image).
   const curIdx = Math.min(activeIdx, Math.max(0, files.length - 1))
   const curFile = files[curIdx] || null
-  const placeVal = editId ? anchorPlace : (curFile?.place || '')
+  const placeVal = curFile?.place || ''
   const setPlaceVal = (v) => {
     setPlaceResults(null)
-    if (editId) setAnchorPlace(v)
-    else setFiles(prev => prev.map((x, j) => j === curIdx ? { ...x, place: v, geo: x.geo?.src === 'search' ? null : x.geo } : x))
+    setFiles(prev => prev.map((x, j) => j === curIdx ? { ...x, place: v, geo: x.geo?.src === 'search' ? null : x.geo } : x))
   }
-  const curGeo = editId ? geo : (curFile?.geo || null)
+  const curGeo = curFile?.geo || null
   const setCurGeoSearch = (g) => {
-    if (editId) setGeo(g)
-    else setFiles(prev => prev.map((x, j) => j === curIdx ? { ...x, geo: g } : x))
+    setFiles(prev => prev.map((x, j) => j === curIdx ? { ...x, geo: g } : x))
   }
   const startEdit = (g) => {
     closeViewer()
     const p = g.lead
     setEditId(p.id)
-    setEditGroupIds(g.all.map(x => ({ id: x.id, caption: x.caption })))
-    setGeo(typeof p.lat === 'number' && typeof p.lng === 'number' ? { lat: p.lat, lng: p.lng, src: 'search' } : null)
+    setGeo(null)
     setPlaceResults(null)
-    setFiles([{ f: null, url: 'data:image/jpeg;base64,' + p.thumb_b64 }])
-    setAnchorPlace(p.place_name || ''); setAnchorArea(p.area_label || '')
-    setKind(p.kind || 'vibe'); setCaption(p.caption || '')
+    // Every photo of the post on the stage, with ITS OWN caption/place/pin.
+    setFiles(g.all.map(x => ({
+      f: null, id: x.id, url: 'data:image/jpeg;base64,' + x.thumb_b64,
+      caption: x.caption || '', place: x.place_name || '',
+      geo: (typeof x.lat === 'number' && typeof x.lng === 'number') ? { lat: x.lat, lng: x.lng, src: 'search' } : null,
+    })))
+    setActiveIdx(0)
+    setAnchorPlace(''); setAnchorArea(p.area_label || '')
+    setKind(p.kind || 'vibe'); setCaption('')
     setPostMsg(''); setView('compose')
   }
 
   const clearCompose = () => {
-    setEditId(null); setEditGroupIds([]); setFiles([]); setGeo(null); setActiveIdx(0)
+    setEditId(null); setFiles([]); setGeo(null); setActiveIdx(0)
     setPlaceResults(null); setPlaceSearching(false)
     setAnchorPlace(''); setAnchorArea(''); setCaption(''); setKind('vibe')
   }
 
   const runPlaceSearch = async () => {
     setPlaceSearching(true); setPlaceResults(null)
-    try { setPlaceResults(await searchPlaces((editId ? anchorPlace : (files[Math.min(activeIdx, files.length - 1)]?.place || '')).trim())) }
+    try { setPlaceResults(await searchPlaces((files[Math.min(activeIdx, files.length - 1)]?.place || '').trim())) }
     catch { setPlaceResults([]) }
     finally { setPlaceSearching(false) }
   }
@@ -583,7 +587,7 @@ export default function ShareSheetHost({ embedded = false }) {
 
   const submitPhoto = async () => {
     if (!files.length && !editId) { setPostMsg(t('Choose a photo first')); return }
-    if (!editId && !anchorArea) {
+    if (!anchorArea) {
       const missing = files.findIndex(x => !x.place?.trim() && !x.geo)
       if (missing !== -1) {
         setActiveIdx(missing)
@@ -591,21 +595,19 @@ export default function ShareSheetHost({ embedded = false }) {
         return
       }
     }
-    if (editId && !anchorPlace && !anchorArea) { setPostMsg(t('Tell us where this was')); return }
     setPosting(true); setPostMsg('')
     if (editId) {
-      // Label-only edit: the image itself never changes.
+      // Label-only edit: the images themselves never change. Each photo of
+      // the post saves ITS OWN place/caption/pin; area + kind are shared.
       try {
-        const match = seedUserPlaces.find(p => p.name === anchorPlace)
-        // Place/kind/location apply to the whole post; captions are PER IMAGE
-        // — the form edits the lead's caption, the others keep their own.
-        const targets = editGroupIds.length ? editGroupIds : [{ id: editId, caption }]
-        for (const tgt of targets) {
-          await updatePhoto(tgt.id, {
-            place_id: match?.id || null, place_name: anchorPlace || null,
+        for (const x of files) {
+          const rowPlace = x.place?.trim() || ''
+          const rowMatch = seedUserPlaces.find(pl => pl.name === rowPlace)
+          await updatePhoto(x.id, {
+            place_id: rowMatch?.id || null, place_name: rowPlace || null,
             area_label: anchorArea || null, kind,
-            caption: (tgt.id === editId ? caption : tgt.caption) || null,
-            lat: geo?.lat ?? null, lng: geo?.lng ?? null,
+            caption: x.caption?.trim() || null,
+            lat: x.geo?.lat ?? null, lng: x.geo?.lng ?? null,
           })
         }
         clearCompose()
@@ -798,8 +800,8 @@ export default function ShareSheetHost({ embedded = false }) {
                 Choose File menu for a plain file input — familiar, unstylable,
                 and it made our own Take-photo button redundant (device
                 report 2026-08-23). Desktop browsers show the file picker. */}
-            {!editId && <>
-              <input id="share-lib" type="file" accept="image/*" multiple style={{ display: 'none' }}
+            <>
+              {!editId && <input id="share-lib" type="file" accept="image/*" multiple style={{ display: 'none' }}
                 onChange={e => {
                   const picked = Array.from(e.target.files || []).slice(0, 5 - files.length)
                   if (picked.length) {
@@ -814,7 +816,7 @@ export default function ShareSheetHost({ embedded = false }) {
                     })
                   }
                   e.target.value = ''
-                }} />
+                }} />}
               {files.length === 0 ? (
                 /* Empty stage — one inviting tap target, not a text button */
                 <button onClick={() => document.getElementById('share-lib')?.click()}
@@ -842,10 +844,10 @@ export default function ShareSheetHost({ embedded = false }) {
                       <span style={{ position: 'absolute', bottom: 10, left: 10, background: 'rgba(234,243,222,0.95)', color: '#3B6D11',
                         fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 999 }}>📍 {t('Location found')}</span>
                     )}
-                    <button onClick={() => { setFiles(prev => prev.filter((_, j) => j !== a)); setActiveIdx(i => Math.max(0, i - 1)) }}
+                    {!editId && <button onClick={() => { setFiles(prev => prev.filter((_, j) => j !== a)); setActiveIdx(i => Math.max(0, i - 1)) }}
                       aria-label={t('Remove')}
                       style={{ position: 'absolute', top: 10, left: 10, width: 26, height: 26, borderRadius: 999, border: 'none',
-                        background: 'rgba(23,19,15,0.62)', color: '#fff', fontSize: 12, cursor: 'pointer', lineHeight: 1 }}>✕</button>
+                        background: 'rgba(23,19,15,0.62)', color: '#fff', fontSize: 12, cursor: 'pointer', lineHeight: 1 }}>✕</button>}
                   </div>
                   {/* Numbered strip — tap to put a photo on stage */}
                   <div style={{ display: 'flex', gap: 7, marginTop: 9, overflowX: 'auto' }}>
@@ -860,7 +862,7 @@ export default function ShareSheetHost({ embedded = false }) {
                           display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i + 1}</span>
                       </button>
                     ))}
-                    {files.length < 5 && (
+                    {!editId && files.length < 5 && (
                       <button onClick={() => document.getElementById('share-lib')?.click()} aria-label={t('Add photos')}
                         style={{ width: 58, height: 58, borderRadius: 11, border: '2px dashed var(--gray-300)', background: 'none',
                           color: 'var(--gray-400)', fontSize: 20, cursor: 'pointer', flexShrink: 0 }}>＋</button>
@@ -875,9 +877,10 @@ export default function ShareSheetHost({ embedded = false }) {
                 </>
                 )
               })()}
-            </>}
-            {editId && files[0] && <img src={files[0].url} alt="" style={{ width: '100%', maxHeight: 260, objectFit: 'cover', borderRadius: '0 14px 14px 14px' }} />}
-            {editId && <div style={{ ...S.meta, marginTop: 8 }}>{t('The photo stays — edit where it was and what it is.')}</div>}
+            </>
+            {editId && <div style={{ ...S.meta, marginTop: 8 }}>{files.length > 1
+              ? t('The photos stay — tap a thumbnail, then edit that photo’s place and caption.')
+              : t('The photo stays — edit where it was and what it is.')}</div>}
             {!editId && geo && (
               <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, background: '#EAF3DE', color: '#3B6D11', fontSize: 12, lineHeight: 1.5, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ flex: 1 }}>📍 {geo.src === 'photo' ? t("Location found in the photo — it will pin on your map.") : t("Using your current location — it will pin on your map.")}</span>
@@ -885,7 +888,7 @@ export default function ShareSheetHost({ embedded = false }) {
               </div>
             )}
             <div style={{ ...S.label, marginTop: 12 }}>
-              {t('Where was this?')}{!editId && files.length > 1 ? ` · ${t2('photo {N}', { N: curIdx + 1 })}` : ''}
+              {t('Where was this?')}{files.length > 1 ? ` · ${t2('photo {N}', { N: curIdx + 1 })}` : ''}
             </div>
             <input style={S.input} list="share-places" value={placeVal}
               onChange={e => setPlaceVal(e.target.value)}
@@ -946,11 +949,6 @@ export default function ShareSheetHost({ embedded = false }) {
                 <button key={id} onClick={() => setKind(id)} style={S.tab(kind === id)}>{emoji} {t(id)}</button>
               ))}
             </div>
-            {editId && <>
-              <div style={{ ...S.label, marginTop: 12 }}>{kind === 'food' ? t('What should we order?') : t('Caption (optional)')}</div>
-              <input style={S.input} value={caption} maxLength={200} onChange={e => setCaption(e.target.value)}
-                placeholder={kind === 'food' ? t('The one dish to get…') : t('Say something (optional)')} />
-            </>}
             <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
               <button style={{ ...S.cta, opacity: posting ? 0.6 : 1 }} disabled={posting} onClick={submitPhoto}>
                 {posting ? t('Posting…') : (editId ? t('Save changes') : t('Post to friends'))}
