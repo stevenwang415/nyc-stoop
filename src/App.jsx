@@ -12352,14 +12352,24 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     try { return JSON.parse(localStorage.getItem('nyc_meal_optins') || '{}') } catch { return {} }
   })
   const optIntoMeal = (dayIdx) => {
+    // ONE card per tap (device report 2026-08-31): the old version un-skipped
+    // lunch AND dinner together, so a daytime+evening day sprouted two
+    // restaurant cards from one tap. Now: first tap reveals dinner (holding
+    // lunch back), the next tap reveals lunch. The button stays visible while
+    // a meal slot is still hidden (see the render gate).
+    const firstOptIn = !mealOptIns[dayIdx]
+    const dinnerHidden = firstOptIn || !!skippedMeals[dayIdx]?.dinner
     setMealOptIns(prev => {
       const next = { ...prev, [dayIdx]: true }
       try { lsSet('nyc_meal_optins', JSON.stringify(next)) } catch {}
       return next
     })
-    // Also clear previous ✕s so the meals actually reappear.
-    setMealSkipped(dayIdx, 'dinner', false)
-    setMealSkipped(dayIdx, 'lunch', false)
+    if (dinnerHidden) {
+      setMealSkipped(dayIdx, 'dinner', false)
+      if (firstOptIn) setMealSkipped(dayIdx, 'lunch', true) // hold lunch for the next tap
+    } else {
+      setMealSkipped(dayIdx, 'lunch', false)
+    }
   }
   // Ghost-click guard (2026-08-19): the meal-✕ fires on BOTH pointerup and
   // click (WKWebView tap-swallow workaround). On touch screens the tap's
@@ -13856,10 +13866,17 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
 
             {/* Meals are invitation-first on EVERY day (2026-07-20): the plan
                 shows only what the user added, with a restaurant one tap
-                away. Hidden when the day already has a meal card or the user
-                brought their own food stop. */}
+                away. Shown while ANY meal slot for this day is still hidden
+                (2026-08-31: one card per tap — dinner first, then lunch), so
+                a second tap can reveal the remaining meal. */}
             {!isCollapsed
-              && !computeDayPlan(day, dayIdx).reorderedItems.some(it => it.type === 'restaurant')
+              && (() => {
+                   const optIn = !!mealOptIns[dayIdx]
+                   const dinnerHidden = !optIn || !!skippedMeals[dayIdx]?.dinner
+                   const hasDaytime = day.stops.some(s => s.period === 'Morning' || s.period === 'Afternoon')
+                   const lunchHidden = hasDaytime && (!optIn || !!skippedMeals[dayIdx]?.lunch)
+                   return dinnerHidden || lunchHidden
+                 })()
               && (day.stops.length > 0
                     // Own restaurants never hide the button (2026-08-06):
                     // stack as many as you like; ✕ removes.
