@@ -11030,10 +11030,11 @@ ${body}
           sumBits.push(renderItems.length === 1 ? '1 stop' : `${renderItems.length} stops`)
           // Meal label from the RENDERED cards, not the snapshot's stored
           // picks (2026-07-20) — a pick that isn't in the plan isn't a meal.
+          // Neutral counts (2026-09-03) — same rule as the Planner summary.
           const _hasL = renderItems.some(it => it.type === 'meal' && it.meal === 'lunch')
           const _hasD = renderItems.some(it => it.type === 'meal' && it.meal === 'dinner')
-          const mealLabel = _hasL && _hasD ? t('Lunch + Dinner') : _hasD ? t('Dinner') : _hasL ? t('Lunch') : ''
-          if (mealLabel) sumBits.push(mealLabel)
+          const _mealCt = renderItems.filter(it => it.type === 'meal').length
+          if (_mealCt) sumBits.push(t2(_mealCt === 1 ? '1 restaurant' : '{N} restaurants', { N: _mealCt }))
           if (modeMins.walk)   sumBits.push(`🚶 ~${modeMins.walk} min`)
           if (modeMins.subway) sumBits.push(`🚇 ~${modeMins.subway} min`)
           if (modeMins.taxi)   sumBits.push(`🚕 ~${modeMins.taxi} min`)
@@ -11041,8 +11042,19 @@ ${body}
           ;[_hasL ? lunchR : null, _hasD ? dinnerR : null].forEach(r => { const rng = r && MEAL_PRICE_RANGE[r.price]; if (rng) { mealLo += rng[0]; mealHi += rng[1] } })
           // Paid stops (museums, decks, shows) count too — same rule as the
           // Planner summary (2026-07-20). Free = $0; unpriced stays out.
+          // USER-ADDED food stops with a price tier count as meals (device
+          // report 2026-09-03: Planner said ≈$40/person, the saved plan said
+          // nothing — this loop was missing the restaurant-stop branch the
+          // Planner summary has).
           renderItems.forEach(it => {
             if (it.type !== 'stop') return
+            if (isRestaurantStop(it.stop)) {
+              const raw = it.stop.price
+              const tier = typeof raw === 'number' ? '$'.repeat(Math.max(1, Math.min(4, raw))) : raw
+              const rng = MEAL_PRICE_RANGE[tier]
+              if (rng) { mealLo += rng[0]; mealHi += rng[1] }
+              return
+            }
             const adm = admissionAvgFromCost(venues[it.stop.id]?.admissionCost ?? it.stop.admissionCost)
             if (adm) { mealLo += adm; mealHi += adm }
           })
