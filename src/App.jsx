@@ -12042,6 +12042,24 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
       placeLast(item.id)
       setNewlyAddedStopId(item.id)
     } else if (item.type === 'google_place') {
+      // DEDUPE (device report 2026-09-04): re-adding the same Google place
+      // minted a NEW user_venue every time — two "Trader Joe's" rows in My
+      // saved places from two planner adds. Match by placeId (exact branch;
+      // name matching would wrongly merge different branches of a chain),
+      // falling back to identical name+address. Reuse = same flow as an
+      // existing user_venue pick.
+      const dupe = Object.values(userVenues || {}).find(v =>
+        (item.placeId && v.googlePlaceId === item.placeId) ||
+        (!v.googlePlaceId && v.name === item.name && (v.address || '') === (item.address || '')))
+      if (dupe) {
+        if (!savedItems[`user_venue:${dupe.id}`]) toggleSave('user_venue', dupe.id)
+        ensureInPlan(dupe.id)
+        moveStopToDay(dupe.id, addStopToDayIdx)
+        placeLast(dupe.id)
+        setNewlyAddedStopId(dupe.id)
+        setAddStopToDayIdx(null)
+        return
+      }
       // Persist Google-sourced place as a user_venue. addUserVenue returns the
       // generated id; we use it to assign the day. lat/lng is stored on the
       // user venue (helpful for "open in Google Maps" links) but is NOT plotted
