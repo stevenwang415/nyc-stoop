@@ -11724,13 +11724,36 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     })
   })()
 
-  const days = _redistributedDays.map(day => ({
+  const _daysPreTrim = _redistributedDays.map(day => ({
     ...day,
     stops: day.stops.map(stop => ({
       ...stop,
       period: stop.period,
     }))
   }))
+  // AUTO mode trims trailing empty day shells (device report 2026-09-04):
+  // clustering split manual adds into two days, the overrides pulled every
+  // stop back into Day 1, and the emptied "DAY 2" header stayed behind. A
+  // CHOSEN trip length keeps its padding (the user asked for N days); a
+  // trailing day holding a dated event also survives (the event needs its
+  // day). Trailing-only, so earlier day indexes never shift.
+  const days = (() => {
+    if (tripDays) return _daysPreTrim
+    const evtIdx = new Set()
+    if (tripStartDate && savedEvts.length) {
+      const parts = tripStartDate.split('-').map(Number)
+      const start = new Date(parts[0], parts[1] - 1, parts[2]); start.setHours(0, 0, 0, 0)
+      savedEvts.map(hydrateSavedEvent).forEach(e => {
+        if (e.date instanceof Date && !isNaN(e.date)) {
+          const d0 = new Date(e.date); d0.setHours(0, 0, 0, 0)
+          evtIdx.add(Math.round((d0 - start) / 86400000))
+        }
+      })
+    }
+    const out = _daysPreTrim.slice()
+    while (out.length > 1 && out[out.length - 1].stops.length === 0 && !evtIdx.has(out.length - 1)) out.pop()
+    return out
+  })()
 
   // Build plain-text share summary of itinerary
   function buildShareText() {
