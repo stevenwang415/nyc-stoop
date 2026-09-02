@@ -27,6 +27,27 @@ const NYC_BIAS = {
   radius: 30000,
 }
 
+// Device-location bias (2026-09-03, device report): for a bare chain name
+// ("Trader Joe's") Google returns ~5 notable branches citywide — the one two
+// blocks away can miss the cut. When we know where the user is, bias tightly
+// there so nearby branches win. Fetched once, silently, non-blocking; until
+// (or unless) it resolves, searches fall back to the NYC-wide bias.
+let _deviceBias = null
+let _deviceBiasTried = false
+function deviceBias() {
+  if (!_deviceBiasTried) {
+    _deviceBiasTried = true
+    try {
+      navigator.geolocation?.getCurrentPosition(
+        p => { _deviceBias = { center: { lat: p.coords.latitude, lng: p.coords.longitude }, radius: 4000 } },
+        () => {},
+        { timeout: 5000, maximumAge: 600000 }
+      )
+    } catch {}
+  }
+  return _deviceBias
+}
+
 let scriptPromise = null
 
 /** The web key is HTTP-referrer-restricted, which the iOS webview can't satisfy
@@ -128,7 +149,7 @@ export async function searchGooglePlaces(query) {
     response = await AutocompleteSuggestion.fetchAutocompleteSuggestions({
       input: q,
       sessionToken,
-      locationBias: NYC_BIAS,
+      locationBias: deviceBias() || NYC_BIAS,
       region: 'us',
       // NOTE: We deliberately do NOT pass includedPrimaryTypes. Google's primary-type
       // filter is strict — a hybrid place like "Remi Flower Coffee" is classified as

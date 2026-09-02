@@ -13829,86 +13829,12 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                              stop.isEvening ? t('🎟 Get tickets →') : t('🌐 Visit website →')}
                           </a>
                         )}
-                        {/* Restaurant stops drop "⋯ Options" (2026-07-21, product
-                            call): meal adjustments live in ONE place — the
-                            suggestion card's cuisine + Change controls. */}
-                        {!isRestaurantStop(stop) && (
-                        <button
-                          onClick={e => { e.stopPropagation(); setExpandedStopId(prev => prev === stop.id ? null : stop.id) }}
-                          style={{
-                            marginLeft: 'auto', fontSize: 11, fontWeight: 600,
-                            color: expandedStopId === stop.id ? 'var(--gray-900)' : 'var(--gray-400)',
-                            background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px',
-                          }}
-                        >
-                          {expandedStopId === stop.id ? '× ' + t('Done') : '⋯ ' + t('Options')}
-                        </button>
-                        )}
+                        {/* ⋯ Options toggle removed (2026-09-03, product call):
+                            drag handles + ↑/↓ cover reordering and cross-day
+                            moves; the swap/move panel below went with it. */}
                       </div>
                     </div>
 
-                    {/* Reorder controls: period toggle + swap + move-to-day (when 2+ days).
-                        Hidden by default to keep the card clean. Tap "⋯ Options" to expand. */}
-                    {expandedStopId === stop.id && (
-                      <div style={{
-                        borderTop: '1px solid var(--gray-100)',
-                        padding: '9px 12px',
-                        display: 'flex', flexDirection: 'column', gap: 6,
-                        background: 'var(--gray-50)',
-                      }}>
-                        {/* Row 1: swap */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-                          {/* Swap candidates must match the stop's KIND (2026-07-21):
-                              a restaurant swaps against food venues, not whatever
-                              domain the itinerary guessed (museums, previously).
-                              Hotels have no swap pool → no swap button. */}
-                          {!isHotelStop(stop) && <button onClick={() => setSwapModal({ venueId: stop.id, domain: isRestaurantStop(stop) ? 'food' : stop.domain })} style={{
-                            fontSize: 11, fontWeight: 600, padding: '4px 10px',
-                            borderRadius: 8, border: '1px solid var(--gray-200)', cursor: 'pointer',
-                            background: 'var(--white)', color: 'var(--gray-600)',
-                          }}>⇄ Swap this spot</button>}
-                        </div>
-                        {/* Row 2: move-to-day buttons (only when 2+ days exist) */}
-                        {days.length > 1 && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--gray-400)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                              Move to:
-                            </span>
-                            {dayIdx > 0 && (
-                              <button onClick={() => moveStopToDay(stop.id, dayIdx - 1)} style={{
-                                fontSize: 11, fontWeight: 600, padding: '4px 9px',
-                                borderRadius: 8, border: '1px solid var(--gray-200)', cursor: 'pointer',
-                                background: 'var(--white)', color: 'var(--gray-700)',
-                              }}>
-                                ← Day {dayIdx}
-                              </button>
-                            )}
-                            {dayIdx < days.length - 1 && (
-                              <button onClick={() => moveStopToDay(stop.id, dayIdx + 1)} style={{
-                                fontSize: 11, fontWeight: 600, padding: '4px 9px',
-                                borderRadius: 8, border: '1px solid var(--gray-200)', cursor: 'pointer',
-                                background: 'var(--white)', color: 'var(--gray-700)',
-                              }}>
-                                Day {dayIdx + 2} →
-                              </button>
-                            )}
-                            {stopDayOverrides[stop.id] != null && (
-                              <button onClick={() => {
-                                const { [stop.id]: _, ...rest } = stopDayOverrides
-                                setStopDayOverrides(rest)
-                                try { lsSet('nyc_stop_day_overrides', JSON.stringify(rest)) } catch {}
-                              }} style={{
-                                marginLeft: 'auto', fontSize: 11, fontWeight: 500, padding: '4px 8px',
-                                borderRadius: 8, border: 'none', cursor: 'pointer',
-                                background: 'none', color: 'var(--gray-400)',
-                              }}>
-                                ↺ Reset
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
                   </React.Fragment>
                 )
