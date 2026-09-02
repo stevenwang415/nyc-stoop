@@ -12443,6 +12443,16 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     mealSkipTapRef.current = now
     setMealSkipped(dayIdx, meal, true)
   }
+  // Same guard for PLACE-card ✕s (device report 2026-09-04: removing card 2
+  // of 3 also removed card 3 — the collapse slid the next ✕ under the finger
+  // and a trailing click took it out). One removal per 400ms window.
+  const stopRemoveTapRef = React.useRef(0)
+  const removeStopTap = (id) => {
+    const now = Date.now()
+    if (now - stopRemoveTapRef.current < 400) return
+    stopRemoveTapRef.current = now
+    toggleVenueInPlan(id)
+  }
   function setMealSkipped(dayIdx, meal, on) {
     setSkippedMeals(prev => {
       const day = { ...(prev[dayIdx] || {}) }
@@ -13750,7 +13760,7 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                         </span>
                       )}
                       <button
-                        onClick={(e) => { e.stopPropagation(); toggleVenueInPlan(stop.id) }}
+                        onClick={(e) => { e.stopPropagation(); removeStopTap(stop.id) }}
                         onMouseDown={(e) => e.stopPropagation()}
                         onTouchStart={(e) => e.stopPropagation()}
                         aria-label="Remove from trip"
