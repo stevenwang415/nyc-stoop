@@ -12826,36 +12826,66 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
               ? t('Re-add a spot from My saved places below, tap “+ Add to Planner” in Explore — or start with a sample weekend.')
               : t('Tap “+ Add to Planner” on any venue in Explore to add it here — or start with a sample weekend.')}
           </div>
-          <button
-            onClick={() => {
-              const SAMPLE = ['moma', 'guggenheim', 'village_vanguard', 'carnegie_hall', 'brooklyn', 'central_park']
-              const savedIds = new Set(Object.values(safeItems).filter(i => i?.type === 'venue').map(i => i.id))
-              SAMPLE.forEach(id => { if (!savedIds.has(id) && venues[id]) toggleSave('venue', id) })
-              // Explicitly SELECT the samples (2026-07-20): after Start fresh
-              // these ids are already "known", so the brand-new auto-select
-              // won't fire — without this the button built an empty weekend.
-              setPlanSelection(prev => {
-                const next = new Set(prev)
-                SAMPLE.filter(id => venues[id]).forEach(id => next.add(id))
-                lsSet('nyc_plan_sel', JSON.stringify([...next]))
-                return next
-              })
-              // A WEEKEND is two days — without this, Auto clustered the
-              // six samples into four (bug report 2026-07-16).
-              setAndStoreTripDays(2)
-              // Generated flows PROMISE food (product call 2026-07-20):
-              // seed the per-day meal opt-in that manual days leave off.
-              setMealOptIns({ 0: true, 1: true })
-              try { lsSet('nyc_meal_optins', JSON.stringify({ 0: true, 1: true })) } catch {}
-            }}
-            style={{
-              background: 'var(--gray-900)', color: '#fff', border: 'none',
-              borderRadius: 12, padding: '13px 28px',
-              fontSize: 14, fontWeight: 700, cursor: 'pointer',
-            }}
-          >
-            {t('Build me a sample weekend')}
-          </button>
+          {/* Manual paths first (device report 2026-09-03): the empty state
+              offered ONLY the sample weekend — users who wanted to build by
+              hand had no way in. Add a place opens the same search modal as
+              "+ Add a place to this day"; Add a restaurant scaffolds a 1-day
+              trip (padding keeps the day alive) and opts into its meal. */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 280, margin: '0 auto' }}>
+            <button
+              onClick={() => setAddStopToDayIdx(0)}
+              style={{
+                background: 'var(--accent)', color: '#fff', border: 'none',
+                borderRadius: 12, padding: '13px 28px',
+                fontSize: 14, fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              ＋ {t('Add a place')}
+            </button>
+            <button
+              onClick={() => {
+                if (!tripDays) setAndStoreTripDays(1) // padding keeps a stop-less Day 1 alive
+                optIntoMeal(0)
+              }}
+              style={{
+                background: 'var(--gray-100)', color: 'var(--gray-800)', border: '1px dashed var(--gray-300)',
+                borderRadius: 12, padding: '13px 28px',
+                fontSize: 14, fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              🍴 {t('Add a restaurant')}
+            </button>
+            <button
+              onClick={() => {
+                const SAMPLE = ['moma', 'guggenheim', 'village_vanguard', 'carnegie_hall', 'brooklyn', 'central_park']
+                const savedIds = new Set(Object.values(safeItems).filter(i => i?.type === 'venue').map(i => i.id))
+                SAMPLE.forEach(id => { if (!savedIds.has(id) && venues[id]) toggleSave('venue', id) })
+                // Explicitly SELECT the samples (2026-07-20): after Start fresh
+                // these ids are already "known", so the brand-new auto-select
+                // won't fire — without this the button built an empty weekend.
+                setPlanSelection(prev => {
+                  const next = new Set(prev)
+                  SAMPLE.filter(id => venues[id]).forEach(id => next.add(id))
+                  lsSet('nyc_plan_sel', JSON.stringify([...next]))
+                  return next
+                })
+                // A WEEKEND is two days — without this, Auto clustered the
+                // six samples into four (bug report 2026-07-16).
+                setAndStoreTripDays(2)
+                // Generated flows PROMISE food (product call 2026-07-20):
+                // seed the per-day meal opt-in that manual days leave off.
+                setMealOptIns({ 0: true, 1: true })
+                try { lsSet('nyc_meal_optins', JSON.stringify({ 0: true, 1: true })) } catch {}
+              }}
+              style={{
+                background: 'var(--gray-900)', color: '#fff', border: 'none',
+                borderRadius: 12, padding: '13px 28px',
+                fontSize: 14, fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              {t('Build me a sample weekend')}
+            </button>
+          </div>
         </div>
       )}
 
