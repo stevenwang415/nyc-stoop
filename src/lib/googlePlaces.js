@@ -37,12 +37,24 @@ let _deviceBiasTried = false
 function deviceBias() {
   if (!_deviceBiasTried) {
     _deviceBiasTried = true
+    const keep = (lat, lng) => { _deviceBias = { center: { lat, lng }, radius: 4000 } }
     try {
-      navigator.geolocation?.getCurrentPosition(
-        p => { _deviceBias = { center: { lat: p.coords.latitude, lng: p.coords.longitude }, radius: 4000 } },
-        () => {},
-        { timeout: 5000, maximumAge: 600000 }
-      )
+      if (window.Capacitor?.isNativePlatform?.()) {
+        // NATIVE: the Capacitor plugin shows the proper "NYC Stoop would
+        // like…" system dialog. Raw navigator.geolocation in the shell pops
+        // a WebKit prompt naming the webview origin — "localhost" (device
+        // report 2026-09-03).
+        import('@capacitor/geolocation')
+          .then(({ Geolocation }) => Geolocation.getCurrentPosition({ enableHighAccuracy: false, timeout: 8000, maximumAge: 600000 }))
+          .then(pos => keep(pos.coords.latitude, pos.coords.longitude))
+          .catch(() => {})
+      } else {
+        navigator.geolocation?.getCurrentPosition(
+          p => keep(p.coords.latitude, p.coords.longitude),
+          () => {},
+          { timeout: 5000, maximumAge: 600000 }
+        )
+      }
     } catch {}
   }
   return _deviceBias
