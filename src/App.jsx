@@ -10990,32 +10990,20 @@ ${body}
             if (mins === 60) { mins = 0; hh += 1 }
             return `${(hh % 12) || 12}:${String(mins).padStart(2, '0')} ${hh % 24 < 12 ? 'AM' : 'PM'}`
           }
-          let dayStart = null, dayEnd = null
+          // NO invented arrival times (device report 2026-09-04): the old
+          // sequenced clock stacked ~1.5h per stop from the first period and
+          // marched a 6-stop night to "2:30 AM at a bookstore". Only EVENTS
+          // carry a time — theirs is real (the showtime on the ticket).
           const itemTimes = []
-          {
-            const firstStop = renderItems.find(it => it.type === 'stop')?.stop
-            let clock = firstStop ? (firstStop.startHour ?? 10) : 10
-            const periodFloor = { Morning: 0, Afternoon: 12, Evening: 17 }
-            let prevC = null
-            renderItems.forEach(it => {
-              if (it.type === 'event') { // fixed showtime — no clock cost
-                const d = it.event?.date
-                itemTimes.push(d instanceof Date && !isNaN(d) && (d.getHours() || d.getMinutes())
-                  ? fmtClock(d.getHours() + d.getMinutes() / 60) : null)
-                return
-              }
-              if (it.type !== 'stop') { itemTimes.push(fmtClock(clock)); clock += 1.25; return }
-              const s = it.stop
-              const c = coordsOf(it)
-              if (prevC && c) { const tr = estimateTravelCoords(prevC, c); clock += (tr?.mins ?? 12) / 60 }
-              clock = Math.max(clock, periodFloor[s.period] ?? 0)
-              if (dayStart == null) dayStart = clock
-              itemTimes.push(fmtClock(clock))
-              clock += (typeof s.duration === 'number' ? s.duration : 1)
-              dayEnd = clock
-              if (c) prevC = c
-            })
-          }
+          renderItems.forEach(it => {
+            if (it.type === 'event') {
+              const d = it.event?.date
+              itemTimes.push(d instanceof Date && !isNaN(d) && (d.getHours() || d.getMinutes())
+                ? fmtClock(d.getHours() + d.getMinutes() / 60) : null)
+            } else {
+              itemTimes.push(null)
+            }
+          })
           // Figma 16: numbered ink circle + vermilion arrival time lead each item.
           const itemHeaderFor = (i) => (
             <div style={{ display: 'flex', alignItems: 'center', gap: 9, margin: '2px 0 -2px' }}>
@@ -11025,8 +11013,7 @@ ${body}
             </div>
           )
           const sumBits = []
-          // Time range restored 2026-08-26 (Figma 16: "12:00 – 22:00").
-          if (dayStart != null && dayEnd != null) sumBits.push(`${fmtClock(dayStart)} – ${fmtClock(dayEnd)}`)
+          // (Day time-range dropped with the invented clock, 2026-09-04.)
           sumBits.push(renderItems.length === 1 ? '1 stop' : `${renderItems.length} stops`)
           // Meal label from the RENDERED cards, not the snapshot's stored
           // picks (2026-07-20) — a pick that isn't in the plan isn't a meal.
