@@ -10183,6 +10183,11 @@ function estimateTravelCoords(a, b) {
   if (miles < 0.35) return { mode: 'walk',   icon: '🚶', mins: Math.max(4, Math.round(miles * 20)) }
   if (miles < 1.0)  return { mode: 'walk',   icon: '🚶', mins: Math.round(miles * 18) }
   if (miles < 6)    return { mode: 'subway', icon: '🚇', mins: Math.round(12 + miles * 4) }
+  // Long hauls are still subway country in NYC (device report 2026-09-05:
+  // Union Sq → Coney Island read "~43 min taxi" when the N runs it direct in
+  // ~45). Slightly slower per-mile than the short band — express spacing vs
+  // local stops roughly cancel, and the constant covers the platform wait.
+  if (miles < 15)   return { mode: 'subway', icon: '🚇', mins: Math.round(15 + miles * 3.5) }
   return                  { mode: 'taxi',   icon: '🚕', mins: Math.round(10 + miles * 3) }
 }
 function estimateTravel(fromId, toId) {
