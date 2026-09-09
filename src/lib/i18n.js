@@ -39,6 +39,7 @@ const ZH = {
   'Drinks': '喝一杯', 'Bars, cocktails, wine': '酒吧、調酒、葡萄酒',
   'Restaurant': '餐廳', '1 restaurant': '1 間餐廳', '{N} restaurants': '{N} 間餐廳',
   'Add a place': '新增地點',
+  'No dates': '未設日期', '~{N} min walking': '步行約 {N} 分鐘', 'more': '更多', 'Draft': '草稿',
   'Coffee': '咖啡', 'Cafés & bakeries': '咖啡館與烘焙坊',
   'Outdoors': '戶外', 'Parks & waterfront': '公園與河濱',
   'Culture': '文化', 'Museums & landmarks': '博物館與地標',

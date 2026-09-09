@@ -14898,14 +14898,17 @@ function MyPlansScreen({ userVenues = {}, onStartBuilding = () => {}, onEditPlan
             fontSize: 13, fontWeight: 700, color: 'var(--ink)', cursor: 'pointer', fontFamily: 'inherit',
             boxShadow: '0 1px 4px rgba(23,19,15,0.06)' }}>＋ {t('New')}</button>
         </div>
+        {/* Route-strip redesign (handoff 2026-09-06): Upcoming|Past becomes a
+            light underline tab — the pill weight belongs to the mode switcher. */}
         {allSnaps.length > 0 && (
-          <div style={{ display: 'flex', gap: 4, background: 'var(--gray-100)', borderRadius: 999, padding: 3, marginTop: 14 }}>
+          <div style={{ display: 'flex', gap: 22, marginTop: 16, borderBottom: '1px solid rgba(0,0,0,0.07)' }}>
             {[['upcoming', t('Upcoming')], ['past', t('Past')]].map(([k, l]) => (
-              <button key={k} onClick={() => setTripsFilter(k)} style={{ flex: 1, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-                padding: '8px 0', borderRadius: 999, fontSize: 13, fontWeight: 700,
-                background: tripsFilter === k ? 'var(--card)' : 'transparent',
+              <button key={k} onClick={() => setTripsFilter(k)} style={{ border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                background: 'none', padding: '0 2px 10px', fontSize: 15,
+                fontWeight: tripsFilter === k ? 700 : 600,
                 color: tripsFilter === k ? 'var(--ink)' : 'var(--ink-3)',
-                boxShadow: tripsFilter === k ? '0 1px 4px rgba(23,19,15,0.08)' : 'none' }}>{l}</button>
+                boxShadow: tripsFilter === k ? 'inset 0 -2px 0 var(--accent)' : 'none',
+                transition: 'box-shadow 180ms ease-out' }}>{l}</button>
             ))}
           </div>
         )}
@@ -14936,17 +14939,47 @@ function MyPlansScreen({ userVenues = {}, onStartBuilding = () => {}, onEditPlan
             const nameOf = (id) => venues[id]?.name || userVenues[id]?.name || null
             const domainOf = (id) => venueCoords[id]?.domain || null
             const stopNames = stops.map(st => nameOf(st.id)).filter(Boolean)
-            const dateStr = (() => {
+            // Status label (route-strip handoff): scheduled → "MAR 4–12" in
+            // accent mono; draft → muted "DRAFT".
+            const dateRange = (() => {
               if (!snap.tripStartDate) return null
-              const d = new Date(snap.tripStartDate)
+              // Split-parse — new Date('YYYY-MM-DD') reads as UTC midnight and
+              // shifts a day west of Greenwich (same rule as eventsByDay).
+              const _p = String(snap.tripStartDate).split('-').map(Number)
+              const d = new Date(_p[0], (_p[1] || 1) - 1, _p[2] || 1)
               if (isNaN(d)) return null
-              return d.toLocaleDateString(dateLocale(), { weekday: 'short', month: 'short', day: 'numeric' })
+              const end = new Date(d); end.setDate(end.getDate() + Math.max(0, (snap.tripDays || 1) - 1))
+              const fmt = (x) => x.toLocaleDateString(dateLocale(), { month: 'short', day: 'numeric' })
+              if (end.getTime() === d.getTime()) return fmt(d).toUpperCase()
+              return (d.getMonth() === end.getMonth()
+                ? `${fmt(d)}–${end.getDate()}`
+                : `${fmt(d)}–${fmt(end)}`).toUpperCase()
             })()
+            // Route-strip nodes: ≤4 stops → all; >4 → first, second, +N, last.
+            const _named = stops.map(st => nameOf(st.id)).filter(Boolean)
+            const nodes = _named.length <= 4
+              ? _named.map((n, i) => ({ type: 'stop', name: n, pos: i === 0 ? 'first' : i === _named.length - 1 ? 'last' : 'mid' }))
+              : [
+                  { type: 'stop', name: _named[0], pos: 'first' },
+                  { type: 'stop', name: _named[1], pos: 'mid' },
+                  { type: 'overflow', count: _named.length - 3 },
+                  { type: 'stop', name: _named[_named.length - 1], pos: 'last' },
+                ]
+            // Soft-hyphenate long single words (the reference does the same:
+            // "Kino&shy;kuniya") — browsers won't break "Guggenheim" cleanly
+            // inside a 66px column on their own.
+            const softWrap = (s) => String(s).split(' ').map(w => {
+              if (w.length <= 9) return w
+              const cut = Math.ceil(w.length * 0.6) // past-midpoint break reads more naturally ("Guggen-heim")
+              return w.slice(0, cut) + '­' + w.slice(cut)
+            }).join(' ')
             const stopCount = (() => { const ord = snap.itemOrder; if (Array.isArray(ord) && ord.length) return ord.reduce((x, d) => x + (Array.isArray(d) ? d.length : 0), 0); const m = Object.values(snap.lunchRestaurants || {}).filter(Boolean).length + Object.values(snap.dinnerRestaurants || {}).filter(Boolean).length; const ev = Object.values(snap.events || {}).flat().length; return (snap.venueIds?.length || 0) + m + ev })()
             const walkMins = (() => { let w = 0; (snap.days || []).forEach(d => { let prev = null; (d.stops || []).forEach(st => { const c = venueCoords[st.id] || (typeof st.lat === 'number' ? { lat: st.lat, lng: st.lng } : null); if (!c) return; if (prev) { const tr = estimateTravelCoords(prev, c); if (tr && tr.mode === 'walk') w += tr.mins } prev = c }) }); return w })()
-            const meta = [dateStr, stopCount === 1 ? t('1 stop') : t2('{N} stops', { N: stopCount }),
-              snap.tripDays > 1 ? t2('{N} days', { N: snap.tripDays }) : null,
-              walkMins ? '🚶 ~' + walkMins + ' min' : null].filter(Boolean).join(' · ')
+            const metaBits = [
+              stopCount === 1 ? t('1 stop') : t2('{N} stops', { N: stopCount }),
+              walkMins ? t2('~{N} min walking', { N: walkMins }) : null,
+              snap.tripStartDate ? (snap.tripDays > 1 ? t2('{N} days', { N: snap.tripDays }) : t('1 day')) : t('No dates'),
+            ].filter(Boolean)
             return (
             <div key={snap.id} style={{ position: 'relative', marginBottom: 14 }}>
               {confirmDelete === snap.id && (
@@ -14965,12 +14998,11 @@ function MyPlansScreen({ userVenues = {}, onStartBuilding = () => {}, onEditPlan
                   </div>
                 </div>
               )}
-              <button onClick={e => { e.stopPropagation(); setConfirmDelete(snap.id) }} aria-label="Delete plan"
-                style={{ position: 'absolute', top: 12, right: 14, zIndex: 5, background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 13, fontWeight: 700, color: 'var(--gray-400)', lineHeight: 1 }}>✕</button>
               <div onClick={() => setViewSnapId(snap.id)} style={{
-                background: snap.id === flashId ? 'rgba(200,50,26,0.05)' : 'var(--gray-100)',
+                background: snap.id === flashId ? 'rgba(200,50,26,0.05)' : 'var(--card)',
                 border: snap.id === flashId ? '2px solid var(--accent)' : '1px solid transparent',
-                borderRadius: 16, padding: '15px 16px 13px', cursor: 'pointer' }}>
+                borderRadius: 20, padding: '18px 18px 14px', cursor: 'pointer',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
                 {renamingPlan === snap.id ? (
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6, paddingRight: 20 }} onClick={e => e.stopPropagation()}>
                     <input autoFocus value={planNameDraft} onChange={e => setPlanNameDraft(e.target.value)}
@@ -14981,45 +15013,68 @@ function MyPlansScreen({ userVenues = {}, onStartBuilding = () => {}, onEditPlan
                       style={{ padding: '6px 11px', fontSize: 12, fontWeight: 700, flexShrink: 0, background: 'var(--gray-900)', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit' }}>{t('Save')}</button>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0, paddingRight: 20 }}>
-                    <span style={{ fontFamily: 'var(--serif)', fontSize: 17.5, fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {snap.name || planDefaultName(snap)}
-                    </span>
-                    <button onClick={e => { e.stopPropagation(); setPlanNameDraft(snap.name || ''); setRenamingPlan(snap.id) }} aria-label="Rename plan"
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', fontSize: 13, color: 'var(--gray-400)', lineHeight: 1, flexShrink: 0 }}>✎</button>
-                  </div>
-                )}
-                <div style={{ fontSize: 12.5, color: 'var(--ink-3)', marginTop: 3 }}>{meta}</div>
-                {/* Stop tiles — 4 white squares, squared-TL media motif; photos
-                    arrive with trip albums (2.1), category dots hold the slot. */}
-                {stops.length > 0 && (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginTop: 11 }}>
-                    {[0, 1, 2, 3].map(i => {
-                      const st = stops[i]
-                      return (
-                        <div key={i} style={{ aspectRatio: '1.15', borderRadius: '0 10px 10px 10px', background: st ? 'var(--card)' : 'rgba(255,255,255,0.45)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          {st && <span style={{ width: 9, height: 9, borderRadius: 999, background: MAP_DOMAIN_COLORS[domainOf(st.id)] || 'var(--gray-300)' }} />}
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-                {/* Route line: first → last stop */}
-                {stopNames.length > 0 && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 11, minWidth: 0 }}>
-                    <span style={{ width: 7, height: 7, borderRadius: 999, background: MAP_DOMAIN_COLORS[domainOf(stops[0]?.id)] || 'var(--gray-400)', flexShrink: 0 }} />
-                    <span style={{ fontSize: 12.5, color: 'var(--ink-2)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {stopNames.length > 1 ? stopNames[0] + ' → ' + stopNames[stopNames.length - 1] : stopNames[0]}
+                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+                      <span style={{ fontFamily: 'var(--serif)', fontSize: 19, fontWeight: 600, lineHeight: 1.15, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {snap.name || planDefaultName(snap)}
+                      </span>
+                      <button onClick={e => { e.stopPropagation(); setPlanNameDraft(snap.name || ''); setRenamingPlan(snap.id) }} aria-label="Rename plan"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', fontSize: 13, color: 'var(--gray-400)', lineHeight: 1, flexShrink: 0 }}>✎</button>
+                    </div>
+                    {/* Status: scheduled → date range in accent; draft → muted. Mono per handoff. */}
+                    <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 11, fontWeight: 500,
+                      textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap', flexShrink: 0,
+                      color: dateRange ? 'var(--accent)' : '#B4A798' }}>
+                      {dateRange || t('Draft')}
                     </span>
                   </div>
                 )}
-                {!snap.tripStartDate && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 9 }}>
-                    <span style={{ width: 7, height: 7, borderRadius: 999, background: 'var(--gray-400)', flexShrink: 0 }} />
-                    <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>{t('Draft · no dates locked')}</span>
+                {/* ── Route strip (handoff 2026-09-06): the stops ARE the card
+                    graphic — accent start dot, hollow intermediates, ink end
+                    dot, dashed connectors, +N bubble past 4 nodes. ── */}
+                {nodes.length > 0 && (
+                  <div style={{ marginTop: 12, display: 'flex', alignItems: 'flex-start' }}>
+                    {nodes.map((nd, i) => (
+                      <React.Fragment key={i}>
+                        {i > 0 && (
+                          <div style={{ flex: 1, height: 11, display: 'flex', alignItems: 'center', minWidth: 8 }}>
+                            <div style={{ height: 2, width: '100%', background: 'repeating-linear-gradient(90deg,#D8CFC2 0 5px,transparent 5px 10px)' }} />
+                          </div>
+                        )}
+                        {nd.type === 'overflow' ? (
+                          <div style={{ flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', width: 66 }}>
+                            <div style={{ width: 26, height: 26, marginTop: -8, borderRadius: 999, background: 'var(--gray-100)',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: '#6F675C' }}>+{nd.count}</div>
+                            <div style={{ marginTop: 6, fontSize: 10.5, lineHeight: 1.25, fontWeight: 500, color: 'var(--ink-3)', textAlign: 'center' }}>{t('more')}</div>
+                          </div>
+                        ) : (
+                          <div style={{ flex: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', width: 66 }}>
+                            <div style={{ width: nd.pos === 'mid' ? 9 : 11, height: nd.pos === 'mid' ? 9 : 11, borderRadius: 999,
+                              background: nd.pos === 'first' ? 'var(--accent)' : nd.pos === 'last' ? 'var(--ink)' : 'var(--card)',
+                              border: nd.pos === 'mid' ? '2px solid #C6BAA9' : 'none', boxSizing: 'border-box' }} />
+                            <div lang={getLang() === 'zh' ? 'zh-TW' : 'en'} style={{ marginTop: 8, fontSize: 10.5, lineHeight: 1.25, textAlign: 'center',
+                              fontWeight: nd.pos === 'mid' ? 500 : 600,
+                              color: nd.pos === 'mid' ? '#6F675C' : 'var(--ink)', maxWidth: 66,
+                              display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                              overflowWrap: 'break-word', hyphens: 'manual' }}>
+                              {softWrap(nd.name)}
+                            </div>
+                          </div>
+                        )}
+                      </React.Fragment>
+                    ))}
                   </div>
                 )}
+                {/* Meta footer: stops · walking · dates, delete tucked at the end. */}
+                <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid rgba(0,0,0,0.06)',
+                  display: 'flex', alignItems: 'center', gap: 10, fontSize: 12.5, fontWeight: 500, color: 'var(--ink-3)' }}>
+                  {metaBits.map((b, i) => (
+                    <React.Fragment key={i}>{i > 0 && <span>·</span>}<span>{b}</span></React.Fragment>
+                  ))}
+                  <button onClick={e => { e.stopPropagation(); setConfirmDelete(snap.id) }} aria-label="Delete plan"
+                    style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px',
+                      fontSize: 13, fontWeight: 700, color: 'var(--gray-400)', lineHeight: 1 }}>✕</button>
+                </div>
               </div>
             </div>
             )
