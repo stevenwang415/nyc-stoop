@@ -12587,6 +12587,28 @@ function PlanScreen({ savedItems, toggleSave, onSelectSaved, venueNotes = {}, se
     // of a special block stuck after the day. Default slot: appended (events
     // are usually evening); the saved order remembers wherever users move them.
     dayEvents.forEach(ev => defaultItemIds.push('__event_' + ev.id))
+    // No two restaurant cards back-to-back in the DEFAULT order (user request
+    // 2026-09-09: a generated day should read place · restaurant · place ·
+    // restaurant · place). Lopsided period mixes made lunch+dinner land at the
+    // same insertion point. Wedge: move the second meal past the next stop or
+    // event; if nothing follows, pull the first meal before the previous one.
+    // Saved orders (user rearrangements) are untouched.
+    {
+      const _isMeal = (id) => id === '__lunch__' || id === '__dinner__'
+      for (let i = 0; i + 1 < defaultItemIds.length; i++) {
+        if (!_isMeal(defaultItemIds[i]) || !_isMeal(defaultItemIds[i + 1])) continue
+        let j = i + 2
+        while (j < defaultItemIds.length && _isMeal(defaultItemIds[j])) j++
+        if (j < defaultItemIds.length) {
+          const [m] = defaultItemIds.splice(i + 1, 1) // separator shifts to j-1
+          defaultItemIds.splice(j, 0, m)              // meal lands right after it
+        } else {
+          let k = i - 1
+          while (k >= 0 && _isMeal(defaultItemIds[k])) k--
+          if (k >= 0) { const [m] = defaultItemIds.splice(i, 1); defaultItemIds.splice(k, 0, m) }
+        }
+      }
+    }
     const isDraggingThisDay = dragId !== null && dragDayIdx === dayIdx
     let activeItemIds
     if (isDraggingThisDay) {
