@@ -10446,6 +10446,10 @@ const HOOD_CENTROIDS = {
   'Harlem':              { lat: 40.8116, lng: -73.9465 },
   'East Harlem':         { lat: 40.7957, lng: -73.9389 },
   'Carroll Gardens':     { lat: 40.6795, lng: -73.9990 },
+  'Park Slope':          { lat: 40.6710, lng: -73.9814 },
+  'Prospect Heights':    { lat: 40.6774, lng: -73.9668 },
+  'Crown Heights':       { lat: 40.6694, lng: -73.9422 },
+  'Greenpoint':          { lat: 40.7245, lng: -73.9515 },
   'Williamsburg':        { lat: 40.7140, lng: -73.9573 },
   'Gowanus':             { lat: 40.6738, lng: -73.9890 },
   'Cobble Hill':         { lat: 40.6863, lng: -73.9962 },
@@ -10463,6 +10467,11 @@ const HOOD_CENTROIDS = {
 }
 function restaurantCoords(r) {
   if (typeof r?.lat === 'number' && typeof r?.lng === 'number') return { lat: r.lat, lng: r.lng }
+  // Saved-plan snapshots slim restaurants to {id,name,price,neighborhood} —
+  // recover the catalog coords by id (device report 2026-09-09: Al di Là had
+  // no map pin and no travel connector in the saved view).
+  const cc = r?.id && RESTAURANT_COORDS[r.id]
+  if (cc) return { lat: cc[0], lng: cc[1] }
   return HOOD_CENTROIDS[r?.neighborhood] || HOOD_CENTROIDS[r?.area] || null
 }
 // ── Plan Error Boundary ─────────────────────────────────────────────────────
@@ -14108,8 +14117,8 @@ ${body || '<div class="sub">No stops yet — add places to My Trip first.</div>'
                   tripDays,
                   mealCuisines,
                   // Restaurants keyed by dayIdx (matches the live data structure now)
-                  lunchRestaurants: Object.fromEntries(Object.entries(lunchRestaurants).map(([k,r]) => [k, r ? { id: r.id, name: r.name, price: r.price, neighborhood: r.neighborhood, reservationUrl: r.reservationUrl, mapsUrl: r.mapsUrl } : null])),
-                  dinnerRestaurants: Object.fromEntries(Object.entries(dinnerRestaurants).map(([k,r]) => [k, r ? { id: r.id, name: r.name, price: r.price, neighborhood: r.neighborhood, reservationUrl: r.reservationUrl, mapsUrl: r.mapsUrl } : null])),
+                  lunchRestaurants: Object.fromEntries(Object.entries(lunchRestaurants).map(([k,r]) => [k, r ? { id: r.id, name: r.name, price: r.price, neighborhood: r.neighborhood, reservationUrl: r.reservationUrl, mapsUrl: r.mapsUrl, lat: r.lat, lng: r.lng } : null])),
+                  dinnerRestaurants: Object.fromEntries(Object.entries(dinnerRestaurants).map(([k,r]) => [k, r ? { id: r.id, name: r.name, price: r.price, neighborhood: r.neighborhood, reservationUrl: r.reservationUrl, mapsUrl: r.mapsUrl, lat: r.lat, lng: r.lng } : null])),
                   // Pinned events ride along (2026-07-16) — saved plans were
                   // silently dropping them.
                   events: Object.fromEntries(Object.entries(eventsByDay).map(([di, evs]) => [di, (evs || []).map(e => ({
