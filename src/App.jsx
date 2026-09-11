@@ -4683,10 +4683,22 @@ function EatScreen({ push, savedItems = {}, userVenues = {}, toggleSave = () => 
                 const isSaved = r.kind === 'editorial' && !!savedItems[`venue:${r.venueId}`]
                 const accent = venueColors[r.venueId || r.id]?.bg || '#B3261E'
                 const cuisineEmoji = (CUISINE_EMOJI[r.cuisine] || '🍽')
-                // Editorial restaurants have a rich detail page; imports/curated
-                // open Google Maps (disambiguated by neighborhood so they resolve).
+                // EVERY card opens the bottom sheet (user request 2026-09-11:
+                // the editorial rows' full-page push read as inconsistent).
+                // Editorial rows carry venueId → the sheet gains a "Full
+                // details →" button and a venue-typed Planner toggle.
                 const openCard = () => {
-                  if (r.kind === 'editorial') { push({ screen: 'venue', venueId: r.venueId }); return }
+                  if (r.kind === 'editorial') {
+                    const v = venues[r.venueId] || {}
+                    setEatSheet({
+                      ...placeFromRestaurant(r), venueId: r.venueId,
+                      image: v.image || null,
+                      description: r.description || v.description || v.blurb || '',
+                      address: r.address || v.address || '',
+                      hours: r.hours || v.hours || '',
+                    })
+                    return
+                  }
                   setEatSheet(placeFromRestaurant(r))
                 }
                 return (
@@ -4800,6 +4812,7 @@ function EatScreen({ push, savedItems = {}, userVenues = {}, toggleSave = () => 
       <BottomSheet open={!!eatSheet} onClose={() => setEatSheet(null)} fit>
         {eatSheet && (
           <MoodPlaceSheet place={eatSheet}
+            onFull={eatSheet.venueId ? () => { const id = eatSheet.venueId; setEatSheet(null); push({ screen: 'venue', venueId: id }) } : null}
             savedItems={savedItems} toggleSave={toggleSave} userVenues={userVenues} onAddToTrip={onAddToTrip} />
         )}
       </BottomSheet>
@@ -5775,6 +5788,9 @@ function MoodPlaceSheet({ place = {}, onFull = null, savedItems = {}, toggleSave
   // else (restaurant DB rows, curated names, sights) has no persistent record,
   // so we create a user venue from `place.addData`. A name match guards against
   // creating a duplicate if the sheet is reopened after adding.
+  // Editorial venues (2026-09-11: Eat cards all open this sheet now) save as
+  // `venue`-typed items — the same record their full detail page toggles.
+  const venueId = place.venueId || null
   const existingId = place.existingId || null
   const isSavedExisting = existingId ? !!savedItems[`user_venue:${existingId}`] : false
   // Name-match must check SAVED state, not mere catalog presence (device
@@ -5782,14 +5798,16 @@ function MoodPlaceSheet({ place = {}, onFull = null, savedItems = {}, toggleSave
   // restaurant, so "exists in userVenues" made EVERY card read "✓ In
   // Planner" with a dead button. A matched venue also gives us an id to
   // toggle — so the button can now REMOVE from the planner too.
-  const matchByName = !existingId && place.name
+  const matchByName = !venueId && !existingId && place.name
     ? Object.values(userVenues || {}).find(v => (v.name || '').toLowerCase().trim() === place.name.toLowerCase().trim())
     : null
-  const inTrip = existingId ? isSavedExisting
+  const inTrip = venueId ? !!savedItems[`venue:${venueId}`]
+    : existingId ? isSavedExisting
     : matchByName ? !!savedItems[`user_venue:${matchByName.id}`]
     : added
-  const canAdd = !!existingId || !!matchByName || !!place.addData
+  const canAdd = !!venueId || !!existingId || !!matchByName || !!place.addData
   const handleAddToTrip = () => {
+    if (venueId) { toggleSave('venue', venueId); return }
     if (existingId) { toggleSave('user_venue', existingId); return }
     if (matchByName) { toggleSave('user_venue', matchByName.id); setAdded(false); return }
     if (place.addData && !inTrip) { onAddToTrip(place.addData); setAdded(true) }
