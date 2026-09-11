@@ -10,7 +10,7 @@ import { getUser } from '../auth/api.js'
 import {
   getMyCode, regenerateCode, redeemCode, listFriends, unfriend, blockUser,
   createPhoto, updatePhoto, myPhotos, friendsFeed, deletePhoto, reportPhoto,
-  fetchPhotoImage, prepareImage, readGps, deviceLocation, searchPlaces,
+  fetchPhotoImage, thumbSrc, prepareImage, readGps, deviceLocation, searchPlaces,
   listComments, addComment, deleteComment, setMyAvatar, setMyName, reportComment,
 } from './shareApi.js'
 import { seedUserPlaces } from '../data/places.js'
@@ -208,7 +208,7 @@ function PhotoGrid({ photos, onOpen, emptyText }) {
     <div style={S.grid}>
       {groups.map(g => (
         <div key={g.lead.id} style={{ position: 'relative' }}>
-          <img src={'data:image/jpeg;base64,' + g.lead.thumb_b64} alt={g.lead.place_name || g.lead.area_label || ''}
+          <img src={thumbSrc(g.lead)} alt={g.lead.place_name || g.lead.area_label || ''}
             onClick={() => onOpen(g)} style={S.gridImg} />
           {g.all.length > 1 && (
             <span style={{ position: 'absolute', top: 5, right: 6, background: 'rgba(23,19,15,0.62)', color: '#F7F2EA',
@@ -302,7 +302,7 @@ function StoopMap({ photos, onOpenPhoto }) {
           : ''
         const icon = L.divIcon({ className: '', iconSize: [46, 46], iconAnchor: [23, 23],
           html: `<div style="position:relative;width:46px;height:46px">
-            <img src="data:image/jpeg;base64,${g.photos[0].thumb_b64}" style="width:46px;height:46px;object-fit:cover;border-radius:13px;border:2px solid #fff;box-shadow:0 2px 8px rgba(23,19,15,0.35);display:block"/>${badge}</div>` })
+            <img src="${thumbSrc(g.photos[0])}" style="width:46px;height:46px;object-fit:cover;border-radius:13px;border:2px solid #fff;box-shadow:0 2px 8px rgba(23,19,15,0.35);display:block"/>${badge}</div>` })
         L.marker([g.lat, g.lng], { icon }).addTo(map).on('click', () => setSel(g))
       }
       mapRef.current = map
@@ -491,17 +491,25 @@ export default function ShareSheetHost({ embedded = false }) {
     setComments([]); setCommentText(''); setPlanMsg('')
     listComments(g.lead.id).then(r => setComments(r.comments)).catch(() => {})
   }
-  // Lazy-load the full image for whichever photo the viewer shows.
+  // Lazy-load the full image for whichever photo the viewer shows. R2 rows
+  // (2026-09-10) carry a presigned image_url — usable directly in an <img>,
+  // no authenticated fetch, no object-URL bookkeeping. Legacy rows keep the
+  // Bearer-fetch → blob-URL path.
   React.useEffect(() => {
     if (!viewer) return
     const cur = viewer.g.all[viewer.idx]
     if (!cur || viewer.urls[cur.id]) return
+    if (cur.image_url) {
+      setViewer(v => (v && v.g.lead.id === viewer.g.lead.id) ? { ...v, urls: { ...v.urls, [cur.id]: cur.image_url } } : v)
+      return
+    }
     fetchPhotoImage(cur.id)
       .then(url => setViewer(v => (v && v.g.lead.id === viewer.g.lead.id) ? { ...v, urls: { ...v.urls, [cur.id]: url } } : v))
       .catch(() => {})
   }, [viewer?.g?.lead?.id, viewer?.idx])
   const closeViewer = () => {
-    if (viewer) Object.values(viewer.urls).forEach(u => { try { URL.revokeObjectURL(u) } catch {} })
+    // revokeObjectURL on a plain https URL is a harmless no-op.
+    if (viewer) Object.values(viewer.urls).forEach(u => { try { if (u.startsWith('blob:')) URL.revokeObjectURL(u) } catch {} })
     setViewer(null)
   }
   // Swipe between images
@@ -570,7 +578,7 @@ export default function ShareSheetHost({ embedded = false }) {
     setPlaceResults(null)
     // Every photo of the post on the stage, with ITS OWN caption/place/pin.
     setFiles(g.all.map(x => ({
-      f: null, id: x.id, url: 'data:image/jpeg;base64,' + x.thumb_b64,
+      f: null, id: x.id, url: thumbSrc(x),
       caption: x.caption || '', place: x.place_name || '',
       geo: (typeof x.lat === 'number' && typeof x.lng === 'number') ? { lat: x.lat, lng: x.lng, src: 'search' } : null,
     })))
@@ -775,7 +783,7 @@ export default function ShareSheetHost({ embedded = false }) {
               return collapseGroups(items).map(g => { const p = g.lead; return (
                 <div key={p.id} style={{ ...S.card, display: 'flex', gap: 12, cursor: 'pointer' }} onClick={() => openViewer(g, false)}>
                   <span style={{ position: 'relative', flexShrink: 0 }}>
-                    <img src={'data:image/jpeg;base64,' + p.thumb_b64} alt="" style={{ width: 76, height: 76, objectFit: 'cover', borderRadius: 10, display: 'block' }} />
+                    <img src={thumbSrc(p)} alt="" style={{ width: 76, height: 76, objectFit: 'cover', borderRadius: 10, display: 'block' }} />
                     {g.all.length > 1 && <span style={{ position: 'absolute', top: 3, right: 3, background: 'rgba(23,19,15,0.62)', color: '#F7F2EA', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999 }}>⧉ {g.all.length}</span>}
                   </span>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -1013,7 +1021,7 @@ export default function ShareSheetHost({ embedded = false }) {
           <div onClick={closeViewer} onTouchStart={vTouchStart} onTouchEnd={vTouchEnd}
             style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', minHeight: 0, position: 'relative' }}>
             {/* Blur-up: instant thumb → full image fades in on top. */}
-            <img key={'t' + cur.id} src={'data:image/jpeg;base64,' + cur.thumb_b64} alt=""
+            <img key={'t' + cur.id} src={thumbSrc(cur)} alt=""
               style={{ maxWidth: '96%', maxHeight: '92%', borderRadius: 8, filter: url ? 'none' : 'blur(14px)', transform: 'scale(1.02)' }} />
             {url && (
               <img key={'f' + cur.id} src={url} alt="" className="stoop-viewer-full"

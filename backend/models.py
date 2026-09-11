@@ -109,8 +109,13 @@ class SharePhoto(Base):
     group_id: Mapped[Optional[str]] = mapped_column(String(40), nullable=True, index=True)  # multi-image post
     kind: Mapped[str] = mapped_column(String(8), nullable=False, default="vibe")  # food|view|vibe
     caption: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
-    image_b64: Mapped[str] = mapped_column(Text, nullable=False)
-    thumb_b64: Mapped[str] = mapped_column(Text, nullable=False)
+    # Legacy inline storage (nullable since the R2 swap, 2026-09-10) — rows
+    # created before the swap carry b64 until migrated; new rows use keys.
+    image_b64: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    thumb_b64: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Cloudflare R2 object keys (bytes live in the bucket, not Postgres).
+    image_key: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
+    thumb_key: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
     taken_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String(12), nullable=False, default="ok")  # ok|flagged|removed
     reports_count: Mapped[int] = mapped_column(nullable=False, default=0)

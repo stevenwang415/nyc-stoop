@@ -55,6 +55,13 @@ def _bootstrap_db() -> None:
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS friend_code VARCHAR(16)"))
         conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_friend_code ON users (friend_code)"))
         conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_b64 TEXT"))
+        # R2 photo storage (2026-09-10): bytes move to Cloudflare R2; rows keep
+        # object keys. Legacy b64 columns become nullable (new rows leave them
+        # NULL; migrated rows are nulled to reclaim Neon storage/transfer).
+        conn.execute(text("ALTER TABLE share_photos ADD COLUMN IF NOT EXISTS image_key VARCHAR(160)"))
+        conn.execute(text("ALTER TABLE share_photos ADD COLUMN IF NOT EXISTS thumb_key VARCHAR(160)"))
+        conn.execute(text("ALTER TABLE share_photos ALTER COLUMN image_b64 DROP NOT NULL"))
+        conn.execute(text("ALTER TABLE share_photos ALTER COLUMN thumb_b64 DROP NOT NULL"))
         # In-app feedback (2026-07-14): replaces the mailto round-trip.
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS feedback (

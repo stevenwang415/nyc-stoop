@@ -55,6 +55,12 @@ export const updatePhoto = (id, fields) => call(`/share/photos/${id}`, { method:
 export const deletePhoto = (id) => call(`/share/photos/${id}`, { method: 'DELETE' })
 export const reportPhoto = (id) => call(`/share/photos/${id}/report`, { method: 'POST' })
 
+/** Thumbnail src for a photo row. R2 rows (2026-09-10) carry a presigned
+ *  thumb_url and no base64; legacy rows still ship inline thumb_b64. */
+export function thumbSrc(p) {
+  return p?.thumb_url || (p?.thumb_b64 ? 'data:image/jpeg;base64,' + p.thumb_b64 : '')
+}
+
 /** Full-size image → object URL (img tags can't send Bearer headers). Caller
  *  should URL.revokeObjectURL when done. */
 export async function fetchPhotoImage(id) {

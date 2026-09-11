@@ -29,6 +29,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import and_, or_, select, text
 from sqlalchemy.orm import Session
 
+from r2 import r2_enabled, r2_put, r2_url, r2_delete
+
 from auth import get_current_user
 from database import get_db
 from models import Friendship, ShareComment, SharePhoto, User
@@ -140,6 +142,11 @@ class PhotoIn(BaseModel):
 
 
 def _photo_meta(p: SharePhoto, author: dict) -> dict:
+    # R2 rows ship presigned URLs and NO base64 — the whole point of the swap
+    # is that image bytes stop riding through Neon in every feed response.
+    # Legacy rows keep inline thumb_b64 until migrated (/photos/migrate-r2).
+    thumb_url = r2_url(p.thumb_key) if (r2_enabled() and p.thumb_key) else None
+    image_url = r2_url(p.image_key) if (r2_enabled() and p.image_key) else None
     return {
         "id": p.id,
         "author": author,
@@ -152,7 +159,9 @@ def _photo_meta(p: SharePhoto, author: dict) -> dict:
         "group_id": p.group_id,
         "kind": p.kind,
         "caption": p.caption,
-        "thumb_b64": p.thumb_b64,
+        "thumb_b64": None if thumb_url else p.thumb_b64,
+        "thumb_url": thumb_url,
+        "image_url": image_url,
         "taken_at": p.taken_at.isoformat() if p.taken_at else None,
         "created_at": p.created_at.isoformat() if p.created_at else None,
     }
@@ -258,9 +267,21 @@ def create_photo(body: PhotoIn, user: User = Depends(get_current_user), db: Sess
         user_id=user.id, anchor_type=body.anchor_type, place_id=body.place_id,
         place_name=body.place_name, area_label=body.area_label,
         lat=body.lat, lng=body.lng, group_id=body.group_id, kind=body.kind,
-        caption=(body.caption or None), image_b64=body.image_b64,
-        thumb_b64=body.thumb_b64, taken_at=body.taken_at,
+        caption=(body.caption or None), taken_at=body.taken_at,
     )
+    # Bytes go to R2 when configured; Postgres keeps only the keys. The upload
+    # API shape is unchanged (client still sends b64) — only storage moved.
+    if r2_enabled():
+        import base64 as _b64
+        from uuid import uuid4
+        stem = f"p/{user.id}/{uuid4().hex}"
+        p.image_key = stem + ".jpg"
+        p.thumb_key = stem + ".t.jpg"
+        r2_put(p.image_key, _b64.b64decode(body.image_b64))
+        r2_put(p.thumb_key, _b64.b64decode(body.thumb_b64))
+    else:
+        p.image_b64 = body.image_b64
+        p.thumb_b64 = body.thumb_b64
     db.add(p)
     db.commit()
     db.refresh(p)
@@ -322,17 +343,57 @@ def photo_image(photo_id: int, user: User = Depends(get_current_user), db: Sessi
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
     if p.user_id != user.id and p.user_id not in _accepted_friend_ids(db, user.id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")  # don't leak existence
+    if r2_enabled() and p.image_key:
+        # Access check passed — hand the client a short-lived R2 link so the
+        # bytes never flow through this function (or Neon) again.
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(r2_url(p.image_key), status_code=307)
     import base64
     return Response(content=base64.b64decode(p.image_b64), media_type="image/jpeg",
                     headers={"Cache-Control": "private, max-age=86400"})
+
+
+@router.post("/photos/migrate-r2")
+def migrate_photos_r2(limit: int = 10, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    """One-time migration: move legacy base64 rows into R2 in small batches
+    (Vercel's 10 s budget can't swallow the whole table at once — call
+    repeatedly until remaining hits 0). Idempotent; gated to the official
+    account so random users can't burn compute, though the operation itself
+    exposes nothing."""
+    if not r2_enabled():
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "R2 is not configured")
+    if OFFICIAL_EMAIL and user.email.lower() != OFFICIAL_EMAIL:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Official account only")
+    import base64 as _b64
+    from uuid import uuid4
+    rows = db.execute(
+        select(SharePhoto).where(SharePhoto.image_key.is_(None), SharePhoto.image_b64.isnot(None))
+        .order_by(SharePhoto.id).limit(max(1, min(limit, 20)))
+    ).scalars().all()
+    for p in rows:
+        stem = f"p/{p.user_id}/{uuid4().hex}"
+        r2_put(stem + ".jpg", _b64.b64decode(p.image_b64))
+        r2_put(stem + ".t.jpg", _b64.b64decode(p.thumb_b64))
+        p.image_key = stem + ".jpg"
+        p.thumb_key = stem + ".t.jpg"
+        p.image_b64 = None   # reclaim Neon storage + stop transfer bleed
+        p.thumb_b64 = None
+        db.commit()          # per-row: a timeout mid-batch loses nothing
+    remaining = db.execute(
+        select(SharePhoto.id).where(SharePhoto.image_key.is_(None), SharePhoto.image_b64.isnot(None))
+    ).all()
+    return {"migrated": len(rows), "remaining": len(remaining)}
 
 
 @router.delete("/photos/{photo_id}")
 def delete_photo(photo_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     p = db.get(SharePhoto, photo_id)
     if p and p.user_id == user.id:
+        _keys = [p.image_key, p.thumb_key]
         db.delete(p)
         db.commit()
+        if r2_enabled():
+            r2_delete(_keys)
     return {"ok": True}
 
 
