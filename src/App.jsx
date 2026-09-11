@@ -5777,13 +5777,21 @@ function MoodPlaceSheet({ place = {}, onFull = null, savedItems = {}, toggleSave
   // creating a duplicate if the sheet is reopened after adding.
   const existingId = place.existingId || null
   const isSavedExisting = existingId ? !!savedItems[`user_venue:${existingId}`] : false
-  const byName = !existingId && place.name
-    ? Object.values(userVenues || {}).some(v => (v.name || '').toLowerCase().trim() === place.name.toLowerCase().trim())
-    : false
-  const inTrip = isSavedExisting || added || byName
-  const canAdd = !!existingId || !!place.addData
+  // Name-match must check SAVED state, not mere catalog presence (device
+  // report 2026-09-10): the bundled seed catalog contains every Eat
+  // restaurant, so "exists in userVenues" made EVERY card read "✓ In
+  // Planner" with a dead button. A matched venue also gives us an id to
+  // toggle — so the button can now REMOVE from the planner too.
+  const matchByName = !existingId && place.name
+    ? Object.values(userVenues || {}).find(v => (v.name || '').toLowerCase().trim() === place.name.toLowerCase().trim())
+    : null
+  const inTrip = existingId ? isSavedExisting
+    : matchByName ? !!savedItems[`user_venue:${matchByName.id}`]
+    : added
+  const canAdd = !!existingId || !!matchByName || !!place.addData
   const handleAddToTrip = () => {
     if (existingId) { toggleSave('user_venue', existingId); return }
+    if (matchByName) { toggleSave('user_venue', matchByName.id); setAdded(false); return }
     if (place.addData && !inTrip) { onAddToTrip(place.addData); setAdded(true) }
   }
   const imageSrc = place.image || g?.photoUrl || null
