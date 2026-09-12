@@ -169,6 +169,13 @@ export async function fetchMe() {
   return request('/auth/me', { method: 'GET', auth: true })
 }
 
+/** Sliding session (2026-09-12): exchange a still-valid token for a fresh
+ *  30-day one. Called silently on app launch — active users never hit the
+ *  "session expired" wall; only 30-days-idle sessions lapse. */
+export async function refreshSession() {
+  return request('/auth/refresh', { method: 'POST', auth: true })
+}
+
 export async function updateDisplayName(displayName) {
   const qs = new URLSearchParams({ display_name: displayName || '' })
   return request(`/auth/me?${qs.toString()}`, { method: 'PATCH', auth: true })

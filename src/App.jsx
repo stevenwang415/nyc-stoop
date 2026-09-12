@@ -12,7 +12,7 @@ import {
 // Auth: localStorage helpers, API client, and UI components.
 import {
   getToken, getUser, setToken as authSetToken, setUser as authSetUser,
-  signOut as authSignOut, fetchMe, updateDisplayName, deleteAccount,
+  signOut as authSignOut, fetchMe, refreshSession, updateDisplayName, deleteAccount,
   getProfileOverlay, setAvatar as authSetAvatar, setNickname as authSetNickname,
   resizeImageFile,
 } from './auth/api'
@@ -17968,10 +17968,17 @@ export default function App() {
   }, [])
   useEffect(() => {
     if (!getToken()) return
-    // Refresh the cached profile from the server; sign out silently on 401.
-    fetchMe()
-      .then(u => { authSetUser(u); setUserState(u) })
-      .catch(() => {})
+    // Sliding session (2026-09-12): trade the current token for a fresh
+    // 30-day one on every launch — the daily "session expired" wall came
+    // from 24h tokens with no refresh. Falls back to fetchMe (profile
+    // refresh only) if the refresh endpoint isn't deployed yet.
+    refreshSession()
+      .then(r => { if (r?.access_token) authSetToken(r.access_token); if (r?.user) { authSetUser(r.user); setUserState(r.user) } })
+      .catch(() => {
+        fetchMe()
+          .then(u => { authSetUser(u); setUserState(u) })
+          .catch(() => {})
+      })
   }, [])
   function handleSignedIn(token, u) {
     authSetToken(token)

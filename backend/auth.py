@@ -318,6 +318,14 @@ def me(current_user: User = Depends(get_current_user)) -> UserPublic:
     return _to_public(current_user)
 
 
+@router.post("/refresh", response_model=AuthResponse)
+def refresh(current_user: User = Depends(get_current_user)) -> AuthResponse:
+    """Sliding session (2026-09-12): a valid token exchanges for a fresh
+    30-day one. The client calls this silently on every app launch, so a
+    session only expires after 30 days of NOT opening the app."""
+    return _auth_response(current_user)
+
+
 @router.patch("/me", response_model=UserPublic)
 def update_me(
     display_name: Optional[str] = None,

@@ -9,7 +9,7 @@ before bcrypt'ing. This is the same pattern Dropbox documented in 2016.
 JWT
 ---
 HS256 with a single secret in JWT_SECRET. Tokens carry `sub` (user id as string),
-`email`, and `exp`. ACCESS_TOKEN_EXPIRE_MINUTES controls TTL (default 24h).
+`email`, and `exp`. ACCESS_TOKEN_EXPIRE_MINUTES controls TTL (default 30d).
 
 Reset tokens
 ------------
@@ -32,7 +32,11 @@ JWT_SECRET = os.environ.get("JWT_SECRET")
 if not JWT_SECRET:
     raise RuntimeError("JWT_SECRET is not set. See .env.example.")
 
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
+# 30 days (2026-09-12): 24h tokens forced a daily re-login — "session
+# expired" on every morning's first open. Combined with the silent
+# /auth/refresh on app launch, active users now never see a login wall;
+# only 30-days-inactive sessions lapse.
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "43200"))
 JWT_ALG = "HS256"
 
 
