@@ -49,11 +49,21 @@ def r2_put(key: str, data: bytes, content_type: str = "image/jpeg") -> None:
     _client().put_object(Bucket=_BUCKET, Key=key, Body=data, ContentType=content_type)
 
 
-def r2_url(key: str, expires: int = 3600) -> str:
-    """Presigned GET — cheap to mint (local HMAC, no network round-trip)."""
+def r2_url(key: str, expires: int = 604800) -> str:
+    """Presigned GET — cheap to mint (local HMAC, no network round-trip).
+    Default 7 days (SigV4 maximum): 1h links outlived by an app session left
+    open produced silently broken images."""
     return _client().generate_presigned_url(
         "get_object", Params={"Bucket": _BUCKET, "Key": key}, ExpiresIn=expires
     )
+
+
+def r2_get(key: str):
+    """Fetch object bytes — used only by the 2.0-client thumbnail shim."""
+    try:
+        return _client().get_object(Bucket=_BUCKET, Key=key)["Body"].read()
+    except Exception:
+        return None
 
 
 def r2_delete(keys: list) -> None:

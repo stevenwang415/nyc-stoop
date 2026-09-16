@@ -29,7 +29,34 @@ from pydantic import BaseModel, Field
 from sqlalchemy import and_, or_, select, text
 from sqlalchemy.orm import Session
 
-from r2 import r2_enabled, r2_put, r2_url, r2_delete
+from r2 import r2_enabled, r2_put, r2_url, r2_delete, r2_get
+
+# TEMP COMPAT SHIM (2026-09-16, remove after 2.1 adoption): the SHIPPED 2.0
+# App Store binary renders thumbnails ONLY from thumb_b64 — the R2 swap
+# nulled that field, blanking every grid and feed on native (bug report:
+# "her posting's images do not show"). Until the URL-aware 2.1 binary is
+# out, feeds re-inline thumbs fetched from R2 in parallel. New clients are
+# unaffected (they prefer thumb_url). Kill switch: COMPAT_INLINE_THUMBS=0.
+COMPAT_INLINE_THUMBS = os.environ.get("COMPAT_INLINE_THUMBS", "1") == "1"
+
+
+def _inline_thumbs(metas: list, rows: list) -> list:
+    if not (COMPAT_INLINE_THUMBS and r2_enabled()):
+        return metas
+    import base64 as _b64
+    from concurrent.futures import ThreadPoolExecutor
+    need = [(m, p.thumb_key) for m, p in zip(metas, rows)
+            if m.get("thumb_b64") is None and p.thumb_key]
+    if not need:
+        return metas
+    def _fill(item):
+        m, key = item
+        data = r2_get(key)
+        if data:
+            m["thumb_b64"] = _b64.b64encode(data).decode()
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        list(ex.map(_fill, need))
+    return metas
 
 from auth import get_current_user
 from database import get_db
@@ -285,7 +312,7 @@ def create_photo(body: PhotoIn, user: User = Depends(get_current_user), db: Sess
     db.add(p)
     db.commit()
     db.refresh(p)
-    return {"ok": True, "photo": _photo_meta(p, _public_user(user))}
+    return {"ok": True, "photo": _inline_thumbs([_photo_meta(p, _public_user(user))], [p])[0]}
 
 
 @router.patch("/photos/{photo_id}")
@@ -308,7 +335,7 @@ def edit_photo(photo_id: int, body: PhotoEditIn,
     p.lng = body.lng
     db.commit()
     db.refresh(p)
-    return {"ok": True, "photo": _photo_meta(p, _public_user(user))}
+    return {"ok": True, "photo": _inline_thumbs([_photo_meta(p, _public_user(user))], [p])[0]}
 
 
 @router.get("/photos/mine")
@@ -318,7 +345,7 @@ def my_photos(user: User = Depends(get_current_user), db: Session = Depends(get_
         .order_by(SharePhoto.created_at.desc()).limit(200)
     ).scalars().all()
     me = _public_user(user)
-    return {"photos": [_photo_meta(p, me) for p in rows]}
+    return {"photos": _inline_thumbs([_photo_meta(p, me) for p in rows], rows)}
 
 
 @router.get("/feed")
@@ -332,7 +359,7 @@ def friends_feed(user: User = Depends(get_current_user), db: Session = Depends(g
         .where(SharePhoto.user_id.in_(ids), SharePhoto.status == "ok")
         .order_by(SharePhoto.created_at.desc()).limit(60)
     ).all()
-    return {"photos": [_photo_meta(p, _public_user(u)) for (p, u) in rows]}
+    return {"photos": _inline_thumbs([_photo_meta(p, _public_user(u)) for (p, u) in rows], [p for (p, _u) in rows])}
 
 
 @router.get("/photos/{photo_id}/image")
