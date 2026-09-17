@@ -485,6 +485,16 @@ export default function ShareSheetHost({ embedded = false }) {
 
   // Viewer now holds a GROUP (multi-image post): { g, idx, mine, urls: {id→objectURL} }.
   // Accepts a group or a bare photo (map pins pass photos) — bare wraps solo.
+  // Map pins pass a single photo — expand it to its full POST (same group_id)
+  // so multi-image posts open as the complete carousel from the map too
+  // (device report 2026-09-16: pin tap showed only the first image). Post-
+  // scoped, not pin-scoped: a pin can stack photos from different visits, and
+  // the viewer's Delete/comments operate on one post.
+  const postGroupOf = (p, list) => {
+    if (!p?.group_id) return p
+    const all = (list || []).filter(x => x.group_id === p.group_id).sort((a, b) => a.id - b.id)
+    return all.length > 1 ? { lead: all[0], all } : p
+  }
   const openViewer = (gOrP, isMine) => {
     const g = gOrP?.all ? gOrP : { lead: gOrP, all: [gOrP] }
     setViewer({ g, idx: 0, mine: isMine, urls: {} })
@@ -713,7 +723,7 @@ export default function ShareSheetHost({ embedded = false }) {
             {stoopView === 'grid'
               ? <PhotoGrid photos={mine} onOpen={(p) => openViewer(p, true)}
                   emptyText={t('Your New York starts here — add the first photo from a place you loved.')} />
-              : <StoopMap photos={mine} onOpenPhoto={(p) => openViewer(p, true)} />}
+              : <StoopMap photos={mine} onOpenPhoto={(p) => openViewer(postGroupOf(p, mine), true)} />}
           </>
         )}
 
@@ -815,7 +825,7 @@ export default function ShareSheetHost({ embedded = false }) {
             {stoopView === 'grid'
               ? <PhotoGrid photos={friendPhotos} onOpen={(p) => openViewer(p, false)}
                   emptyText={t('Nothing here yet — when your friends post photos, they show up here.')} />
-              : <StoopMap photos={friendPhotos} onOpenPhoto={(p) => openViewer(p, false)} />}
+              : <StoopMap photos={friendPhotos} onOpenPhoto={(p) => openViewer(postGroupOf(p, friendPhotos), false)} />}
           </>
         )}
 
