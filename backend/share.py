@@ -163,8 +163,11 @@ class PhotoIn(BaseModel):
     lng: Optional[float] = Field(default=None, ge=-180, le=180)
     group_id: Optional[str] = Field(default=None, max_length=40)  # multi-image post
     # data-URL payloads WITHOUT the "data:image/jpeg;base64," prefix.
-    image_b64: str = Field(min_length=100, max_length=900_000)   # ≈ 650 KB image
-    thumb_b64: str = Field(min_length=50, max_length=60_000)     # ≈ 45 KB thumb
+    # Caps raised (2026-09-20): bytes land in R2 now, so Postgres no longer
+    # constrains size — the client's adaptive ladder keeps payloads ≤2.4 MB
+    # b64, and this 3 MB ceiling just guards the Vercel body limit.
+    image_b64: str = Field(min_length=100, max_length=3_000_000)  # ≈ 2.2 MB image
+    thumb_b64: str = Field(min_length=50, max_length=120_000)     # ≈ 90 KB thumb
     taken_at: Optional[datetime] = None
 
 

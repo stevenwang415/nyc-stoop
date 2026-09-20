@@ -90,11 +90,20 @@ export function prepareImage(file) {
     const img = new Image()
     img.onload = () => {
       try {
-        const image_b64 = drawScaled(img, 1600, 0.8)
+        // NO "image too large" errors (user reports, 2026-09-20): instead of
+        // rejecting when a detailed photo exceeds the transport budget, step
+        // down size/quality until it fits. The last rung always fits, so
+        // every photo uploads. Budget: 2.4 MB base64 (≈1.8 MB JPEG) — beneath
+        // the backend's 3 MB field cap and Vercel's ~4.5 MB body limit.
+        const LADDER = [[1600, 0.8], [1600, 0.7], [1400, 0.65], [1200, 0.6], [1000, 0.55], [900, 0.5]]
+        let image_b64 = null
+        for (const [dim, q] of LADDER) {
+          image_b64 = drawScaled(img, dim, q)
+          if (image_b64.length <= 2_400_000) break
+        }
         const thumb_b64 = drawScaled(img, 320, 0.7)
         URL.revokeObjectURL(url)
-        if (image_b64.length > 880_000) reject(new Error('Image too large — try a smaller photo'))
-        else resolve({ image_b64, thumb_b64 })
+        resolve({ image_b64, thumb_b64 })
       } catch (e) { URL.revokeObjectURL(url); reject(e) }
     }
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not read image')) }
