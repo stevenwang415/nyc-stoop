@@ -18832,12 +18832,14 @@ export default function App() {
             {notifEvents.map((e, i) => (
               <button key={i} onClick={() => {
                 setNotifOpen(false); setActiveTab('share')
-                try { window.dispatchEvent(new CustomEvent('shareGoto', { detail: { view: e.type === 'comment' ? 'me' : e.type === 'friend' ? 'friends' : 'discover' } })) } catch {}
+                try { window.dispatchEvent(new CustomEvent('shareGoto', { detail: { view: (e.type === 'comment' || e.type === 'like') ? 'me' : e.type === 'friend' ? 'friends' : 'discover' } })) } catch {}
               }} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none',
                 borderTop: i ? '1px solid rgba(23,19,15,0.06)' : 'none', padding: '10px 10px', cursor: 'pointer', fontFamily: 'inherit' }}>
                 <div style={{ fontSize: 13.5, color: 'var(--ink)', lineHeight: 1.45 }}>
                   {e.type === 'comment'
                     ? <>💬 <b>{e.author?.display_name}</b> {t('commented:')} “{(e.text || '').slice(0, 64)}”</>
+                    : e.type === 'like'
+                    ? <>{'\u2665'} <b>{e.author?.display_name}</b> {t('liked your photo')}{e.place_name ? ` · ${e.place_name}` : ''}</>
                     : e.type === 'friend'
                     ? <>🤝 <b>{e.author?.display_name}</b> {t('is now your friend')}</>
                     : <>📷 <b>{e.author?.display_name}</b> {t('added a photo')}{e.place_name ? ` · ${e.place_name}` : ''}</>}

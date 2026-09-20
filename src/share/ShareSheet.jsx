@@ -9,7 +9,7 @@ import { t, t2 } from '../lib/i18n.js'
 import { getUser } from '../auth/api.js'
 import {
   getMyCode, regenerateCode, redeemCode, listFriends, unfriend, blockUser,
-  createPhoto, updatePhoto, myPhotos, friendsFeed, deletePhoto, reportPhoto,
+  createPhoto, updatePhoto, myPhotos, friendsFeed, deletePhoto, reportPhoto, likePhoto, unlikePhoto,
   fetchPhotoImage, thumbSrc, prepareImage, readGps, deviceLocation, searchPlaces,
   listComments, addComment, deleteComment, setMyAvatar, setMyName, reportComment,
 } from './shareApi.js'
@@ -495,9 +495,27 @@ export default function ShareSheetHost({ embedded = false }) {
     const all = (list || []).filter(x => x.group_id === p.group_id).sort((a, b) => a.id - b.id)
     return all.length > 1 ? { lead: all[0], all } : p
   }
+  // Likes (2026-09-20): per-POST heart, anchored to the lead photo (same
+  // anchor as comments). Optimistic toggle; the source lists are patched so
+  // counts stay right after the viewer closes.
+  const [likes, setLikes] = React.useState({ count: 0, mine: false })
+  const patchLikeInLists = (leadId, count, mineFlag) => {
+    const patch = (arr) => arr.map(x => x.id === leadId ? { ...x, like_count: count, liked_by_me: mineFlag } : x)
+    setMine(m => patch(m)); setFeed(f => patch(f)) // friendPhotos derives from feed
+  }
+  const toggleLike = () => {
+    if (!viewer) return
+    const leadId = viewer.g.lead.id
+    const next = { count: Math.max(0, likes.count + (likes.mine ? -1 : 1)), mine: !likes.mine }
+    setLikes(next); patchLikeInLists(leadId, next.count, next.mine)
+    ;(next.mine ? likePhoto(leadId) : unlikePhoto(leadId))
+      .then(r => { if (typeof r.like_count === 'number') { setLikes({ count: r.like_count, mine: r.liked }); patchLikeInLists(leadId, r.like_count, r.liked) } })
+      .catch(() => { setLikes(likes); patchLikeInLists(leadId, likes.count, likes.mine) })
+  }
   const openViewer = (gOrP, isMine) => {
     const g = gOrP?.all ? gOrP : { lead: gOrP, all: [gOrP] }
     setViewer({ g, idx: 0, mine: isMine, urls: {} })
+    setLikes({ count: g.lead.like_count || 0, mine: !!g.lead.liked_by_me })
     setComments([]); setCommentText(''); setPlanMsg('')
     listComments(g.lead.id).then(r => setComments(r.comments)).catch(() => {})
   }
@@ -800,7 +818,7 @@ export default function ShareSheetHost({ embedded = false }) {
                     <div style={{ fontFamily: 'var(--serif)', fontSize: 15.5, fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {p.place_name || p.area_label || ''}
                     </div>
-                    <div style={{ ...S.meta, marginTop: 2 }}>{p.author?.display_name} · {(p.created_at || '').slice(0, 10)}</div>
+                    <div style={{ ...S.meta, marginTop: 2 }}>{p.author?.display_name} · {(p.created_at || '').slice(0, 10)}{p.like_count > 0 && <> · <span style={{ color: '#C04A63', fontWeight: 700 }}>{'\u2665'} {p.like_count}</span></>}</div>
                     {p.caption && <div style={{ fontSize: 13, color: 'var(--gray-700)', marginTop: 4, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.caption}</div>}
                   </div>
                 </div>
@@ -1062,6 +1080,13 @@ export default function ShareSheetHost({ embedded = false }) {
             </div>
             {cur.caption && <div style={{ fontSize: 13.5, marginTop: 4, opacity: 0.9 }}>{cur.caption}</div>}
             <div style={{ fontSize: 12, marginTop: 6, opacity: 0.7, display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button onClick={toggleLike} aria-label={likes.mine ? t('Unlike') : t('Like')}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit',
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  color: likes.mine ? '#F0708B' : '#EDE6D6', fontSize: 15, lineHeight: 1 }}>
+                <span style={{ fontSize: 17 }}>{likes.mine ? '\u2665' : '\u2661'}</span>
+                {likes.count > 0 && <span style={{ fontSize: 12.5, fontWeight: 700 }}>{likes.count}</span>}
+              </button>
               <span>{(cur.created_at || '').slice(0, 10)}</span>
               {plannerData(cur) && (planMsg
                 ? <span style={{ color: '#9FE1CB' }}>{planMsg}</span>

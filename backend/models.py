@@ -19,7 +19,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import String, Text, DateTime, ForeignKey, Index, func
+from sqlalchemy import String, Text, DateTime, ForeignKey, Index, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
@@ -135,3 +135,17 @@ class ShareComment(Base):
     status: Mapped[str] = mapped_column(String(12), nullable=False, default="ok")  # ok|flagged
     reports_count: Mapped[int] = mapped_column(nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+class ShareLike(Base):
+    """A friend's Like on a post (2026-09-20, IG-style). Anchored to the
+    post's LEAD photo id — same anchor as comments — so multi-image posts
+    carry one like count. One like per (photo, user); FK cascades clean up
+    on photo or account deletion."""
+    __tablename__ = "share_likes"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    photo_id: Mapped[int] = mapped_column(ForeignKey("share_photos.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    __table_args__ = (UniqueConstraint("photo_id", "user_id", name="uq_like_photo_user"),)
+

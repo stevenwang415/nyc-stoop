@@ -218,17 +218,21 @@ export function devSharePlugin() {
           const { image_b64, ...meta } = p
           return json(res, 200, { ok: true, photo: { ...meta, author: publicUser(db, user.id) } })
         }
+        // Likes (2026-09-20): db.likes rows {photo_id, user_id, created_at}
+        const likeMeta = (meta, uid) => ({ ...meta,
+          like_count: (db.likes || []).filter(l => l.photo_id === meta.id).length,
+          liked_by_me: (db.likes || []).some(l => l.photo_id === meta.id && l.user_id === uid) })
         if (url === '/share/photos/mine' && m === 'GET') {
           const mine = db.photos.filter(p => p.user_id === user.id && p.status === 'ok')
             .sort((a, b) => b.created_at.localeCompare(a.created_at))
-            .map(({ image_b64, ...meta }) => ({ ...meta, author: publicUser(db, user.id) }))
+            .map(({ image_b64, ...meta }) => likeMeta({ ...meta, author: publicUser(db, user.id) }, user.id))
           return json(res, 200, { photos: mine })
         }
         if (url === '/share/feed' && m === 'GET') {
           const ids = friendIds(db, user.id)
           const feed = db.photos.filter(p => ids.includes(p.user_id) && p.status === 'ok')
             .sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 60)
-            .map(({ image_b64, ...meta }) => ({ ...meta, author: publicUser(db, meta.user_id) }))
+            .map(({ image_b64, ...meta }) => likeMeta({ ...meta, author: publicUser(db, meta.user_id) }, user.id))
           return json(res, 200, { photos: feed })
         }
         const imgM = url.match(/^\/share\/photos\/(\d+)\/image$/)
@@ -315,6 +319,22 @@ export function devSharePlugin() {
         if (delM && m === 'DELETE') {
           db.photos = db.photos.filter(p => !(p.id === +delM[1] && p.user_id === user.id)); save(db)
           return json(res, 200, { ok: true })
+        }
+        const likeM = url.match(/^\/share\/photos\/(\d+)\/like$/)
+        if (likeM && (m === 'POST' || m === 'DELETE')) {
+          const pid = +likeM[1]
+          const ph = db.photos.find(x => x.id === pid)
+          if (!ph) return detail(res, 404, 'Not found')
+          db.likes = db.likes || []
+          if (m === 'POST') {
+            if (!db.likes.some(l => l.photo_id === pid && l.user_id === user.id))
+              db.likes.push({ photo_id: pid, user_id: user.id, created_at: new Date().toISOString() })
+          } else {
+            db.likes = db.likes.filter(l => !(l.photo_id === pid && l.user_id === user.id))
+          }
+          save(db)
+          const count = db.likes.filter(l => l.photo_id === pid).length
+          return json(res, 200, { ok: true, liked: m === 'POST', like_count: count })
         }
         const repM = url.match(/^\/share\/photos\/(\d+)\/report$/)
         if (repM && m === 'POST') {

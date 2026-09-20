@@ -54,6 +54,9 @@ export const friendsFeed = () => call('/share/feed')
 export const updatePhoto = (id, fields) => call(`/share/photos/${id}`, { method: 'PATCH', body: fields })
 export const deletePhoto = (id) => call(`/share/photos/${id}`, { method: 'DELETE' })
 export const reportPhoto = (id) => call(`/share/photos/${id}/report`, { method: 'POST' })
+// Likes (2026-09-20) — anchored to the post's lead photo id, like comments.
+export const likePhoto = (id) => call(`/share/photos/${id}/like`, { method: 'POST' })
+export const unlikePhoto = (id) => call(`/share/photos/${id}/like`, { method: 'DELETE' })
 
 /** Thumbnail src for a photo row. R2 rows (2026-09-10) carry a presigned
  *  thumb_url and no base64; legacy rows still ship inline thumb_b64. */

@@ -26,7 +26,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field
-from sqlalchemy import and_, or_, select, text
+from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.orm import Session
 
 from r2 import r2_enabled, r2_put, r2_url, r2_delete, r2_get
@@ -58,9 +58,27 @@ def _inline_thumbs(metas: list, rows: list) -> list:
         list(ex.map(_fill, need))
     return metas
 
+
+def _attach_likes(metas: list, db, user) -> list:
+    """Bulk-fill like_count + liked_by_me for a page of photo metas — two
+    grouped queries total, never per-row."""
+    ids = [m["id"] for m in metas]
+    if not ids:
+        return metas
+    counts = dict(db.execute(
+        select(ShareLike.photo_id, func.count()).where(ShareLike.photo_id.in_(ids)).group_by(ShareLike.photo_id)
+    ).all())
+    mine = {r[0] for r in db.execute(
+        select(ShareLike.photo_id).where(ShareLike.photo_id.in_(ids), ShareLike.user_id == user.id)
+    ).all()}
+    for m in metas:
+        m["like_count"] = counts.get(m["id"], 0)
+        m["liked_by_me"] = m["id"] in mine
+    return metas
+
 from auth import get_current_user
 from database import get_db
-from models import Friendship, ShareComment, SharePhoto, User
+from models import Friendship, ShareComment, ShareLike, SharePhoto, User
 
 router = APIRouter(prefix="/share", tags=["share"])
 
@@ -194,6 +212,9 @@ def _photo_meta(p: SharePhoto, author: dict) -> dict:
         "image_url": image_url,
         "taken_at": p.taken_at.isoformat() if p.taken_at else None,
         "created_at": p.created_at.isoformat() if p.created_at else None,
+        # Likes (2026-09-20) — filled in bulk by _attach_likes on list routes.
+        "like_count": 0,
+        "liked_by_me": False,
     }
 
 
@@ -348,7 +369,7 @@ def my_photos(user: User = Depends(get_current_user), db: Session = Depends(get_
         .order_by(SharePhoto.created_at.desc()).limit(200)
     ).scalars().all()
     me = _public_user(user)
-    return {"photos": _inline_thumbs([_photo_meta(p, me) for p in rows], rows)}
+    return {"photos": _attach_likes(_inline_thumbs([_photo_meta(p, me) for p in rows], rows), db, user)}
 
 
 @router.get("/feed")
@@ -362,7 +383,7 @@ def friends_feed(user: User = Depends(get_current_user), db: Session = Depends(g
         .where(SharePhoto.user_id.in_(ids), SharePhoto.status == "ok")
         .order_by(SharePhoto.created_at.desc()).limit(60)
     ).all()
-    return {"photos": _inline_thumbs([_photo_meta(p, _public_user(u)) for (p, u) in rows], [p for (p, _u) in rows])}
+    return {"photos": _attach_likes(_inline_thumbs([_photo_meta(p, _public_user(u)) for (p, u) in rows], [p for (p, _u) in rows]), db, user)}
 
 
 @router.get("/photos/{photo_id}/image")
@@ -425,6 +446,38 @@ def delete_photo(photo_id: int, user: User = Depends(get_current_user), db: Sess
         if r2_enabled():
             r2_delete(_keys)
     return {"ok": True}
+
+
+@router.post("/photos/{photo_id}/like")
+def like_photo(photo_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    """IG-style Like (2026-09-20). Anchored to the post's lead photo id (same
+    anchor as comments). Idempotent; visibility = owner or accepted friend."""
+    p = db.get(SharePhoto, photo_id)
+    if not _photo_visible(db, user, p):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
+    existing = db.execute(
+        select(ShareLike).where(ShareLike.photo_id == photo_id, ShareLike.user_id == user.id)
+    ).scalar_one_or_none()
+    if not existing:
+        db.add(ShareLike(photo_id=photo_id, user_id=user.id))
+        try:
+            db.commit()
+        except Exception:  # unique-constraint race — someone double-tapped fast
+            db.rollback()
+    count = db.execute(select(func.count()).select_from(ShareLike).where(ShareLike.photo_id == photo_id)).scalar()
+    return {"ok": True, "liked": True, "like_count": count}
+
+
+@router.delete("/photos/{photo_id}/like")
+def unlike_photo(photo_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    row = db.execute(
+        select(ShareLike).where(ShareLike.photo_id == photo_id, ShareLike.user_id == user.id)
+    ).scalar_one_or_none()
+    if row:
+        db.delete(row)
+        db.commit()
+    count = db.execute(select(func.count()).select_from(ShareLike).where(ShareLike.photo_id == photo_id)).scalar()
+    return {"ok": True, "liked": False, "like_count": count}
 
 
 @router.post("/photos/{photo_id}/report")
@@ -525,6 +578,17 @@ def notifications(user: User = Depends(get_current_user), db: Session = Depends(
             events.append({"type": "photo", "photo_id": p.id, "author": _public_user(u),
                            "place_name": p.place_name or p.area_label,
                            "created_at": p.created_at.isoformat() if p.created_at else None})
+    lrows = db.execute(
+        select(ShareLike, SharePhoto, User)
+        .join(SharePhoto, SharePhoto.id == ShareLike.photo_id)
+        .join(User, User.id == ShareLike.user_id)
+        .where(SharePhoto.user_id == user.id, ShareLike.user_id != user.id)
+        .order_by(ShareLike.created_at.desc()).limit(30)
+    ).all()
+    for l, p, u in lrows:
+        events.append({"type": "like", "photo_id": p.id, "author": _public_user(u),
+                       "place_name": p.place_name or p.area_label,
+                       "created_at": l.created_at.isoformat() if l.created_at else None})
     frows = db.execute(
         select(Friendship).where(
             Friendship.status == "accepted",
