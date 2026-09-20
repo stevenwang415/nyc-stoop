@@ -1075,23 +1075,40 @@ export default function ShareSheetHost({ embedded = false }) {
                 ))}
               </div>
             )}
-            <div style={{ fontFamily: 'var(--serif)', fontSize: 16, fontWeight: 600 }}>
-              {{ food: '🍴', view: '🏞', vibe: '✨' }[cur.kind] || ''} {cur.place_name || cur.area_label || ''}
-            </div>
-            {cur.caption && <div style={{ fontSize: 13.5, marginTop: 4, opacity: 0.9 }}>{cur.caption}</div>}
-            <div style={{ fontSize: 12, marginTop: 6, opacity: 0.7, display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* ── IG-style panel (2026-09-20, Steven's request): action row of
+                big icons first, then bold author + caption, then the quiet
+                place · date · actions line. ── */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginTop: 2 }}>
               <button onClick={toggleLike} aria-label={likes.mine ? t('Unlike') : t('Like')}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit',
-                  display: 'inline-flex', alignItems: 'center', gap: 5,
-                  color: likes.mine ? '#F0708B' : '#EDE6D6', fontSize: 15, lineHeight: 1 }}>
-                <span style={{ fontSize: 17 }}>{likes.mine ? '\u2665' : '\u2661'}</span>
-                {likes.count > 0 && <span style={{ fontSize: 12.5, fontWeight: 700 }}>{likes.count}</span>}
+                  display: 'inline-flex', alignItems: 'center', gap: 7, lineHeight: 1,
+                  color: likes.mine ? '#F0708B' : '#F2EDE4' }}>
+                <span style={{ fontSize: 24 }}>{likes.mine ? '\u2665' : '\u2661'}</span>
+                {likes.count > 0 && <span style={{ fontSize: 14.5, fontWeight: 700 }}>{likes.count}</span>}
               </button>
+              <button onClick={() => { try { document.getElementById('viewer-comment-input')?.focus() } catch {} }}
+                aria-label={t('Add a comment\u2026')}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit',
+                  display: 'inline-flex', alignItems: 'center', gap: 7, lineHeight: 1, color: '#F2EDE4' }}>
+                <span style={{ fontSize: 21 }}>💬</span>
+                {comments.length > 0 && <span style={{ fontSize: 14.5, fontWeight: 700 }}>{comments.length}</span>}
+              </button>
+              <span style={{ marginLeft: 'auto' }}>
+                {plannerData(cur) && (planMsg
+                  ? <span style={{ color: '#9FE1CB', fontSize: 12.5 }}>{planMsg}</span>
+                  : <button onClick={() => { try { window.dispatchEvent(new CustomEvent('nyc-add-to-planner', { detail: plannerData(cur) })) } catch {}; setPlanMsg('✓ ' + t('Added to Planner')) }}
+                      style={{ background: 'none', border: 'none', color: '#F2EDE4', cursor: 'pointer', fontSize: 12.5, fontFamily: 'inherit', textDecoration: 'underline' }}>＋ {t('Add to Planner')}</button>)}
+              </span>
+            </div>
+            {(cur.author?.display_name || cur.caption) && (
+              <div style={{ fontSize: 13.5, marginTop: 9, lineHeight: 1.5 }}>
+                <span style={{ fontWeight: 700 }}>{cur.author?.display_name || ''}</span>
+                {cur.caption ? <span style={{ opacity: 0.92 }}> {cur.caption}</span> : null}
+              </div>
+            )}
+            <div style={{ fontSize: 12, marginTop: 6, opacity: 0.7, display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span>{{ food: '🍴', view: '🏞', vibe: '✨' }[cur.kind] || ''} {cur.place_name || cur.area_label || ''}</span>
               <span>{(cur.created_at || '').slice(0, 10)}</span>
-              {plannerData(cur) && (planMsg
-                ? <span style={{ color: '#9FE1CB' }}>{planMsg}</span>
-                : <button onClick={() => { try { window.dispatchEvent(new CustomEvent('nyc-add-to-planner', { detail: plannerData(cur) })) } catch {}; setPlanMsg('✓ ' + t('Added to Planner')) }}
-                    style={{ background: 'none', border: 'none', color: '#EDE6D6', cursor: 'pointer', fontSize: 12, textDecoration: 'underline' }}>＋ {t('Add to Planner')}</button>)}
               {viewer.mine
                 ? <>
                     <button onClick={() => startEdit(viewer.g)}
@@ -1132,7 +1149,7 @@ export default function ShareSheetHost({ embedded = false }) {
               ))}
               {comments.length === 0 && <div style={{ fontSize: 12, opacity: 0.55, marginBottom: 8 }}>{t('No comments yet — say something nice.')}</div>}
               <div style={{ display: 'flex', gap: 8 }}>
-                <input value={commentText} maxLength={300} onChange={e => setCommentText(e.target.value)}
+                <input id="viewer-comment-input" value={commentText} maxLength={300} onChange={e => setCommentText(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') submitComment() }}
                   placeholder={t('Add a comment…')}
                   style={{ flex: 1, background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(237,230,214,0.25)', borderRadius: 999,
