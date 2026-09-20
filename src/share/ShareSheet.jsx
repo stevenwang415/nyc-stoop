@@ -92,6 +92,85 @@ function collapseGroups(photos) {
   return out
 }
 
+
+// ── IG-style feed post card (2026-09-20, Steven's request): the From
+// friends feed scrolls through full-width posts — header, swipeable photo
+// carousel, inline heart, caption — instead of compact rows. Tapping the
+// photo (or 💬) opens the full viewer with comments; double-tap likes.
+function FeedPostCard({ g, onOpen, onToggleLike, planner, onPlanner }) {
+  const [idx, setIdx] = React.useState(0)
+  const lead = g.lead
+  const many = g.all.length > 1
+  const scrollRef = React.useRef(null)
+  const onScroll = () => {
+    const el = scrollRef.current
+    if (el && el.clientWidth) setIdx(Math.max(0, Math.min(g.all.length - 1, Math.round(el.scrollLeft / el.clientWidth))))
+  }
+  return (
+    <div style={{ background: 'var(--card)', borderRadius: '0 16px 16px 16px', overflow: 'hidden', marginBottom: 18, boxShadow: '0 1px 3px rgba(23,19,15,0.06)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px' }}>
+        <Avatar user={lead.author} name={lead.author?.display_name} size={34} />
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {lead.author?.display_name}{lead.author?.official ? ' ✦' : ''}
+          </div>
+          {(lead.place_name || lead.area_label) && (
+            <div style={{ fontSize: 11.5, color: 'var(--gray-500)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {lead.place_name || lead.area_label}
+            </div>
+          )}
+        </div>
+        {many && <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-400)' }}>{idx + 1}/{g.all.length}</span>}
+      </div>
+      <div ref={scrollRef} onScroll={onScroll}
+        style={{ display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+        {g.all.map(ph => (
+          <img key={ph.id} src={ph.image_url || thumbSrc(ph)} alt=""
+            onClick={() => onOpen(g)}
+            onDoubleClick={() => { if (!lead.liked_by_me) onToggleLike(g) }}
+            style={{ width: '100%', flexShrink: 0, scrollSnapAlign: 'start', aspectRatio: '4/5', objectFit: 'cover', display: 'block', cursor: 'pointer', background: 'var(--gray-100)' }} />
+        ))}
+      </div>
+      {many && (
+        <div style={{ display: 'flex', gap: 4, justifyContent: 'center', marginTop: 8 }}>
+          {g.all.map((_, i) => (
+            <span key={i} style={{ width: i === idx ? 14 : 5, height: 5, borderRadius: 999,
+              background: i === idx ? 'var(--accent)' : 'var(--gray-300)', transition: 'width 160ms ease' }} />
+          ))}
+        </div>
+      )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '9px 12px 0' }}>
+        <button onClick={() => onToggleLike(g)} aria-label={lead.liked_by_me ? t('Unlike') : t('Like')}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit',
+            display: 'inline-flex', alignItems: 'center', gap: 6, lineHeight: 1,
+            color: lead.liked_by_me ? '#D6455E' : 'var(--ink)' }}>
+          <span style={{ fontSize: 22 }}>{lead.liked_by_me ? '\u2665' : '\u2661'}</span>
+          {lead.like_count > 0 && <span style={{ fontSize: 13.5, fontWeight: 700 }}>{lead.like_count}</span>}
+        </button>
+        <button onClick={() => onOpen(g)} aria-label={t('Add a comment\u2026')}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit',
+            display: 'inline-flex', alignItems: 'center', gap: 6, lineHeight: 1, color: 'var(--ink)' }}>
+          <span style={{ fontSize: 19 }}>💬</span>
+        </button>
+        {planner && (
+          <button onClick={() => onPlanner(planner)}
+            style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+              fontSize: 12, fontWeight: 600, color: 'var(--gray-600)', textDecoration: 'underline' }}>
+            ＋ {t('Add to Planner')}
+          </button>
+        )}
+      </div>
+      {(lead.caption || lead.author?.display_name) && (
+        <div style={{ padding: '7px 12px 0', fontSize: 13, lineHeight: 1.5, color: 'var(--ink)' }}>
+          <span style={{ fontWeight: 700 }}>{lead.author?.display_name}</span>
+          {lead.caption ? <span style={{ color: 'var(--gray-700)' }}> {lead.caption}</span> : null}
+        </div>
+      )}
+      <div style={{ padding: '4px 12px 12px', fontSize: 11.5, color: 'var(--gray-400)' }}>{(lead.created_at || '').slice(0, 10)}</div>
+    </div>
+  )
+}
+
 const S = {
   overlay: { position: 'fixed', inset: 0, zIndex: 4000, background: 'var(--bg, #FBF8F3)', display: 'flex', flexDirection: 'column',
     // iPhone safe areas: without this the header slides under the status bar
@@ -503,6 +582,17 @@ export default function ShareSheetHost({ embedded = false }) {
     const patch = (arr) => arr.map(x => x.id === leadId ? { ...x, like_count: count, liked_by_me: mineFlag } : x)
     setMine(m => patch(m)); setFeed(f => patch(f)) // friendPhotos derives from feed
   }
+  // Feed-card like (2026-09-20): same anchor, driven from list state.
+  const togglePostLike = (g) => {
+    const lead = g.lead
+    const wasMine = !!lead.liked_by_me
+    const nextCount = Math.max(0, (lead.like_count || 0) + (wasMine ? -1 : 1))
+    patchLikeInLists(lead.id, nextCount, !wasMine)
+    if (viewer && viewer.g.lead.id === lead.id) setLikes({ count: nextCount, mine: !wasMine })
+    ;(wasMine ? unlikePhoto(lead.id) : likePhoto(lead.id))
+      .then(r => { if (typeof r.like_count === 'number') patchLikeInLists(lead.id, r.like_count, r.liked) })
+      .catch(() => patchLikeInLists(lead.id, lead.like_count || 0, wasMine))
+  }
   const toggleLike = () => {
     if (!viewer) return
     const leadId = viewer.g.lead.id
@@ -808,21 +898,13 @@ export default function ShareSheetHost({ embedded = false }) {
                   {feed.length === 0 ? t('Nothing here yet — when your friends post photos, they show up here.') : t('No finds in this category yet.')}
                 </div>
               )
-              return collapseGroups(items).map(g => { const p = g.lead; return (
-                <div key={p.id} style={{ ...S.card, display: 'flex', gap: 12, cursor: 'pointer' }} onClick={() => openViewer(g, false)}>
-                  <span style={{ position: 'relative', flexShrink: 0 }}>
-                    <img src={thumbSrc(p)} alt="" style={{ width: 76, height: 76, objectFit: 'cover', borderRadius: 10, display: 'block' }} />
-                    {g.all.length > 1 && <span style={{ position: 'absolute', top: 3, right: 3, background: 'rgba(23,19,15,0.62)', color: '#F7F2EA', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999 }}>⧉ {g.all.length}</span>}
-                  </span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontFamily: 'var(--serif)', fontSize: 15.5, fontWeight: 600, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {p.place_name || p.area_label || ''}
-                    </div>
-                    <div style={{ ...S.meta, marginTop: 2 }}>{p.author?.display_name} · {(p.created_at || '').slice(0, 10)}{p.like_count > 0 && <> · <span style={{ color: '#C04A63', fontWeight: 700 }}>{'\u2665'} {p.like_count}</span></>}</div>
-                    {p.caption && <div style={{ fontSize: 13, color: 'var(--gray-700)', marginTop: 4, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.caption}</div>}
-                  </div>
-                </div>
-              ) })
+              return collapseGroups(items).map(g => (
+                <FeedPostCard key={g.lead.id} g={g}
+                  onOpen={(gr) => openViewer(gr, false)}
+                  onToggleLike={togglePostLike}
+                  planner={plannerData(g.lead)}
+                  onPlanner={(d) => { try { window.dispatchEvent(new CustomEvent('nyc-add-to-planner', { detail: d })) } catch {} }} />
+              ))
             })()}
           </>
         )}
