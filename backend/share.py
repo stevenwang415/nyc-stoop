@@ -307,13 +307,9 @@ def create_photo(body: PhotoIn, user: User = Depends(get_current_user), db: Sess
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "moment anchor needs area_label")
     # Spam brake: 30 photos/day.
     from datetime import timedelta, timezone
-    cutoff = datetime.now(timezone.utc) - timedelta(days=1)
-    today_count = db.execute(
-        select(SharePhoto.id).where(SharePhoto.user_id == user.id, SharePhoto.created_at > cutoff)
-    ).all()
-    today_count = len(today_count)
-    if today_count >= 30:
-        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Daily photo limit reached")
+    # Daily photo cap removed (2026-09-20, user request): the 30/day brake
+    # dated from base64-in-Postgres days; photos live in R2 now and an active
+    # friend hit the wall mid-trip. Post away.
     p = SharePhoto(
         user_id=user.id, anchor_type=body.anchor_type, place_id=body.place_id,
         place_name=body.place_name, area_label=body.area_label,
