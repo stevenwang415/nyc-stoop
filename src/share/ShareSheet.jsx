@@ -134,9 +134,11 @@ function FeedPostCard({ g, onOpen, onToggleLike, planner, onPlanner }) {
         style={{ display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
         {g.all.map(ph => (
           <img key={ph.id} src={ph.image_url || thumbSrc(ph)} alt=""
-            onClick={() => onOpen(g)}
+            // Single tap deliberately does NOTHING (IG grammar, 2026-09-20):
+            // the old tap→viewer overlay read as a scroll dead-end. Double-tap
+            // likes; 💬 opens the viewer with comments.
             onDoubleClick={() => { if (!lead.liked_by_me) onToggleLike(g) }}
-            style={{ width: '100%', flexShrink: 0, scrollSnapAlign: 'start', aspectRatio: '4/5', objectFit: 'cover', display: 'block', cursor: 'pointer', background: 'var(--gray-100)' }} />
+            style={{ width: '100%', flexShrink: 0, scrollSnapAlign: 'start', aspectRatio: '4/5', objectFit: 'cover', display: 'block', background: 'var(--gray-100)' }} />
         ))}
       </div>
       {many && (
