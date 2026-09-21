@@ -170,12 +170,17 @@ function FeedPostCard({ g, onOpen, onToggleLike, planner, onPlanner }) {
           </button>
         )}
       </div>
-      {(lead.caption || lead.author?.display_name) && (
-        <div style={{ padding: '7px 12px 0', fontSize: 13, lineHeight: 1.5, color: 'var(--ink)' }}>
-          <span style={{ fontWeight: 700 }}>{lead.author?.display_name}</span>
-          {lead.caption ? <span style={{ color: 'var(--gray-700)' }}> {lead.caption}</span> : null}
-        </div>
-      )}
+      {(() => {
+        // Caption follows the photo on screen (2026-09-20: captions are
+        // per-image, so a fixed lead caption vanished mid-swipe).
+        const curCap = (g.all[idx] || lead).caption || ''
+        return (curCap || lead.author?.display_name) ? (
+          <div style={{ padding: '7px 12px 0', fontSize: 13, lineHeight: 1.5, color: 'var(--ink)' }}>
+            <span style={{ fontWeight: 700 }}>{lead.author?.display_name}</span>
+            {curCap ? <span style={{ color: 'var(--gray-700)' }}> {curCap}</span> : null}
+          </div>
+        ) : null
+      })()}
       <div style={{ padding: '4px 12px 12px', fontSize: 11.5, color: 'var(--gray-400)' }}>{(lead.created_at || '').slice(0, 10)}</div>
     </div>
   )
