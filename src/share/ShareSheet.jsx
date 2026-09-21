@@ -97,6 +97,14 @@ function collapseGroups(photos) {
 // friends feed scrolls through full-width posts — header, swipeable photo
 // carousel, inline heart, caption — instead of compact rows. Tapping the
 // photo (or 💬) opens the full viewer with comments; double-tap likes.
+function ScrollIntoViewOnce({ active, children }) {
+  const r = React.useRef(null)
+  React.useEffect(() => {
+    if (active && r.current) setTimeout(() => { try { r.current.scrollIntoView({ block: 'start' }) } catch {} }, 80)
+  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+  return <div ref={r}>{children}</div>
+}
+
 function FeedPostCard({ g, onOpen, onToggleLike, planner, onPlanner }) {
   const [idx, setIdx] = React.useState(0)
   const lead = g.lead
@@ -582,6 +590,11 @@ export default function ShareSheetHost({ embedded = false }) {
     const patch = (arr) => arr.map(x => x.id === leadId ? { ...x, like_count: count, liked_by_me: mineFlag } : x)
     setMine(m => patch(m)); setFeed(f => patch(f)) // friendPhotos derives from feed
   }
+  // IG profile→post flow (2026-09-20): tapping a friend's grid tile opens a
+  // SCROLLABLE posts view (their posts newest→oldest), auto-scrolled to the
+  // tapped post — exactly Instagram's profile behavior. null = grid mode.
+  const [friendPostsStart, setFriendPostsStart] = React.useState(null)
+  React.useEffect(() => { setFriendPostsStart(null) }, [view]) // leaving a profile resets posts mode
   // Feed-card like (2026-09-20): same anchor, driven from list state.
   const togglePostLike = (g) => {
     const lead = g.lead
@@ -918,12 +931,32 @@ export default function ShareSheetHost({ embedded = false }) {
                 <button style={{ ...S.quiet, flex: 1 }} onClick={() => unfriend(friendView.id).then(() => { setView('friends'); listFriends().then(x => setFriends(x.friends)) })}>{t('Remove')}</button>
                 <button style={{ ...S.quiet, flex: 1, color: '#B3261E' }} onClick={() => { if (confirm(t('Block this user? Neither of you will see each other\'s content.'))) blockUser(friendView.id).then(() => { setView('friends'); listFriends().then(x => setFriends(x.friends)) }) }}>{t('Block')}</button>
               </>} />
+            {friendPostsStart == null && (
             <div style={{ display: 'flex', gap: 5, padding: '0 0 10px' }}>
               <button onClick={() => setStoopView('grid')} style={S.tab(stoopView === 'grid')}><ToggleIcon kind="grid" />{t('Grid')}</button>
               <button onClick={() => setStoopView('map')} style={S.tab(stoopView === 'map')}><ToggleIcon kind="map" />{t('Map')}</button>
             </div>
-            {stoopView === 'grid'
-              ? <PhotoGrid photos={friendPhotos} onOpen={(p) => openViewer(p, false)}
+            )}
+            {friendPostsStart != null ? (
+              <>
+                <button onClick={() => setFriendPostsStart(null)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                    display: 'inline-flex', alignItems: 'center', gap: 6, padding: '2px 0 10px',
+                    fontSize: 13.5, fontWeight: 700, color: 'var(--ink)' }}>
+                  ← {t('Posts')}
+                </button>
+                {collapseGroups(friendPhotos).map(g => (
+                  <ScrollIntoViewOnce key={g.lead.id} active={g.lead.id === friendPostsStart}>
+                    <FeedPostCard g={g}
+                      onOpen={(gr) => openViewer(gr, false)}
+                      onToggleLike={togglePostLike}
+                      planner={plannerData(g.lead)}
+                      onPlanner={(d) => { try { window.dispatchEvent(new CustomEvent('nyc-add-to-planner', { detail: d })) } catch {} }} />
+                  </ScrollIntoViewOnce>
+                ))}
+              </>
+            ) : stoopView === 'grid'
+              ? <PhotoGrid photos={friendPhotos} onOpen={(p) => setFriendPostsStart((p.lead || p).id)}
                   emptyText={t('Nothing here yet — when your friends post photos, they show up here.')} />
               : <StoopMap photos={friendPhotos} onOpenPhoto={(p) => openViewer(postGroupOf(p, friendPhotos), false)} />}
           </>
