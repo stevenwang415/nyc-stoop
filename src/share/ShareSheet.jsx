@@ -9,7 +9,7 @@ import { t, t2 } from '../lib/i18n.js'
 import { getUser } from '../auth/api.js'
 import {
   getMyCode, regenerateCode, redeemCode, listFriends, unfriend, blockUser,
-  createPhoto, updatePhoto, myPhotos, friendsFeed, deletePhoto, reportPhoto, likePhoto, unlikePhoto,
+  createPhoto, updatePhoto, myPhotos, friendsFeed, photosOf, deletePhoto, reportPhoto, likePhoto, unlikePhoto,
   fetchPhotoImage, thumbSrc, prepareImage, readGps, deviceLocation, searchPlaces,
   listComments, addComment, deleteComment, setMyAvatar, setMyName, reportComment,
 } from './shareApi.js'
@@ -595,13 +595,14 @@ export default function ShareSheetHost({ embedded = false }) {
   const [likes, setLikes] = React.useState({ count: 0, mine: false })
   const patchLikeInLists = (leadId, count, mineFlag) => {
     const patch = (arr) => arr.map(x => x.id === leadId ? { ...x, like_count: count, liked_by_me: mineFlag } : x)
-    setMine(m => patch(m)); setFeed(f => patch(f)) // friendPhotos derives from feed
+    setMine(m => patch(m)); setFeed(f => patch(f)); setFriendProfilePhotos(fp => fp ? patch(fp) : fp)
   }
   // IG profile→post flow (2026-09-20): tapping a friend's grid tile opens a
   // SCROLLABLE posts view (their posts newest→oldest), auto-scrolled to the
   // tapped post — exactly Instagram's profile behavior. null = grid mode.
   const [friendPostsStart, setFriendPostsStart] = React.useState(null)
   React.useEffect(() => { setFriendPostsStart(null) }, [view]) // leaving a profile resets posts mode
+  const postsSwipe = React.useRef(null) // left-edge swipe-back, IG-style
   // Feed-card like (2026-09-20): same anchor, driven from list state.
   const togglePostLike = (g) => {
     const lead = g.lead
@@ -808,7 +809,19 @@ export default function ShareSheetHost({ embedded = false }) {
   }
 
   const friendView = view.startsWith('friend:') ? friends.find(f => String(f.id) === view.slice(7)) : null
-  const friendPhotosRaw = friendView ? feed.filter(p => String(p.author?.id) === String(friendView.id)) : []
+  // Profile photos fetched directly (2026-09-24): the feed's 60-photo window
+  // can drop a quieter friend's entire history (official read "No photos
+  // yet" while holding 14). Feed-derived list is the instant fallback.
+  const [friendProfilePhotos, setFriendProfilePhotos] = React.useState(null)
+  React.useEffect(() => {
+    setFriendProfilePhotos(null)
+    const fid = friendView?.id
+    if (fid == null) return
+    let dead = false
+    photosOf(fid).then(r => { if (!dead) setFriendProfilePhotos(r.photos) }).catch(() => {})
+    return () => { dead = true }
+  }, [friendView?.id])  // eslint-disable-line react-hooks/exhaustive-deps
+  const friendPhotosRaw = friendView ? (friendProfilePhotos ?? feed.filter(p => String(p.author?.id) === String(friendView.id))) : []
   // The official account's Stoop leads with the user's onboarding interests —
   // a new user's first feed is already about what they said they love.
   const friendPhotos = friendView?.official ? sortByInterests(friendPhotosRaw) : friendPhotosRaw
@@ -894,7 +907,7 @@ export default function ShareSheetHost({ embedded = false }) {
                       {f.display_name}
                       {f.official && <span style={{ fontSize: 10, fontWeight: 700, color: '#0F6E56', background: '#E1F5EE', padding: '2px 7px', borderRadius: 20, marginLeft: 6, verticalAlign: '2px' }}>✦ {t('Official')}</span>}
                     </div>
-                    <div style={S.meta}>{count ? t2('{N} recent photos', { N: count }) : t('No photos yet')}</div>
+                    {count > 0 && <div style={S.meta}>{t2('{N} recent photos', { N: count })}</div>}
                   </div>
                   <span style={{ color: 'var(--gray-400)', fontSize: 18 }}>›</span>
                 </button>
@@ -945,13 +958,35 @@ export default function ShareSheetHost({ embedded = false }) {
             </div>
             )}
             {friendPostsStart != null ? (
-              <>
-                <button onClick={() => setFriendPostsStart(null)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-                    display: 'inline-flex', alignItems: 'center', gap: 6, padding: '2px 0 10px',
-                    fontSize: 13.5, fontWeight: 700, color: 'var(--ink)' }}>
-                  ← {t('Posts')}
-                </button>
+              <div
+                // Left-edge swipe-back (IG grammar): start within 40px of the
+                // left edge, drag right ≥ 70px → back to the grid.
+                onTouchStart={e => {
+                  const t0 = e.touches[0]
+                  postsSwipe.current = t0.clientX < 40 ? { x: t0.clientX, y: t0.clientY } : null
+                }}
+                onTouchEnd={e => {
+                  const st = postsSwipe.current; postsSwipe.current = null
+                  if (!st) return
+                  const t1 = e.changedTouches[0]
+                  if (t1.clientX - st.x > 70 && Math.abs(t1.clientY - st.y) < 60) setFriendPostsStart(null)
+                }}
+              >
+                {/* Fixed IG-style header: back arrow · "Posts" over the name. */}
+                <div style={{ position: 'sticky', top: 0, zIndex: 60, background: 'var(--bg)',
+                  display: 'flex', alignItems: 'center', padding: '6px 0 8px',
+                  borderBottom: '1px solid rgba(23,19,15,0.07)', marginBottom: 12 }}>
+                  <button onClick={() => setFriendPostsStart(null)} aria-label={t('Back')}
+                    style={{ width: 44, height: 40, background: 'none', border: 'none', cursor: 'pointer',
+                      fontSize: 22, lineHeight: 1, color: 'var(--ink)', fontFamily: 'inherit', textAlign: 'left' }}>
+                    ‹
+                  </button>
+                  <div style={{ flex: 1, textAlign: 'center' }}>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--ink)' }}>{t('Posts')}</div>
+                    <div style={{ fontSize: 11.5, color: 'var(--gray-500)' }}>{friendView.display_name}</div>
+                  </div>
+                  <span style={{ width: 44 }} />
+                </div>
                 {collapseGroups(friendPhotos).map(g => (
                   <ScrollIntoViewOnce key={g.lead.id} active={g.lead.id === friendPostsStart}>
                     <FeedPostCard g={g}
@@ -961,7 +996,7 @@ export default function ShareSheetHost({ embedded = false }) {
                       onPlanner={(d) => { try { window.dispatchEvent(new CustomEvent('nyc-add-to-planner', { detail: d })) } catch {} }} />
                   </ScrollIntoViewOnce>
                 ))}
-              </>
+              </div>
             ) : stoopView === 'grid'
               ? <PhotoGrid photos={friendPhotos} onOpen={(p) => setFriendPostsStart((p.lead || p).id)}
                   emptyText={t('Nothing here yet — when your friends post photos, they show up here.')} />

@@ -51,6 +51,9 @@ export const blockUser = (id) => call(`/share/friends/${id}/block`, { method: 'P
 export const createPhoto = (photo) => call('/share/photos', { method: 'POST', body: photo })
 export const myPhotos = () => call('/share/photos/mine')
 export const friendsFeed = () => call('/share/feed')
+// Full history for one friend's profile (2026-09-24) — the 60-photo feed
+// window starves quieter friends (official showed "No photos yet").
+export const photosOf = (userId) => call(`/share/photos/of/${userId}`)
 export const updatePhoto = (id, fields) => call(`/share/photos/${id}`, { method: 'PATCH', body: fields })
 export const deletePhoto = (id) => call(`/share/photos/${id}`, { method: 'DELETE' })
 export const reportPhoto = (id) => call(`/share/photos/${id}/report`, { method: 'POST' })

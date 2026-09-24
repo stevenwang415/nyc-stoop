@@ -403,6 +403,25 @@ def my_photos(user: User = Depends(get_current_user), db: Session = Depends(get_
     return {"photos": _attach_likes(_inline_thumbs([_photo_meta(p, me) for p in rows], rows), db, user)}
 
 
+@router.get("/photos/of/{user_id}")
+def photos_of(user_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    """A friend's FULL photo history (2026-09-24). The feed caps at the 60
+    newest photos across all friends, so an active friend can push a quieter
+    one's photos out of the window entirely — the official account read "No
+    photos yet" while holding 14. Profiles fetch directly instead."""
+    if user_id != user.id and user_id not in _accepted_friend_ids(db, user.id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
+    other = db.get(User, user_id)
+    if not other:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
+    rows = db.execute(
+        select(SharePhoto).where(SharePhoto.user_id == user_id, SharePhoto.status == "ok")
+        .order_by(SharePhoto.created_at.desc()).limit(200)
+    ).scalars().all()
+    pu = _public_user(other)
+    return {"photos": _attach_likes(_inline_thumbs([_photo_meta(p, pu) for p in rows], rows), db, user)}
+
+
 @router.get("/feed")
 def friends_feed(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     """Rank 3: recent photos from accepted friends, newest first."""
