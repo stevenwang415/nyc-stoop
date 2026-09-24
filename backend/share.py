@@ -30,6 +30,7 @@ from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.orm import Session
 
 from r2 import r2_enabled, r2_put, r2_url, r2_delete, r2_get
+from apns import apns_enabled, send_push
 
 # TEMP COMPAT SHIM (2026-09-16, remove after 2.1 adoption): the SHIPPED 2.0
 # App Store binary renders thumbnails ONLY from thumb_b64 — the R2 swap
@@ -78,7 +79,7 @@ def _attach_likes(metas: list, db, user) -> list:
 
 from auth import get_current_user
 from database import get_db
-from models import Friendship, ShareComment, ShareLike, SharePhoto, User
+from models import Friendship, PushToken, ShareComment, ShareLike, SharePhoto, User
 
 router = APIRouter(prefix="/share", tags=["share"])
 
@@ -151,6 +152,28 @@ def _public_user(u: User) -> dict:
     return {"id": u.id, "display_name": u.display_name or u.email.split("@")[0],
             "picture_url": u.picture_url, "avatar_b64": u.avatar_b64,
             "official": bool(OFFICIAL_EMAIL and u.email.lower() == OFFICIAL_EMAIL)}
+
+
+def _push_to_users(db: Session, user_ids: list, title: str, body: str) -> None:
+    """Lock-screen push to every device of the given users (2026-09-24).
+    Synchronous but small (friend-scale token counts); silently a no-op when
+    APNs isn't configured. Dead tokens (410) are pruned."""
+    if not (apns_enabled() and user_ids):
+        return
+    try:
+        rows = db.execute(select(PushToken).where(PushToken.user_id.in_(user_ids))).scalars().all()
+        tokens = [r.token for r in rows][:20]
+        if not tokens:
+            return
+        results = send_push(tokens, title, body)
+        dead = [t for t, code in results.items() if code == 410]
+        if dead:
+            for r in rows:
+                if r.token in dead:
+                    db.delete(r)
+            db.commit()
+    except Exception:
+        pass
 
 
 # ── Schemas ────────────────────────────────────────────────────────────────
@@ -329,9 +352,21 @@ def create_photo(body: PhotoIn, user: User = Depends(get_current_user), db: Sess
     else:
         p.image_b64 = body.image_b64
         p.thumb_b64 = body.thumb_b64
+    # Push friends once per POST: multi-image posts arrive as N sequential
+    # creates sharing a group_id — only the first of the group notifies.
+    first_of_group = True
+    if body.group_id:
+        first_of_group = db.execute(
+            select(SharePhoto.id).where(SharePhoto.group_id == body.group_id, SharePhoto.user_id == user.id)
+        ).first() is None
     db.add(p)
     db.commit()
     db.refresh(p)
+    if first_of_group:
+        _name = user.display_name or user.email.split("@")[0]
+        _where = p.place_name or p.area_label
+        _push_to_users(db, _accepted_friend_ids(db, user.id), "NYC Stoop",
+                       f"{_name} added a photo" + (f" \u00b7 {_where}" if _where else ""))
     return {"ok": True, "photo": _inline_thumbs([_photo_meta(p, _public_user(user))], [p])[0]}
 
 
@@ -458,6 +493,9 @@ def like_photo(photo_id: int, user: User = Depends(get_current_user), db: Sessio
         db.add(ShareLike(photo_id=photo_id, user_id=user.id))
         try:
             db.commit()
+            if p.user_id != user.id:
+                _name = user.display_name or user.email.split("@")[0]
+                _push_to_users(db, [p.user_id], "NYC Stoop", f"\u2665 {_name} liked your photo")
         except Exception:  # unique-constraint race — someone double-tapped fast
             db.rollback()
     count = db.execute(select(func.count()).select_from(ShareLike).where(ShareLike.photo_id == photo_id)).scalar()
@@ -529,6 +567,9 @@ def add_comment(photo_id: int, body: CommentIn,
     db.add(c)
     db.commit()
     db.refresh(c)
+    if p.user_id != user.id:
+        _name = user.display_name or user.email.split("@")[0]
+        _push_to_users(db, [p.user_id], "NYC Stoop", f"{_name}: {c.text[:90]}")
     return {"ok": True, "comment": _comment_meta(c, _public_user(user))}
 
 
@@ -548,6 +589,34 @@ def delete_comment(comment_id: int, user: User = Depends(get_current_user), db: 
 # Two event kinds: comments by others on MY photos, and friends' new photos.
 # "Unread" lives client-side (nyc_share_seen_ts) — the server just reports
 # recent events; no read-state rows to migrate later.
+
+class PushRegisterIn(BaseModel):
+    token: str = Field(min_length=16, max_length=200)
+    platform: str = Field(default="ios", max_length=12)
+
+
+@router.post("/push/register")
+def push_register(body: PushRegisterIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    """Claim this device token for the signed-in user — re-registering after
+    an account switch moves the token to the new account."""
+    existing = db.execute(select(PushToken).where(PushToken.token == body.token)).scalar_one_or_none()
+    if existing:
+        existing.user_id = user.id
+        existing.platform = body.platform
+    else:
+        db.add(PushToken(user_id=user.id, token=body.token, platform=body.platform))
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/push/unregister")
+def push_unregister(body: PushRegisterIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    row = db.execute(select(PushToken).where(PushToken.token == body.token, PushToken.user_id == user.id)).scalar_one_or_none()
+    if row:
+        db.delete(row)
+        db.commit()
+    return {"ok": True}
+
 
 @router.get("/notifications")
 def notifications(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:

@@ -149,3 +149,15 @@ class ShareLike(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     __table_args__ = (UniqueConstraint("photo_id", "user_id", name="uq_like_photo_user"),)
 
+
+class PushToken(Base):
+    """APNs device token per install (2026-09-24). A user can hold several
+    (iPhone + iPad); tokens are pruned when APNs reports them dead (410)."""
+    __tablename__ = "push_tokens"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token: Mapped[str] = mapped_column(String(200), unique=True, nullable=False)
+    platform: Mapped[str] = mapped_column(String(12), nullable=False, default="ios")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+

@@ -2,6 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { tonightPicks } from './data/tonight.js'
 import { moods, moodById, flattenMoodPicks, ACTIVITIES, ACTIVITY_ORDER } from './data/moods.js'
+import { initPush, teardownPush } from './lib/push.js'
 import { CUISINE_OPTIONS, RESTAURANT_DATA, RESTAURANT_COORDS, PLANNER_RESTAURANTS } from './data/restaurants.js'
 import { userPicks, mapsUrl } from './data/userPicks.js'
 import {
@@ -17973,7 +17974,7 @@ export default function App() {
     // from 24h tokens with no refresh. Falls back to fetchMe (profile
     // refresh only) if the refresh endpoint isn't deployed yet.
     refreshSession()
-      .then(r => { if (r?.access_token) authSetToken(r.access_token); if (r?.user) { authSetUser(r.user); setUserState(r.user) } })
+      .then(r => { if (r?.access_token) authSetToken(r.access_token); if (r?.user) { authSetUser(r.user); setUserState(r.user) } initPush() })
       .catch(() => {
         fetchMe()
           .then(u => { authSetUser(u); setUserState(u) })
@@ -17983,12 +17984,14 @@ export default function App() {
   function handleSignedIn(token, u) {
     authSetToken(token)
     authSetUser(u)
+    initPush()
     // Per-account workspaces: park the current identity's data, then load the
     // incoming account's bundle (empty for a brand-new account). Reload so
     // every localStorage-seeded state re-initializes from the right bundle.
     switchDataProfile(u?.id != null ? `u${u.id}` : 'guest')
   }
   function handleSignedOut() {
+    teardownPush()
     authSignOut()
     setUserState(null)
     switchDataProfile('guest')

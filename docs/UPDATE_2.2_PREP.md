@@ -21,6 +21,19 @@ practical ceiling. Do the same:
 - Migration-free: create-photo keeps accepting b64 as fallback so old
   binaries continue working.
 
+### 1b. Push notifications (BUILT 2026-09-24 — needs Steven's Apple setup)
+Code complete: push_tokens table, register/unregister endpoints, APNs HTTP/2
+sender, triggers on friend post (once per multi-image group) / comment /
+like, client permission + registration on sign-in. Remaining manual steps:
+1. developer.apple.com → Keys → create key with "Apple Push Notifications
+   service (APNs)" → download .p8, note Key ID.
+2. Vercel env: APNS_TEAM_ID=95KLZBPNS4, APNS_KEY_ID, APNS_P8 (one-line \n
+   escaped), APNS_TOPIC=com.nycstoop.app. (APNS_SANDBOX=1 only for local
+   Xcode-run testing — not on Vercel.)
+3. Xcode → App target → Signing & Capabilities → + Capability → Push
+   Notifications.
+4. Ship in the 2.2 binary; test: post from one account, lock the other phone.
+
 ## Known-open from the 2.1 review (carry-over)
 
 2. **Interests editor in Settings** — onboarding-only today; existing users
