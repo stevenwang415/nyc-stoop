@@ -102,7 +102,7 @@ function ScrollIntoViewOnce({ active, children }) {
   React.useEffect(() => {
     if (active && r.current) setTimeout(() => { try { r.current.scrollIntoView({ block: 'start' }) } catch {} }, 80)
   }, [])  // eslint-disable-line react-hooks/exhaustive-deps
-  return <div ref={r}>{children}</div>
+  return <div ref={r} style={{ scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 64px)' }}>{children}</div>
 }
 
 function FeedPostCard({ g, onOpen, onToggleLike, planner, onPlanner }) {
@@ -603,6 +603,22 @@ export default function ShareSheetHost({ embedded = false }) {
   const [friendPostsStart, setFriendPostsStart] = React.useState(null)
   React.useEffect(() => { setFriendPostsStart(null) }, [view]) // leaving a profile resets posts mode
   const postsSwipe = React.useRef(null) // left-edge swipe-back, IG-style
+  React.useEffect(() => {
+    if (friendPostsStart == null) return
+    const onStart = e => {
+      const t0 = e.touches[0]
+      postsSwipe.current = t0.clientX < 40 ? { x: t0.clientX, y: t0.clientY } : null
+    }
+    const onEnd = e => {
+      const st = postsSwipe.current; postsSwipe.current = null
+      if (!st) return
+      const t1 = e.changedTouches[0]
+      if (t1.clientX - st.x > 70 && Math.abs(t1.clientY - st.y) < 60) setFriendPostsStart(null)
+    }
+    window.addEventListener('touchstart', onStart, { passive: true })
+    window.addEventListener('touchend', onEnd, { passive: true })
+    return () => { window.removeEventListener('touchstart', onStart); window.removeEventListener('touchend', onEnd) }
+  }, [friendPostsStart])
   // Feed-card like (2026-09-20): same anchor, driven from list state.
   const togglePostLike = (g) => {
     const lead = g.lead
@@ -958,24 +974,14 @@ export default function ShareSheetHost({ embedded = false }) {
             </div>
             )}
             {friendPostsStart != null ? (
-              <div
-                // Left-edge swipe-back (IG grammar): start within 40px of the
-                // left edge, drag right ≥ 70px → back to the grid.
-                onTouchStart={e => {
-                  const t0 = e.touches[0]
-                  postsSwipe.current = t0.clientX < 40 ? { x: t0.clientX, y: t0.clientY } : null
-                }}
-                onTouchEnd={e => {
-                  const st = postsSwipe.current; postsSwipe.current = null
-                  if (!st) return
-                  const t1 = e.changedTouches[0]
-                  if (t1.clientX - st.x > 70 && Math.abs(t1.clientY - st.y) < 60) setFriendPostsStart(null)
-                }}
-              >
-                {/* Fixed IG-style header: back arrow · "Posts" over the name. */}
-                <div style={{ position: 'sticky', top: 0, zIndex: 60, background: 'var(--bg)',
-                  display: 'flex', alignItems: 'center', padding: '6px 0 8px',
-                  borderBottom: '1px solid rgba(23,19,15,0.07)', marginBottom: 12 }}>
+              <div>
+                {/* Fixed IG-style header: back arrow · "Posts" over the name.
+                    position:fixed (not sticky — an overflow ancestor breaks sticky);
+                    safe-area padding keeps it clear of the notch on device. */}
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 60, background: 'var(--bg, #FBF8F3)',
+                  display: 'flex', alignItems: 'center',
+                  padding: 'calc(env(safe-area-inset-top, 0px) + 6px) 10px 8px',
+                  borderBottom: '1px solid rgba(23,19,15,0.07)' }}>
                   <button onClick={() => setFriendPostsStart(null)} aria-label={t('Back')}
                     style={{ width: 44, height: 40, background: 'none', border: 'none', cursor: 'pointer',
                       fontSize: 22, lineHeight: 1, color: 'var(--ink)', fontFamily: 'inherit', textAlign: 'left' }}>

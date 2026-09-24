@@ -230,9 +230,9 @@ export function devSharePlugin() {
         }
         const ofM = url.match(/^\/share\/photos\/of\/(\d+)$/)
         if (ofM && m === 'GET') {
-          const uid = +ofM[1]
-          if (uid !== user.id && !friendIds(db, user.id).includes(uid)) return detail(res, 404, 'Not found')
-          const ph = db.photos.filter(p => p.user_id === uid && p.status === 'ok')
+          const uid = ofM[1]
+          if (uid !== String(user.id) && !friendIds(db, user.id).includes(uid)) return detail(res, 404, 'Not found')
+          const ph = db.photos.filter(p => String(p.user_id) === uid && p.status === 'ok')
             .sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 200)
             .map(({ image_b64, ...meta }) => likeMeta({ ...meta, author: publicUser(db, uid) }, user.id))
           return json(res, 200, { photos: ph })
