@@ -418,20 +418,31 @@ function StoopMap({ photos, onOpenPhoto }) {
   }, [photos])
 
   React.useEffect(() => {
+    // The map is created ONCE and reused (2026-09-24): background feed
+    // refreshes used to hand us a fresh photos array every few seconds,
+    // which tore the map down and reset the user's zoom mid-pinch. Now
+    // refreshes only update the pins, and the view is fitted exactly once —
+    // the user's zoom/pan is never touched again.
     let dead = false
     ensureLeaflet((L) => {
       if (dead || !boxRef.current) return
-      if (mapRef.current) { mapRef.current.remove(); mapRef.current = null }
-      const map = L.map(boxRef.current, { zoomControl: false, attributionControl: true, scrollWheelZoom: false, tap: true })
-      // Carto light basemap (same as the app's live map) — muted and label-light,
-      // so the photo pins carry the view (Corner-style, 2026-08-25).
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19 }).addTo(map)
-      if (groups.length) {
-        const bounds = L.latLngBounds(groups.map(g => [g.lat, g.lng]))
-        map.fitBounds(bounds.pad(0.25), { maxZoom: 15 })
-      } else {
-        map.setView([40.7359, -73.9911], 12)
+      let map = mapRef.current
+      if (!map) {
+        map = L.map(boxRef.current, { zoomControl: false, attributionControl: true, scrollWheelZoom: false, tap: true })
+        // Carto light basemap (same as the app's live map) — muted and label-light,
+        // so the photo pins carry the view (Corner-style, 2026-08-25).
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19 }).addTo(map)
+        map._pinLayer = L.layerGroup().addTo(map)
+        map._didFit = false
+        mapRef.current = map
+        setTimeout(() => { try { map.invalidateSize() } catch {} }, 60)
       }
+      // Same pins as last pass? Skip the rebuild entirely (presigned thumb
+      // URLs change on every fetch, so compare position/count, not URLs).
+      const sig = groups.map(g => g.name + '|' + g.lat + ',' + g.lng + '|' + g.photos.length).join(';')
+      if (map._pinSig === sig) return
+      map._pinSig = sig
+      map._pinLayer.clearLayers()
       for (const g of groups) {
         // Photo-thumbnail pins (Corner-style): the photo IS the marker.
         // divIcon (not circleMarker) so pins ride zoom animations — same fix
@@ -442,13 +453,23 @@ function StoopMap({ photos, onOpenPhoto }) {
         const icon = L.divIcon({ className: '', iconSize: [46, 46], iconAnchor: [23, 23],
           html: `<div style="position:relative;width:46px;height:46px">
             <img src="${thumbSrc(g.photos[0])}" style="width:46px;height:46px;object-fit:cover;border-radius:13px;border:2px solid #fff;box-shadow:0 2px 8px rgba(23,19,15,0.35);display:block"/>${badge}</div>` })
-        L.marker([g.lat, g.lng], { icon }).addTo(map).on('click', () => setSel(g))
+        L.marker([g.lat, g.lng], { icon }).addTo(map._pinLayer).on('click', () => setSel(g))
       }
-      mapRef.current = map
-      setTimeout(() => { try { map.invalidateSize() } catch {} }, 60)
+      if (!map._didFit) {
+        if (groups.length) {
+          const bounds = L.latLngBounds(groups.map(g => [g.lat, g.lng]))
+          map.fitBounds(bounds.pad(0.25), { maxZoom: 15 })
+          map._didFit = true
+        } else {
+          map.setView([40.7359, -73.9911], 12)
+          // keep _didFit false: fit for real once pins arrive
+        }
+      }
     })
-    return () => { dead = true; if (mapRef.current) { mapRef.current.remove(); mapRef.current = null } }
+    return () => { dead = true }
   }, [groups])
+  // Tear the map down only when the map view itself unmounts.
+  React.useEffect(() => () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null } }, [])
 
   return (
     <div style={{ position: 'relative' }}>
