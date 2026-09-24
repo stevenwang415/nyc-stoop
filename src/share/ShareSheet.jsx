@@ -961,12 +961,14 @@ export default function ShareSheetHost({ embedded = false }) {
         {/* ── A FRIEND'S STOOP ── */}
         {friendView && (
           <>
+            {friendPostsStart == null && (
             <ProfileHeader user={null} name={friendView.display_name} photos={friendPhotos}
               avatar={friendView.picture_url || friendView.avatar_b64}
               right={<>
                 <button style={{ ...S.quiet, flex: 1 }} onClick={() => unfriend(friendView.id).then(() => { setView('friends'); listFriends().then(x => setFriends(x.friends)) })}>{t('Remove')}</button>
                 <button style={{ ...S.quiet, flex: 1, color: '#B3261E' }} onClick={() => { if (confirm(t('Block this user? Neither of you will see each other\'s content.'))) blockUser(friendView.id).then(() => { setView('friends'); listFriends().then(x => setFriends(x.friends)) }) }}>{t('Block')}</button>
               </>} />
+            )}
             {friendPostsStart == null && (
             <div style={{ display: 'flex', gap: 5, padding: '0 0 10px' }}>
               <button onClick={() => setStoopView('grid')} style={S.tab(stoopView === 'grid')}><ToggleIcon kind="grid" />{t('Grid')}</button>
