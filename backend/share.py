@@ -77,6 +77,25 @@ def _attach_likes(metas: list, db, user) -> list:
         m["liked_by_me"] = m["id"] in mine
     return metas
 
+
+def _attach_comments(metas: list, db) -> list:
+    """Bulk-fill comments for a page of photo metas in ONE grouped query, so
+    feed/profile cards can show the thread inline without per-card fetches."""
+    ids = [m["id"] for m in metas]
+    if not ids:
+        return metas
+    rows = db.execute(
+        select(ShareComment, User).join(User, User.id == ShareComment.user_id)
+        .where(ShareComment.photo_id.in_(ids), ShareComment.status == "ok")
+        .order_by(ShareComment.created_at)
+    ).all()
+    by_photo: dict = {}
+    for c, u in rows:
+        by_photo.setdefault(c.photo_id, []).append(_comment_meta(c, _public_user(u)))
+    for m in metas:
+        m["comments"] = by_photo.get(m["id"], [])
+    return metas
+
 from auth import get_current_user
 from database import get_db
 from models import Friendship, PushToken, ShareComment, ShareLike, SharePhoto, User
@@ -400,7 +419,7 @@ def my_photos(user: User = Depends(get_current_user), db: Session = Depends(get_
         .order_by(SharePhoto.created_at.desc()).limit(200)
     ).scalars().all()
     me = _public_user(user)
-    return {"photos": _attach_likes(_inline_thumbs([_photo_meta(p, me) for p in rows], rows), db, user)}
+    return {"photos": _attach_comments(_attach_likes(_inline_thumbs([_photo_meta(p, me) for p in rows], rows), db, user), db)}
 
 
 @router.get("/photos/of/{user_id}")
@@ -419,7 +438,7 @@ def photos_of(user_id: int, user: User = Depends(get_current_user), db: Session 
         .order_by(SharePhoto.created_at.desc()).limit(200)
     ).scalars().all()
     pu = _public_user(other)
-    return {"photos": _attach_likes(_inline_thumbs([_photo_meta(p, pu) for p in rows], rows), db, user)}
+    return {"photos": _attach_comments(_attach_likes(_inline_thumbs([_photo_meta(p, pu) for p in rows], rows), db, user), db)}
 
 
 @router.get("/feed")
@@ -433,7 +452,7 @@ def friends_feed(user: User = Depends(get_current_user), db: Session = Depends(g
         .where(SharePhoto.user_id.in_(ids), SharePhoto.status == "ok")
         .order_by(SharePhoto.created_at.desc()).limit(60)
     ).all()
-    return {"photos": _attach_likes(_inline_thumbs([_photo_meta(p, _public_user(u)) for (p, u) in rows], [p for (p, _u) in rows]), db, user)}
+    return {"photos": _attach_comments(_attach_likes(_inline_thumbs([_photo_meta(p, _public_user(u)) for (p, u) in rows], [p for (p, _u) in rows]), db, user), db)}
 
 
 @router.get("/photos/{photo_id}/image")

@@ -222,10 +222,13 @@ export function devSharePlugin() {
         const likeMeta = (meta, uid) => ({ ...meta,
           like_count: (db.likes || []).filter(l => l.photo_id === meta.id).length,
           liked_by_me: (db.likes || []).some(l => l.photo_id === meta.id && l.user_id === uid) })
+        const withComments = (meta) => ({ ...meta,
+          comments: (db.comments || []).filter(c => c.photo_id === meta.id && (c.status || 'ok') === 'ok')
+            .map(c => ({ id: c.id, author: publicUser(db, c.user_id), text: c.text, created_at: c.created_at })) })
         if (url === '/share/photos/mine' && m === 'GET') {
           const mine = db.photos.filter(p => p.user_id === user.id && p.status === 'ok')
             .sort((a, b) => b.created_at.localeCompare(a.created_at))
-            .map(({ image_b64, ...meta }) => likeMeta({ ...meta, author: publicUser(db, user.id) }, user.id))
+            .map(({ image_b64, ...meta }) => withComments(likeMeta({ ...meta, author: publicUser(db, user.id) }, user.id)))
           return json(res, 200, { photos: mine })
         }
         const ofM = url.match(/^\/share\/photos\/of\/(\d+)$/)
@@ -234,14 +237,14 @@ export function devSharePlugin() {
           if (uid !== String(user.id) && !friendIds(db, user.id).includes(uid)) return detail(res, 404, 'Not found')
           const ph = db.photos.filter(p => String(p.user_id) === uid && p.status === 'ok')
             .sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 200)
-            .map(({ image_b64, ...meta }) => likeMeta({ ...meta, author: publicUser(db, uid) }, user.id))
+            .map(({ image_b64, ...meta }) => withComments(likeMeta({ ...meta, author: publicUser(db, uid) }, user.id)))
           return json(res, 200, { photos: ph })
         }
         if (url === '/share/feed' && m === 'GET') {
           const ids = friendIds(db, user.id)
           const feed = db.photos.filter(p => ids.includes(p.user_id) && p.status === 'ok')
             .sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 60)
-            .map(({ image_b64, ...meta }) => likeMeta({ ...meta, author: publicUser(db, meta.user_id) }, user.id))
+            .map(({ image_b64, ...meta }) => withComments(likeMeta({ ...meta, author: publicUser(db, meta.user_id) }, user.id)))
           return json(res, 200, { photos: feed })
         }
         const imgM = url.match(/^\/share\/photos\/(\d+)\/image$/)

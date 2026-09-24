@@ -107,6 +107,22 @@ function ScrollIntoViewOnce({ active, children }) {
 
 function FeedPostCard({ g, onOpen, onToggleLike, planner, onPlanner }) {
   const [idx, setIdx] = React.useState(0)
+  // Inline comments (2026-09-24): thread lives right under the card, IG-style.
+  // Seeded from the bulk payload (lead.comments); optimistic on add.
+  const [comments, setComments] = React.useState(g.lead.comments || [])
+  React.useEffect(() => { setComments(g.lead.comments || []) }, [g.lead.id])  // eslint-disable-line react-hooks/exhaustive-deps
+  const [draft, setDraft] = React.useState('')
+  const [posting, setPosting] = React.useState(false)
+  const inputRef = React.useRef(null)
+  const submit = () => {
+    const text = draft.trim()
+    if (!text || posting) return
+    setPosting(true)
+    addComment(g.lead.id, text)
+      .then(r => { setComments(cs => [...cs, r.comment]); setDraft('') })
+      .catch(() => {})
+      .finally(() => setPosting(false))
+  }
   const lead = g.lead
   const many = g.all.length > 1
   const scrollRef = React.useRef(null)
@@ -181,6 +197,35 @@ function FeedPostCard({ g, onOpen, onToggleLike, planner, onPlanner }) {
           </div>
         ) : null
       })()}
+      {comments.length > 0 && (
+        <div style={{ padding: '6px 12px 0' }}>
+          {comments.map(c => (
+            <div key={c.id} style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--ink)', marginBottom: 3 }}>
+              <span style={{ fontWeight: 700 }}>{c.author?.display_name}</span>
+              <span style={{ color: 'var(--gray-700)' }}> {c.text}</span>
+              <button onClick={() => { setDraft(d => d.startsWith('@') ? d : '@' + (c.author?.display_name || '') + ' ' + d); inputRef.current?.focus() }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 0 8px', fontFamily: 'inherit',
+                  fontSize: 11.5, fontWeight: 600, color: 'var(--gray-400)' }}>
+                {t('Reply')}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px 0' }}>
+        <input ref={inputRef} value={draft} onChange={e => setDraft(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') submit() }}
+          placeholder={t('Add a comment\u2026')} enterKeyHint="send"
+          style={{ flex: 1, border: 'none', outline: 'none', background: 'none', fontFamily: 'inherit',
+            fontSize: 13, color: 'var(--ink)', padding: '4px 0' }} />
+        {draft.trim() && (
+          <button onClick={submit} disabled={posting}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+              fontSize: 13, fontWeight: 700, color: 'var(--accent)', opacity: posting ? 0.5 : 1 }}>
+            {t('Post')}
+          </button>
+        )}
+      </div>
       <div style={{ padding: '4px 12px 12px', fontSize: 11.5, color: 'var(--gray-400)' }}>{(lead.created_at || '').slice(0, 10)}</div>
     </div>
   )
