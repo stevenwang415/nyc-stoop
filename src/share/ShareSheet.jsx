@@ -514,6 +514,7 @@ export default function ShareSheetHost({ embedded = false }) {
   const [feed, setFeed] = React.useState([])
   const [viewer, setViewer] = React.useState(null) // { p, url, mine }
   const [discoverCat, setDiscoverCat] = React.useState('all')
+  const [discoverView, setDiscoverView] = React.useState('posts') // From friends: posts feed | map of pins
   const [stoopView, setStoopView] = React.useState('grid') // grid | map (my + friend Stoops)
   // "My code" profile button removed by design call (2026-08-25) — the code
   // lives only in the Friends tab card. QR/invite links come with 2.1.
@@ -1001,6 +1002,10 @@ export default function ShareSheetHost({ embedded = false }) {
         {/* ── DISCOVER: friends' finds by category ── */}
         {view === 'discover' && (
           <>
+            <div style={{ display: 'flex', gap: 5, padding: '0 0 10px' }}>
+              <button onClick={() => setDiscoverView('posts')} style={S.tab(discoverView === 'posts')}><ToggleIcon kind="grid" />{t('Posts')}</button>
+              <button onClick={() => setDiscoverView('map')} style={S.tab(discoverView === 'map')}><ToggleIcon kind="map" />{t('Map')}</button>
+            </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', padding: '2px 0 12px' }}>
               {DISCOVER_CATS.map(([id, emoji, label]) => (
                 <button key={id} onClick={() => setDiscoverCat(id)} style={S.tab(discoverCat === id)}>{emoji ? emoji + ' ' : ''}{t(label)}</button>
@@ -1013,6 +1018,11 @@ export default function ShareSheetHost({ embedded = false }) {
                   {feed.length === 0 ? t('Nothing here yet — when your friends post photos, they show up here.') : t('No finds in this category yet.')}
                 </div>
               )
+              // Map view (2026-09-25): the whole friends' feed on one map —
+              // the chronological list answers "what's new", the map answers
+              // "where do my friends actually go". Same StoopMap as profiles.
+              if (discoverView === 'map')
+                return <StoopMap photos={items} onOpenPhoto={(p) => openViewer(postGroupOf(p, feed), false)} />
               return collapseGroups(items).map(g => (
                 <FeedPostCard key={g.lead.id} g={g}
                   onOpen={(gr) => openViewer(gr, false)}
