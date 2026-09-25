@@ -7789,7 +7789,7 @@ function BottomNav({ activeTab, onTabPress, savedCount, onAddPlace }) {
     // "Share" → "You" (2026-08-26, Figma's 4th-tab call): the tab IS the
     // profile — Your Stoop first, friends inside. A tab names a place, not a
     // verb. Internal id stays 'share'.
-    { id: 'share',   icon: 'user',     label: t('Feed') },
+    { id: 'share',   icon: 'user',     label: t('Stoop') },
   ]
   return (
     <div style={{
