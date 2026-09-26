@@ -739,6 +739,18 @@ export default function ShareSheetHost({ embedded = false }) {
     setComments([]); setCommentText(''); setPlanMsg('')
     listComments(g.lead.id).then(r => setComments(r.comments)).catch(() => {})
   }
+
+  // A Today-strip tap on the Explore home lands here before our data exists —
+  // consume the pending photo id once feed/mine arrive and open the viewer.
+  React.useEffect(() => {
+    const pend = typeof window !== 'undefined' ? window.__nycPendingTodayPhoto : null
+    if (!pend) return
+    const list = pend.mine ? mine : feed
+    const ph = list.find(x => x.id === pend.id)
+    if (!ph) return
+    window.__nycPendingTodayPhoto = null
+    openViewer(postGroupOf(ph, list), !!pend.mine)
+  }, [feed, mine])  // eslint-disable-line react-hooks/exhaustive-deps
   // Lazy-load the full image for whichever photo the viewer shows. R2 rows
   // (2026-09-10) carry a presigned image_url — usable directly in an <img>,
   // no authenticated fetch, no object-URL bookkeeping. Legacy rows keep the
