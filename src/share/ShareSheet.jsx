@@ -28,8 +28,6 @@ const KINDS = [['food', '🍴'], ['view', '🏞'], ['vibe', '✨']]
 const DISCOVER_CATS = [
   ['all', '', 'All'],
   ['food', '🍴', 'Food'],
-  ['cafe', '☕', 'Cafe'],
-  ['drinks', '🍸', 'Drinks'],
   ['view', '🏞', 'view'],
   ['vibe', '✨', 'vibe'],
 ]
@@ -65,14 +63,11 @@ function interestRank(p) {
 }
 const sortByInterests = (photos) => photos.slice().sort((a, b) => interestRank(a) - interestRank(b))
 function photoCategory(p) {
+  // Cafe/Drinks chips retired (2026-09-26): uploads only offer food|view|vibe,
+  // so those chips mostly sat empty. Café/bar dataset places fold into Food.
   const pl = p.place_id ? _seedById[p.place_id] : null
   if (pl) {
-    if (pl.category === 'coffee') return 'cafe'
-    if (pl.category === 'drinks') return 'drinks'
-    if (pl.category === 'food') {
-      const cs = (pl.cuisine || []).map(String)
-      return (cs.includes('cafe') || cs.includes('bakery') || cs.includes('dessert') || cs.includes('bagel')) ? 'cafe' : 'food'
-    }
+    if (pl.category === 'coffee' || pl.category === 'drinks' || pl.category === 'food') return 'food'
     if (pl.category === 'outdoors') return 'view'
   }
   return p.kind === 'food' ? 'food' : p.kind === 'view' ? 'view' : 'vibe'
@@ -529,10 +524,7 @@ export default function ShareSheetHost({ embedded = false }) {
   const [open, setOpen] = React.useState(false)
   const isOpen = embedded || open
   // view: 'me' | 'friends' | 'friend:<id>' | 'compose'
-  // Default segment = From friends (2026-09-26): the social tab opens on the
-  // social content — the Today strip and friends' posts greet you; your own
-  // profile is one tap away (IG grammar).
-  const [view, setView] = React.useState('discover')
+  const [view, setView] = React.useState('me')
   const user = getUser()
 
   const [code, setCode] = React.useState('')
