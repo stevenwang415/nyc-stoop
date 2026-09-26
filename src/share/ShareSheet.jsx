@@ -106,8 +106,9 @@ function ScrollIntoViewOnce({ active, children }) {
   return <div ref={r} style={{ scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 64px)' }}>{children}</div>
 }
 
-function FeedPostCard({ g, onOpen, onToggleLike, planner, onPlanner }) {
+function FeedPostCard({ g, onOpen, onToggleLike, planner, onPlanner, menu }) {
   const [idx, setIdx] = React.useState(0)
+  const [menuOpen, setMenuOpen] = React.useState(false) // … dropdown (own posts: Edit/Delete)
   // Inline comments (2026-09-24): thread lives right under the card, IG-style.
   // Seeded from the bulk payload (lead.comments); optimistic on add.
   const [comments, setComments] = React.useState(g.lead.comments || [])
@@ -146,6 +147,32 @@ function FeedPostCard({ g, onOpen, onToggleLike, planner, onPlanner }) {
           )}
         </div>
         {many && <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--gray-400)' }}>{idx + 1}/{g.all.length}</span>}
+        {menu && (
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setMenuOpen(o => !o)} aria-label={t('More')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 2px', fontFamily: 'inherit',
+                fontSize: 18, fontWeight: 700, lineHeight: 1, color: 'var(--ink)', letterSpacing: '1px' }}>
+              …
+            </button>
+            {menuOpen && (
+              <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 40, minWidth: 120,
+                background: '#fff', borderRadius: 10, border: '1px solid var(--gray-200)',
+                boxShadow: '0 6px 20px rgba(23,19,15,0.14)', overflow: 'hidden' }}>
+                <button onClick={() => { setMenuOpen(false); menu.onEdit() }}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none',
+                    padding: '10px 14px', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13.5, color: 'var(--ink)' }}>
+                  {t('Edit')}
+                </button>
+                <button onClick={() => { setMenuOpen(false); menu.onDelete() }}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none',
+                    borderTop: '1px solid var(--gray-100)', padding: '10px 14px', cursor: 'pointer',
+                    fontFamily: 'inherit', fontSize: 13.5, color: '#B3261E' }}>
+                  {t('Delete')}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
       <div ref={scrollRef} onScroll={onScroll}
         style={{ display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
@@ -989,7 +1016,17 @@ export default function ShareSheetHost({ embedded = false }) {
                       onOpen={(gr) => openViewer(gr, true)}
                       onToggleLike={togglePostLike}
                       planner={plannerData(g.lead)}
-                      onPlanner={(d) => { try { window.dispatchEvent(new CustomEvent('nyc-add-to-planner', { detail: d })) } catch {} }} />
+                      onPlanner={(d) => { try { window.dispatchEvent(new CustomEvent('nyc-add-to-planner', { detail: d })) } catch {} }}
+                      menu={{
+                        onEdit: () => { setMyPostsStart(null); startEdit(g) },
+                        onDelete: async () => {
+                          const many2 = g.all.length > 1
+                          if (!confirm(many2 ? t2('Delete this post and its {N} photos?', { N: g.all.length }) : t('Delete this post?'))) return
+                          const ids = g.all.map(x => x.id)
+                          for (const id of ids) { try { await deletePhoto(id) } catch {} }
+                          setMine(m => m.filter(x => !ids.includes(x.id)))
+                        },
+                      }} />
                   </ScrollIntoViewOnce>
                 ))}
               </div>
