@@ -118,44 +118,42 @@ export default function TodayStrip({ onPosted = null, wrapStyle = {}, size = 48 
             transition: dragY ? 'none' : 'background 160ms ease' }}>
           <div style={{ transform: `translateY(${dragY}px)`, transition: dragY ? 'none' : 'transform 160ms ease',
             flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 0 24px' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '0 16px 10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px 10px 16px' }}>
               <span style={{ color: '#F2EDE4', fontSize: 14.5, fontWeight: 800 }}>
                 {story.mine ? t('You') : story.p.author?.display_name}
               </span>
               <span style={{ color: '#B9AE9C', fontSize: 11.5 }}>{t('Today in NYC')} · {(story.p.today_date || '').slice(5).replace('-', '/')}</span>
+              <div style={{ position: 'relative', marginLeft: 'auto' }}>
+                <button onClick={() => setStoryMenu(o => !o)} aria-label={t('More')}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px 8px', fontFamily: 'inherit',
+                    fontSize: 20, fontWeight: 700, lineHeight: 1, color: '#EDE6D6', letterSpacing: '1px' }}>
+                  …
+                </button>
+                {storyMenu && (
+                  <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 40, minWidth: 130,
+                    background: '#fff', borderRadius: 10, border: '1px solid rgba(23,19,15,0.12)',
+                    boxShadow: '0 6px 20px rgba(0,0,0,0.35)', overflow: 'hidden' }}>
+                    {story.mine
+                      ? <button onClick={() => { setStoryMenu(false); if (!confirm(t('Delete this post?'))) return; const id = story.p.id; setStory(null); deletePhoto(id).then(() => setMine(m => m.filter(x => x.id !== id))).catch(() => {}) }}
+                          style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none',
+                            padding: '11px 14px', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13.5, color: '#B3261E' }}>
+                          {t('Delete')}
+                        </button>
+                      : <button onClick={() => { setStoryMenu(false); reportPhoto(story.p.id).then(() => alert(t('Reported. We review reports within 24 hours.'))).catch(() => {}) }}
+                          style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none',
+                            padding: '11px 14px', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13.5, color: 'var(--ink, #17130F)' }}>
+                          {t('Report')}
+                        </button>}
+                  </div>
+                )}
+              </div>
             </div>
             <img src={story.p.image_url || thumbSrc(story.p)} alt=""
               style={{ width: '100%', maxHeight: '74vh', objectFit: 'contain', display: 'block' }} />
           </div>
-          <div style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top, 0px) + 10px)', right: 12,
-            display: 'flex', alignItems: 'center', gap: 4 }}>
-            <div style={{ position: 'relative' }}>
-              <button onClick={() => setStoryMenu(o => !o)} aria-label={t('More')}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '8px 6px', fontFamily: 'inherit',
-                  fontSize: 20, fontWeight: 700, lineHeight: 1, color: '#EDE6D6', letterSpacing: '1px' }}>
-                …
-              </button>
-              {storyMenu && (
-                <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 40, minWidth: 130,
-                  background: '#fff', borderRadius: 10, border: '1px solid rgba(23,19,15,0.12)',
-                  boxShadow: '0 6px 20px rgba(0,0,0,0.35)', overflow: 'hidden' }}>
-                  {story.mine
-                    ? <button onClick={() => { setStoryMenu(false); if (!confirm(t('Delete this post?'))) return; const id = story.p.id; setStory(null); deletePhoto(id).then(() => setMine(m => m.filter(x => x.id !== id))).catch(() => {}) }}
-                        style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none',
-                          padding: '11px 14px', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13.5, color: '#B3261E' }}>
-                        {t('Delete')}
-                      </button>
-                    : <button onClick={() => { setStoryMenu(false); reportPhoto(story.p.id).then(() => alert(t('Reported. We review reports within 24 hours.'))).catch(() => {}) }}
-                        style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none',
-                          padding: '11px 14px', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13.5, color: 'var(--ink, #17130F)' }}>
-                        {t('Report')}
-                      </button>}
-                </div>
-              )}
-            </div>
-            <button onClick={() => setStory(null)} aria-label="Close"
-              style={{ background: 'none', border: 'none', color: '#EDE6D6', fontSize: 22, cursor: 'pointer', padding: '6px 8px' }}>✕</button>
-          </div>
+          <button onClick={() => setStory(null)} aria-label="Close"
+            style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top, 0px) + 14px)', right: 16, background: 'none',
+              border: 'none', color: '#EDE6D6', fontSize: 22, cursor: 'pointer' }}>✕</button>
         </div>, document.body)}
       {shot && createPortal(
         <div style={{ position: 'fixed', inset: 0, zIndex: 6000, background: 'rgba(12,10,8,0.96)',
