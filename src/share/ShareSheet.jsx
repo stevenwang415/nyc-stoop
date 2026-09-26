@@ -955,7 +955,11 @@ export default function ShareSheetHost({ embedded = false }) {
     photosOf(fid).then(r => { if (!dead) setFriendProfilePhotos(r.photos) }).catch(() => {})
     return () => { dead = true }
   }, [friendView?.id])  // eslint-disable-line react-hooks/exhaustive-deps
-  const friendPhotosRaw = friendView ? (friendProfilePhotos ?? feed.filter(p => String(p.author?.id) === String(friendView.id))) : []
+  // Story-style Today photos (2026-09-26): they live ONLY in the Today strip
+  // and its viewer — never in grids, feed cards, profiles, or maps. When the
+  // ET day rolls over they quietly retire (rows stay in the DB).
+  const sansToday = (arr) => arr.filter(p => !p.today_date)
+  const friendPhotosRaw = friendView ? sansToday(friendProfilePhotos ?? feed.filter(p => String(p.author?.id) === String(friendView.id))) : []
   // The official account's Stoop leads with the user's onboarding interests —
   // a new user's first feed is already about what they said they love.
   const friendPhotos = friendView?.official ? sortByInterests(friendPhotosRaw) : friendPhotosRaw
@@ -991,7 +995,7 @@ export default function ShareSheetHost({ embedded = false }) {
         {view === 'me' && (
           <>
             {myPostsStart == null && (
-            <ProfileHeader key={'ph' + nameBump} user={user} name={myName} photos={mine} onSaveName={saveMyName}
+            <ProfileHeader key={'ph' + nameBump} user={user} name={myName} photos={sansToday(mine)} onSaveName={saveMyName}
               right={<button style={{ ...S.cta, flex: 1 }} onClick={() => { setPostMsg(''); setView('compose') }}>＋ {t('Add photo')}</button>} />
             )}
             {myPostsStart == null && (
@@ -1019,7 +1023,7 @@ export default function ShareSheetHost({ embedded = false }) {
                   </div>
                   <span style={{ width: 44 }} />
                 </div>
-                {collapseGroups(mine).map(g => (
+                {collapseGroups(sansToday(mine)).map(g => (
                   <ScrollIntoViewOnce key={g.lead.id} active={g.lead.id === myPostsStart}>
                     <FeedPostCard g={g}
                       onOpen={(gr) => openViewer(gr, true)}
@@ -1040,9 +1044,9 @@ export default function ShareSheetHost({ embedded = false }) {
                 ))}
               </div>
             ) : stoopView === 'grid'
-              ? <PhotoGrid photos={mine} onOpen={(p) => setMyPostsStart((p.lead || p).id)}
+              ? <PhotoGrid photos={sansToday(mine)} onOpen={(p) => setMyPostsStart((p.lead || p).id)}
                   emptyText={t('Your New York starts here — add the first photo from a place you loved.')} />
-              : <StoopMap photos={mine} onOpenPhoto={(p) => openViewer(postGroupOf(p, mine), true)} />}
+              : <StoopMap photos={sansToday(mine)} onOpenPhoto={(p) => openViewer(postGroupOf(p, mine), true)} />}
           </>
         )}
 
@@ -1112,7 +1116,7 @@ export default function ShareSheetHost({ embedded = false }) {
               ))}
             </div>
             {(() => {
-              const items = feed.filter(p => discoverCat === 'all' || photoCategory(p) === discoverCat)
+              const items = feed.filter(p => !p.today_date && (discoverCat === 'all' || photoCategory(p) === discoverCat))
               if (!items.length) return (
                 <div style={{ padding: '30px 10px', textAlign: 'center', color: 'var(--gray-500)', fontSize: 13.5, lineHeight: 1.6 }}>
                   {feed.length === 0 ? t('Nothing here yet — when your friends post photos, they show up here.') : t('No finds in this category yet.')}
