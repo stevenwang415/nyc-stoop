@@ -15,6 +15,7 @@ import {
 } from './shareApi.js'
 import { seedUserPlaces } from '../data/places.js'
 import { isGooglePlacesAvailable, searchGooglePlaces, getGooglePlaceDetails } from '../lib/googlePlaces.js'
+import TodayStrip from './TodayStrip.jsx'
 
 const AREAS = ['Midtown', 'Upper East Side', 'Upper West Side', 'Chelsea', 'Gramercy & Flatiron',
   'West Village', 'East Village', 'SoHo', 'Lower East Side', 'Chinatown', 'Financial District', 'Harlem',
@@ -537,38 +538,6 @@ export default function ShareSheetHost({ embedded = false }) {
   const [feed, setFeed] = React.useState([])
   const [viewer, setViewer] = React.useState(null) // { p, url, mine }
   const [discoverCat, setDiscoverCat] = React.useState('all')
-  // ── 'Today in NYC' (2026-09-26): one live-camera shot per ET day, one
-  // reshoot before posting. capture="environment" opens the camera directly
-  // on iOS — no library picker, so 'today' stays honest.
-  const todayET = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
-  const [todayShot, setTodayShot] = React.useState(null) // { f, url, retaken }
-  const [todayPosting, setTodayPosting] = React.useState(false)
-  const [todayMsg, setTodayMsg] = React.useState('')
-  const todayInputRef = React.useRef(null)
-  const myTodayPhoto = mine.find(p => p.today_date === todayET())
-  const friendsToday = feed.filter(p => p.today_date === todayET())
-  const onTodayFile = (e) => {
-    const f = e.target.files?.[0]; e.target.value = ''
-    if (!f) return
-    setTodayShot(prev => ({ f, url: URL.createObjectURL(f), retaken: !!prev }))
-  }
-  const postToday = async () => {
-    if (!todayShot || todayPosting) return
-    setTodayPosting(true); setTodayMsg('')
-    try {
-      const { image_b64, thumb_b64 } = await prepareImage(todayShot.f)
-      const loc = await deviceLocation().catch(() => null)
-      const r = await createPhoto({
-        anchor_type: 'moment', area_label: 'NYC', kind: 'vibe', caption: null,
-        lat: loc?.lat ?? null, lng: loc?.lng ?? null,
-        image_b64, thumb_b64, today: true,
-      })
-      setMine(m => [r.photo, ...m])
-      setTodayShot(null)
-    } catch (e) {
-      setTodayMsg(e.status === 409 ? t('You already posted today \u2014 see you tomorrow!') : (e.message || t('Something went wrong. Please try again.')))
-    } finally { setTodayPosting(false) }
-  }
   const [discoverView, setDiscoverView] = React.useState('posts') // From friends: posts feed | map of pins
   const [stoopView, setStoopView] = React.useState('grid') // grid | map (my + friend Stoops)
   // "My code" profile button removed by design call (2026-08-25) — the code
@@ -1116,34 +1085,10 @@ export default function ShareSheetHost({ embedded = false }) {
         {/* ── DISCOVER: friends' finds by category ── */}
         {view === 'discover' && (
           <>
-            {/* 'Today in NYC' — one home, top of the default segment. */}
-            <input ref={todayInputRef} type="file" accept="image/*" capture="environment"
-              style={{ display: 'none' }} onChange={onTodayFile} />
-            <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--ink)', letterSpacing: '0.02em', padding: '2px 0 10px' }}>
-              📸 {t('Today in NYC')}
-            </div>
-            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', overflowX: 'auto', scrollbarWidth: 'none', padding: '0 0 16px', margin: '0 -2px' }}>
-              <button onClick={() => { if (myTodayPhoto) openViewer(postGroupOf(myTodayPhoto, mine), true); else todayInputRef.current?.click() }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0, width: 64 }}>
-                {myTodayPhoto
-                  ? <img src={thumbSrc(myTodayPhoto)} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2.5px solid var(--accent)' }} />
-                  : <span style={{ width: 56, height: 56, borderRadius: '50%', border: '2px dashed var(--gray-400)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, color: 'var(--gray-500)' }}>＋</span>}
-                <span style={{ fontSize: 10.5, color: 'var(--gray-600)', fontWeight: 600, whiteSpace: 'nowrap' }}>{myTodayPhoto ? t('You') : t('Add yours')}</span>
-              </button>
-              {collapseGroups(friendsToday).map(g => (
-                <button key={'td' + g.lead.id} onClick={() => openViewer(postGroupOf(g.lead, feed), false)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit',
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0, width: 64 }}>
-                  <img src={thumbSrc(g.lead)} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2.5px solid var(--accent)' }} />
-                  <span style={{ fontSize: 10.5, color: 'var(--gray-600)', fontWeight: 600, maxWidth: 62, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {g.lead.author?.display_name}
-                  </span>
-                </button>
-              ))}
-            </div>
-            {todayMsg && <div style={{ ...S.meta, padding: '0 0 10px', color: '#B3261E' }}>{todayMsg}</div>}
+            {/* 'Today in NYC' — shared component (also on the Explore home). */}
+            <TodayStrip wrapStyle={{ padding: '2px 0 12px' }}
+              onOpenPhoto={(p, isMine) => openViewer(postGroupOf(p, isMine ? mine : feed), isMine)}
+              onPosted={() => myPhotos().then(r => setMine(r.photos)).catch(() => {})} />
 
             <div style={{ display: 'flex', gap: 5, padding: '0 0 10px' }}>
               <button onClick={() => setDiscoverView('posts')} style={S.tab(discoverView === 'posts')}><ToggleIcon kind="grid" />{t('Posts')}</button>
@@ -1424,30 +1369,6 @@ export default function ShareSheetHost({ embedded = false }) {
       </div>
 
       {/* ── Full-screen viewer — carousel for multi-image posts (2026-08-28) ── */}
-      {todayShot && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 5000, background: 'rgba(12,10,8,0.93)',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 18 }}>
-          <img src={todayShot.url} alt="" style={{ maxWidth: '100%', maxHeight: '68vh', borderRadius: 14, objectFit: 'contain' }} />
-          <div style={{ display: 'flex', gap: 10, marginTop: 18, width: '100%', maxWidth: 380 }}>
-            {!todayShot.retaken && (
-              <button onClick={() => todayInputRef.current?.click()} disabled={todayPosting}
-                style={{ flex: 1, padding: '12px 0', borderRadius: 999, border: '1.5px solid #EDE6D6', background: 'none',
-                  color: '#EDE6D6', fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-                📷 {t('Reshoot (1 left)')}
-              </button>
-            )}
-            <button onClick={postToday} disabled={todayPosting}
-              style={{ flex: 1, padding: '12px 0', borderRadius: 999, border: 'none', background: 'var(--accent, #C8321A)',
-                color: '#fff', fontFamily: 'inherit', fontSize: 14, fontWeight: 800, cursor: 'pointer', opacity: todayPosting ? 0.6 : 1 }}>
-              {todayPosting ? t('Posting\u2026') : t('Use photo')}
-            </button>
-          </div>
-          {todayShot.retaken && <div style={{ marginTop: 10, fontSize: 12, color: '#B9AE9C' }}>{t('That was your reshoot \u2014 this one counts.')}</div>}
-          <button onClick={() => { if (!todayPosting) setTodayShot(null) }} aria-label="Close"
-            style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top, 0px) + 14px)', right: 16, background: 'none',
-              border: 'none', color: '#EDE6D6', fontSize: 22, cursor: 'pointer' }}>✕</button>
-        </div>
-      )}
       {viewer && (() => {
         const cur = viewer.g.all[viewer.idx]
         const many = viewer.g.all.length > 1

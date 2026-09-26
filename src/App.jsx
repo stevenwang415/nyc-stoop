@@ -25,6 +25,7 @@ import { Filesystem, Directory } from '@capacitor/filesystem'
 // Google Places search — used by AddStopToDayModal to let users add places
 // that aren't in our curated catalog. Falls back gracefully if the key is unset.
 import { isGooglePlacesAvailable, searchGooglePlaces, getGooglePlaceDetails, getPlacePhotoByName } from './lib/googlePlaces'
+import TodayStrip from './share/TodayStrip.jsx'
 import { fetchThisWeek, getThisWeekCached, eventMapsUrl, eventOfficialUrl, eventSearchUrl } from './lib/nycEvents'
 import { fetchTicketmaster } from './lib/ticketmaster'
 import { parseTakeoutFile } from './lib/googleTakeout'
@@ -1765,7 +1766,7 @@ function MoodCoverArt({ moodId }) {
   }
 }
 
-function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, onOpenSettings = () => {}, onPlanNight = () => {}, userVenues = {}, weather = null, user = null, notifCount = 0, onOpenNotifs = null }) {
+function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, onOpenSettings = () => {}, onPlanNight = () => {}, userVenues = {}, weather = null, user = null, notifCount = 0, onOpenNotifs = null, onOpenStoop = null }) {
   const [query, setQuery] = useState('')
   // Live events join search results lazily: fetched on the first real keystroke
   // (never on mount), served from the ticketmaster module's session cache — so
@@ -2078,6 +2079,10 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
             const carouselPicks = tonightPicks.filter(p => p.id !== heroPick?.id).slice(0, 4)
             return (
               <>
+                {/* 'Today in NYC' — the daily social hook greets everyone on
+                    the home page (2026-09-26); circles jump to the Stoop tab. */}
+                <TodayStrip wrapStyle={{ padding: '14px 20px 0' }}
+                  onOpenPhoto={() => { if (onOpenStoop) onOpenStoop() }} />
                 {/* ── Plan my night — gradient hero card ── */}
                 <div style={{ padding: '16px 20px 4px' }}>
                   <button onClick={onPlanNight} style={{
@@ -18640,7 +18645,7 @@ export default function App() {
             ['🗽', <>{t('Or browse by ')}<b>{t('neighborhood')}</b>{t(' and ')}<b>{t('topic')}</b>{t(' to go deeper.')}</>],
             ['🔖', <>{t('Tap ')}<b>{t('+ Add to Planner')}</b>{t(' on anything — your picks build the itinerary.')}</>],
           ]} />}
-          <HomeScreen push={push} savedItems={savedItems} toggleSave={toggleSave} onSeeAllTonight={() => setActiveTab('tonight')} onOpenSettings={() => setSettingsOpen(true)} onPlanNight={() => setPlanNightOpen(true)} userVenues={userVenues} weather={weather} user={user} notifCount={notifUnread} onOpenNotifs={openNotifs} />
+          <HomeScreen push={push} savedItems={savedItems} toggleSave={toggleSave} onSeeAllTonight={() => setActiveTab('tonight')} onOpenSettings={() => setSettingsOpen(true)} onPlanNight={() => setPlanNightOpen(true)} userVenues={userVenues} weather={weather} user={user} notifCount={notifUnread} onOpenNotifs={openNotifs} onOpenStoop={() => setActiveTab('share')} />
         </>
       )
       case 'domain':    return <DomainScreen domainId={current.domainId} push={push} savedItems={savedItems} />
@@ -18653,7 +18658,7 @@ export default function App() {
       case 'sight':     return <SightScreen sightId={current.sightId} push={push} savedItems={savedItems} toggleSave={toggleSave} />
       case 'mood':      return <MoodFlowScreen moodId={current.moodId} initialActivity={current.activityId || null} push={push} savedItems={savedItems} toggleSave={toggleSave} userVenues={userVenues} onAddPlace={() => setAddPlaceOpen(true)} onAddToTrip={addUserVenue} />
       case 'eat':       return <EatScreen push={push} savedItems={savedItems} userVenues={userVenues} toggleSave={toggleSave} onAddToTrip={addUserVenue} initialLoc={userLoc} />
-      default:          return <HomeScreen push={push} savedItems={savedItems} toggleSave={toggleSave} onSeeAllTonight={() => setActiveTab('tonight')} onOpenSettings={() => setSettingsOpen(true)} onPlanNight={() => setPlanNightOpen(true)} userVenues={userVenues} weather={weather} user={user} notifCount={notifUnread} onOpenNotifs={openNotifs} />
+      default:          return <HomeScreen push={push} savedItems={savedItems} toggleSave={toggleSave} onSeeAllTonight={() => setActiveTab('tonight')} onOpenSettings={() => setSettingsOpen(true)} onPlanNight={() => setPlanNightOpen(true)} userVenues={userVenues} weather={weather} user={user} notifCount={notifUnread} onOpenNotifs={openNotifs} onOpenStoop={() => setActiveTab('share')} />
     }
   }
 
