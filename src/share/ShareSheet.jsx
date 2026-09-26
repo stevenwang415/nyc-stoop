@@ -1023,7 +1023,7 @@ export default function ShareSheetHost({ embedded = false }) {
               {myTodayPhoto
                 ? <img src={thumbSrc(myTodayPhoto)} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2.5px solid var(--accent)' }} />
                 : <span style={{ width: 56, height: 56, borderRadius: '50%', border: '2px dashed var(--gray-400)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, color: 'var(--gray-500)' }}>\uff0b</span>}
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, color: 'var(--gray-500)' }}>＋</span>}
               <span style={{ fontSize: 10.5, color: 'var(--gray-600)', fontWeight: 600, whiteSpace: 'nowrap' }}>{myTodayPhoto ? t('You') : t('Add yours')}</span>
             </button>
             {collapseGroups(friendsToday).map(g => (
@@ -1454,7 +1454,7 @@ export default function ShareSheetHost({ embedded = false }) {
           {todayShot.retaken && <div style={{ marginTop: 10, fontSize: 12, color: '#B9AE9C' }}>{t('That was your reshoot \u2014 this one counts.')}</div>}
           <button onClick={() => { if (!todayPosting) setTodayShot(null) }} aria-label="Close"
             style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top, 0px) + 14px)', right: 16, background: 'none',
-              border: 'none', color: '#EDE6D6', fontSize: 22, cursor: 'pointer' }}>\u2715</button>
+              border: 'none', color: '#EDE6D6', fontSize: 22, cursor: 'pointer' }}>✕</button>
         </div>
       )}
       {viewer && (() => {
