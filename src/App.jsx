@@ -2081,13 +2081,7 @@ function HomeScreen({ push, savedItems, toggleSave, onSeeAllTonight = () => {}, 
               <>
                 {/* 'Today in NYC' — the daily social hook greets everyone on
                     the home page (2026-09-26); circles jump to the Stoop tab. */}
-                <TodayStrip wrapStyle={{ padding: '14px 20px 0' }}
-                  onOpenPhoto={(ph, isMine) => {
-                    // Land INSIDE the tapped photo, not just on the Stoop tab:
-                    // ShareSheet picks this up once its data is loaded.
-                    try { window.__nycPendingTodayPhoto = { id: ph.id, mine: isMine } } catch {}
-                    if (onOpenStoop) onOpenStoop()
-                  }} />
+                <TodayStrip wrapStyle={{ padding: '14px 20px 0' }} />
                 {/* ── Plan my night — gradient hero card ── */}
                 <div style={{ padding: '16px 20px 4px' }}>
                   <button onClick={onPlanNight} style={{

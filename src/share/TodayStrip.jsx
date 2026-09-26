@@ -9,11 +9,12 @@ import { t } from '../lib/i18n.js'
 import { isSignedIn } from '../auth/api.js'
 import {
   myPhotos, friendsFeed, createPhoto, thumbSrc, prepareImage, deviceLocation,
+  deletePhoto, reportPhoto,
 } from './shareApi.js'
 
 const todayET = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
 
-export default function TodayStrip({ onOpenPhoto = null, onPosted = null, wrapStyle = {}, size = 48 }) {
+export default function TodayStrip({ onPosted = null, wrapStyle = {}, size = 48 }) {
   const signedIn = isSignedIn()
   const [mine, setMine] = React.useState([])
   const [feed, setFeed] = React.useState([])
@@ -21,6 +22,21 @@ export default function TodayStrip({ onOpenPhoto = null, onPosted = null, wrapSt
   const [posting, setPosting] = React.useState(false)
   const [msg, setMsg] = React.useState('')
   const inputRef = React.useRef(null)
+  // Story viewer (2026-09-26): the circle opens the photo RIGHT HERE — no tab
+  // hop. IG-story grammar: full-bleed image, slide DOWN (or ✕) to close.
+  const [story, setStory] = React.useState(null) // { p, mine }
+  const [dragY, setDragY] = React.useState(0)
+  const dragFrom = React.useRef(null)
+  const storyTouchStart = (e) => { dragFrom.current = e.touches[0].clientY }
+  const storyTouchMove = (e) => {
+    if (dragFrom.current == null) return
+    const dy = e.touches[0].clientY - dragFrom.current
+    if (dy > 0) setDragY(dy)
+  }
+  const storyTouchEnd = () => {
+    if (dragY > 90) { setStory(null) }
+    setDragY(0); dragFrom.current = null
+  }
 
   React.useEffect(() => {
     if (!signedIn) return
@@ -76,7 +92,7 @@ export default function TodayStrip({ onOpenPhoto = null, onPosted = null, wrapSt
       </div>
       <div style={{ display: 'flex', gap: 11, alignItems: 'flex-start', overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: 4 }}>
         <button style={col}
-          onClick={() => { if (myToday) { if (onOpenPhoto) onOpenPhoto(myToday, true) } else inputRef.current?.click() }}>
+          onClick={() => { if (myToday) setStory({ p: myToday, mine: true }); else inputRef.current?.click() }}>
           {myToday
             ? <img src={thumbSrc(myToday)} alt="" style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', border: '2.5px solid var(--accent, #C8321A)' }} />
             : <span style={{ width: size, height: size, borderRadius: '50%', border: '2px dashed var(--gray-400)', boxSizing: 'border-box',
@@ -84,13 +100,45 @@ export default function TodayStrip({ onOpenPhoto = null, onPosted = null, wrapSt
           <span style={label}>{myToday ? t('You') : t('Add yours')}</span>
         </button>
         {friendsToday.map(p => (
-          <button key={'td' + p.id} style={col} onClick={() => { if (onOpenPhoto) onOpenPhoto(p, false) }}>
+          <button key={'td' + p.id} style={col} onClick={() => setStory({ p, mine: false })}>
             <img src={thumbSrc(p)} alt="" style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', border: '2.5px solid var(--accent, #C8321A)' }} />
             <span style={label}>{p.author?.display_name}</span>
           </button>
         ))}
       </div>
       {msg && <div style={{ fontSize: 12, color: '#B3261E', padding: '4px 0 2px' }}>{msg}</div>}
+      {story && (
+        <div onTouchStart={storyTouchStart} onTouchMove={storyTouchMove} onTouchEnd={storyTouchEnd}
+          style={{ position: 'fixed', inset: 0, zIndex: 5000, background: `rgba(12,10,8,${Math.max(0.4, 0.95 - dragY / 500)})`,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16,
+            transition: dragY ? 'none' : 'background 160ms ease' }}>
+          <div style={{ transform: `translateY(${dragY}px)`, transition: dragY ? 'none' : 'transform 160ms ease',
+            maxWidth: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <div style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'baseline', gap: 8, padding: '0 2px 8px' }}>
+              <span style={{ color: '#F2EDE4', fontSize: 14.5, fontWeight: 800 }}>
+                {story.mine ? t('You') : story.p.author?.display_name}
+              </span>
+              <span style={{ color: '#B9AE9C', fontSize: 11.5 }}>{t('Today in NYC')} · {(story.p.today_date || '').slice(5).replace('-', '/')}</span>
+            </div>
+            <img src={story.p.image_url || thumbSrc(story.p)} alt=""
+              style={{ maxWidth: '100%', maxHeight: '72vh', borderRadius: 14, objectFit: 'contain' }} />
+            <div style={{ alignSelf: 'flex-start', padding: '10px 2px 0' }}>
+              {story.mine
+                ? <button onClick={() => { if (!confirm(t('Delete this post?'))) return; const id = story.p.id; setStory(null); deletePhoto(id).then(() => setMine(m => m.filter(x => x.id !== id))).catch(() => {}) }}
+                    style={{ background: 'none', border: 'none', color: '#E8A79F', cursor: 'pointer', fontSize: 12.5, textDecoration: 'underline', fontFamily: 'inherit', padding: 0 }}>
+                    {t('Delete')}
+                  </button>
+                : <button onClick={() => reportPhoto(story.p.id).then(() => alert(t('Reported. We review reports within 24 hours.'))).catch(() => {})}
+                    style={{ background: 'none', border: 'none', color: '#EDE6D6', cursor: 'pointer', fontSize: 12.5, textDecoration: 'underline', fontFamily: 'inherit', padding: 0 }}>
+                    {t('Report')}
+                  </button>}
+            </div>
+          </div>
+          <button onClick={() => setStory(null)} aria-label="Close"
+            style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top, 0px) + 14px)', right: 16, background: 'none',
+              border: 'none', color: '#EDE6D6', fontSize: 22, cursor: 'pointer' }}>✕</button>
+        </div>
+      )}
       {shot && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 5000, background: 'rgba(12,10,8,0.93)',
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 18 }}>

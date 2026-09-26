@@ -740,17 +740,6 @@ export default function ShareSheetHost({ embedded = false }) {
     listComments(g.lead.id).then(r => setComments(r.comments)).catch(() => {})
   }
 
-  // A Today-strip tap on the Explore home lands here before our data exists —
-  // consume the pending photo id once feed/mine arrive and open the viewer.
-  React.useEffect(() => {
-    const pend = typeof window !== 'undefined' ? window.__nycPendingTodayPhoto : null
-    if (!pend) return
-    const list = pend.mine ? mine : feed
-    const ph = list.find(x => x.id === pend.id)
-    if (!ph) return
-    window.__nycPendingTodayPhoto = null
-    openViewer(postGroupOf(ph, list), !!pend.mine)
-  }, [feed, mine])  // eslint-disable-line react-hooks/exhaustive-deps
   // Lazy-load the full image for whichever photo the viewer shows. R2 rows
   // (2026-09-10) carry a presigned image_url — usable directly in an <img>,
   // no authenticated fetch, no object-URL bookkeeping. Legacy rows keep the
@@ -1004,33 +993,6 @@ export default function ShareSheetHost({ embedded = false }) {
               <button onClick={() => setStoopView('map')} style={S.tab(stoopView === 'map')}><ToggleIcon kind="map" />{t('Map')}</button>
             </div>
             )}
-            {/* My Todays (2026-09-26): BeReal-style private archive of daily
-                photos. Friends never see this — their views filter today
-                photos out; this row reads straight from MY list. */}
-            {myPostsStart == null && (() => {
-              const todays = mine.filter(p => p.today_date).sort((a, b) => b.today_date.localeCompare(a.today_date))
-              if (!todays.length) return null
-              return (
-                <div style={{ padding: '0 0 12px' }}>
-                  <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--ink)', padding: '0 0 7px' }}>
-                    {t('My Todays')} <span style={{ fontWeight: 600, color: 'var(--gray-400)' }}>· {t('only you can see these')}</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: 9, overflowX: 'auto', scrollbarWidth: 'none' }}>
-                    {todays.map(p => (
-                      <button key={'mt' + p.id} onClick={() => openViewer(p, true)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit',
-                          display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 3, flexShrink: 0 }}>
-                        <img src={thumbSrc(p)} alt="" style={{ width: 62, height: 62, borderRadius: 12, objectFit: 'cover',
-                          border: '1px solid rgba(23,19,15,0.12)' }} />
-                        <span style={{ fontSize: 9.5, color: 'var(--gray-500)', fontWeight: 600 }}>
-                          {(p.today_date || '').slice(5).replace('-', '/')}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )
-            })()}
             {myPostsStart != null ? (
               <div>
                 {/* Same IG posts page as friend profiles (2026-09-26) — my own
@@ -1130,7 +1092,6 @@ export default function ShareSheetHost({ embedded = false }) {
           <>
             {/* 'Today in NYC' — shared component (also on the Explore home). */}
             <TodayStrip wrapStyle={{ padding: '2px 0 12px' }}
-              onOpenPhoto={(p, isMine) => openViewer(postGroupOf(p, isMine ? mine : feed), isMine)}
               onPosted={() => myPhotos().then(r => setMine(r.photos)).catch(() => {})} />
 
             <div style={{ display: 'flex', gap: 5, padding: '0 0 10px' }}>
