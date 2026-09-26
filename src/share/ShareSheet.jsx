@@ -529,7 +529,10 @@ export default function ShareSheetHost({ embedded = false }) {
   const [open, setOpen] = React.useState(false)
   const isOpen = embedded || open
   // view: 'me' | 'friends' | 'friend:<id>' | 'compose'
-  const [view, setView] = React.useState('me')
+  // Default segment = From friends (2026-09-26): the social tab opens on the
+  // social content — the Today strip and friends' posts greet you; your own
+  // profile is one tap away (IG grammar).
+  const [view, setView] = React.useState('discover')
   const user = getUser()
 
   const [code, setCode] = React.useState('')
@@ -987,6 +990,7 @@ export default function ShareSheetHost({ embedded = false }) {
   const title = view === 'compose' ? (editId ? t('Edit photo') : t('Add a photo'))
     : friendView ? friendView.display_name
     : view === 'friends' ? t('Friends')
+    : view === 'discover' ? t('Stoop')
     : t('My Stoop')
 
   const canGoBack = view === 'compose' || !!friendView
@@ -1004,40 +1008,6 @@ export default function ShareSheetHost({ embedded = false }) {
           <button onClick={() => setView('me')} style={S.tab(view === 'me')}>{t('My Stoop')}</button>
           <button onClick={() => setView('friends')} style={S.tab(view === 'friends')}>{t('Friends')}{friends.length ? ` (${friends.length})` : ''}</button>
           <button onClick={() => setView('discover')} style={S.tab(view === 'discover')}>{t('From friends')}</button>
-        </div>
-      )}
-
-      {/* 'Today in NYC' greets you on every segment of the tab (2026-09-26) —
-          a daily ritual buried one tap deep stops being daily. */}
-      {!canGoBack && myPostsStart == null && (
-        <div>
-          <input ref={todayInputRef} type="file" accept="image/*" capture="environment"
-            style={{ display: 'none' }} onChange={onTodayFile} />
-          <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--ink)', letterSpacing: '0.02em', padding: '0 0 8px' }}>
-            📸 {t('Today in NYC')}
-          </div>
-          <div style={{ display: 'flex', gap: 12, overflowX: 'auto', scrollbarWidth: 'none', padding: '0 0 14px' }}>
-            <button onClick={() => { if (myTodayPhoto) openViewer(postGroupOf(myTodayPhoto, mine), true); else todayInputRef.current?.click() }}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0, width: 64 }}>
-              {myTodayPhoto
-                ? <img src={thumbSrc(myTodayPhoto)} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2.5px solid var(--accent)' }} />
-                : <span style={{ width: 56, height: 56, borderRadius: '50%', border: '2px dashed var(--gray-400)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, color: 'var(--gray-500)' }}>＋</span>}
-              <span style={{ fontSize: 10.5, color: 'var(--gray-600)', fontWeight: 600, whiteSpace: 'nowrap' }}>{myTodayPhoto ? t('You') : t('Add yours')}</span>
-            </button>
-            {collapseGroups(friendsToday).map(g => (
-              <button key={'td' + g.lead.id} onClick={() => openViewer(postGroupOf(g.lead, feed), false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0, width: 64 }}>
-                <img src={thumbSrc(g.lead)} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2.5px solid var(--accent)' }} />
-                <span style={{ fontSize: 10.5, color: 'var(--gray-600)', fontWeight: 600, maxWidth: 62, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {g.lead.author?.display_name}
-                </span>
-              </button>
-            ))}
-          </div>
-          {todayMsg && <div style={{ ...S.meta, padding: '0 0 10px', color: '#B3261E' }}>{todayMsg}</div>}
         </div>
       )}
 
@@ -1154,6 +1124,35 @@ export default function ShareSheetHost({ embedded = false }) {
         {/* ── DISCOVER: friends' finds by category ── */}
         {view === 'discover' && (
           <>
+            {/* 'Today in NYC' — one home, top of the default segment. */}
+            <input ref={todayInputRef} type="file" accept="image/*" capture="environment"
+              style={{ display: 'none' }} onChange={onTodayFile} />
+            <div style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--ink)', letterSpacing: '0.02em', padding: '2px 0 10px' }}>
+              📸 {t('Today in NYC')}
+            </div>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', overflowX: 'auto', scrollbarWidth: 'none', padding: '0 0 16px', margin: '0 -2px' }}>
+              <button onClick={() => { if (myTodayPhoto) openViewer(postGroupOf(myTodayPhoto, mine), true); else todayInputRef.current?.click() }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0, width: 64 }}>
+                {myTodayPhoto
+                  ? <img src={thumbSrc(myTodayPhoto)} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2.5px solid var(--accent)' }} />
+                  : <span style={{ width: 56, height: 56, borderRadius: '50%', border: '2px dashed var(--gray-400)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, color: 'var(--gray-500)' }}>＋</span>}
+                <span style={{ fontSize: 10.5, color: 'var(--gray-600)', fontWeight: 600, whiteSpace: 'nowrap' }}>{myTodayPhoto ? t('You') : t('Add yours')}</span>
+              </button>
+              {collapseGroups(friendsToday).map(g => (
+                <button key={'td' + g.lead.id} onClick={() => openViewer(postGroupOf(g.lead, feed), false)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, flexShrink: 0, width: 64 }}>
+                  <img src={thumbSrc(g.lead)} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', border: '2.5px solid var(--accent)' }} />
+                  <span style={{ fontSize: 10.5, color: 'var(--gray-600)', fontWeight: 600, maxWidth: 62, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {g.lead.author?.display_name}
+                  </span>
+                </button>
+              ))}
+            </div>
+            {todayMsg && <div style={{ ...S.meta, padding: '0 0 10px', color: '#B3261E' }}>{todayMsg}</div>}
+
             <div style={{ display: 'flex', gap: 5, padding: '0 0 10px' }}>
               <button onClick={() => setDiscoverView('posts')} style={S.tab(discoverView === 'posts')}><ToggleIcon kind="grid" />{t('Posts')}</button>
               <button onClick={() => setDiscoverView('map')} style={S.tab(discoverView === 'map')}><ToggleIcon kind="map" />{t('Map')}</button>
