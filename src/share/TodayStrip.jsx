@@ -25,7 +25,9 @@ export default function TodayStrip({ onPosted = null, wrapStyle = {}, size = 48 
   const inputRef = React.useRef(null)
   // Story viewer (2026-09-26): the circle opens the photo RIGHT HERE — no tab
   // hop. IG-story grammar: full-bleed image, slide DOWN (or ✕) to close.
-  const [story, setStory] = React.useState(null) // { p, mine }
+  const [story, setStoryRaw] = React.useState(null) // { p, mine }
+  const [storyMenu, setStoryMenu] = React.useState(false)
+  const setStory = (v) => { setStoryRaw(v); setStoryMenu(false) }
   const [dragY, setDragY] = React.useState(0)
   const dragFrom = React.useRef(null)
   const storyTouchStart = (e) => { dragFrom.current = e.touches[0].clientY }
@@ -124,21 +126,36 @@ export default function TodayStrip({ onPosted = null, wrapStyle = {}, size = 48 
             </div>
             <img src={story.p.image_url || thumbSrc(story.p)} alt=""
               style={{ width: '100%', maxHeight: '74vh', objectFit: 'contain', display: 'block' }} />
-            <div style={{ padding: '12px 16px 0' }}>
-              {story.mine
-                ? <button onClick={() => { if (!confirm(t('Delete this post?'))) return; const id = story.p.id; setStory(null); deletePhoto(id).then(() => setMine(m => m.filter(x => x.id !== id))).catch(() => {}) }}
-                    style={{ background: 'none', border: 'none', color: '#E8A79F', cursor: 'pointer', fontSize: 12.5, textDecoration: 'underline', fontFamily: 'inherit', padding: 0 }}>
-                    {t('Delete')}
-                  </button>
-                : <button onClick={() => reportPhoto(story.p.id).then(() => alert(t('Reported. We review reports within 24 hours.'))).catch(() => {})}
-                    style={{ background: 'none', border: 'none', color: '#EDE6D6', cursor: 'pointer', fontSize: 12.5, textDecoration: 'underline', fontFamily: 'inherit', padding: 0 }}>
-                    {t('Report')}
-                  </button>}
-            </div>
           </div>
-          <button onClick={() => setStory(null)} aria-label="Close"
-            style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top, 0px) + 14px)', right: 16, background: 'none',
-              border: 'none', color: '#EDE6D6', fontSize: 22, cursor: 'pointer' }}>✕</button>
+          <div style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top, 0px) + 10px)', right: 12,
+            display: 'flex', alignItems: 'center', gap: 4 }}>
+            <div style={{ position: 'relative' }}>
+              <button onClick={() => setStoryMenu(o => !o)} aria-label={t('More')}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '8px 6px', fontFamily: 'inherit',
+                  fontSize: 20, fontWeight: 700, lineHeight: 1, color: '#EDE6D6', letterSpacing: '1px' }}>
+                …
+              </button>
+              {storyMenu && (
+                <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 40, minWidth: 130,
+                  background: '#fff', borderRadius: 10, border: '1px solid rgba(23,19,15,0.12)',
+                  boxShadow: '0 6px 20px rgba(0,0,0,0.35)', overflow: 'hidden' }}>
+                  {story.mine
+                    ? <button onClick={() => { setStoryMenu(false); if (!confirm(t('Delete this post?'))) return; const id = story.p.id; setStory(null); deletePhoto(id).then(() => setMine(m => m.filter(x => x.id !== id))).catch(() => {}) }}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none',
+                          padding: '11px 14px', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13.5, color: '#B3261E' }}>
+                        {t('Delete')}
+                      </button>
+                    : <button onClick={() => { setStoryMenu(false); reportPhoto(story.p.id).then(() => alert(t('Reported. We review reports within 24 hours.'))).catch(() => {}) }}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none',
+                          padding: '11px 14px', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13.5, color: 'var(--ink, #17130F)' }}>
+                        {t('Report')}
+                      </button>}
+                </div>
+              )}
+            </div>
+            <button onClick={() => setStory(null)} aria-label="Close"
+              style={{ background: 'none', border: 'none', color: '#EDE6D6', fontSize: 22, cursor: 'pointer', padding: '6px 8px' }}>✕</button>
+          </div>
         </div>, document.body)}
       {shot && createPortal(
         <div style={{ position: 'fixed', inset: 0, zIndex: 6000, background: 'rgba(12,10,8,0.96)',
