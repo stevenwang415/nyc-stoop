@@ -205,8 +205,15 @@ export function devSharePlugin() {
           const b = await readBody(req)
           if (b.anchor_type === 'place' && !(b.place_id || b.place_name)) return detail(res, 400, 'place anchor needs place_id or place_name')
           if (b.anchor_type === 'moment' && !b.area_label) return detail(res, 400, 'moment anchor needs area_label')
+          let todayDate = null
+          if (b.today) {
+            todayDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
+            if (db.photos.some(x => String(x.user_id) === String(user.id) && x.today_date === todayDate && x.status === 'ok'))
+              return detail(res, 409, 'already posted today')
+          }
           const p = {
-            id: db.nextPhotoId++, user_id: user.id, anchor_type: b.anchor_type,
+            id: db.nextPhotoId++,
+            today_date: todayDate, user_id: user.id, anchor_type: b.anchor_type,
             place_id: b.place_id || null, place_name: b.place_name || null, area_label: b.area_label || null,
             lat: (typeof b.lat === 'number' ? b.lat : null), lng: (typeof b.lng === 'number' ? b.lng : null),
             group_id: b.group_id || null,

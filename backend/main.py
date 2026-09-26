@@ -60,6 +60,7 @@ def _bootstrap_db() -> None:
         # NULL; migrated rows are nulled to reclaim Neon storage/transfer).
         conn.execute(text("ALTER TABLE share_photos ADD COLUMN IF NOT EXISTS image_key VARCHAR(160)"))
         conn.execute(text("ALTER TABLE share_photos ADD COLUMN IF NOT EXISTS thumb_key VARCHAR(160)"))
+        conn.execute(text("ALTER TABLE share_photos ADD COLUMN IF NOT EXISTS today_date VARCHAR(10)"))
         conn.execute(text("ALTER TABLE share_photos ALTER COLUMN image_b64 DROP NOT NULL"))
         conn.execute(text("ALTER TABLE share_photos ALTER COLUMN thumb_b64 DROP NOT NULL"))
         # In-app feedback (2026-07-14): replaces the mailto round-trip.

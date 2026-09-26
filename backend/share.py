@@ -222,6 +222,7 @@ class PhotoIn(BaseModel):
     lat: Optional[float] = Field(default=None, ge=-90, le=90)
     lng: Optional[float] = Field(default=None, ge=-180, le=180)
     group_id: Optional[str] = Field(default=None, max_length=40)  # multi-image post
+    today: bool = False  # 'Today in NYC' daily photo (server enforces 1/ET-day)
     # data-URL payloads WITHOUT the "data:image/jpeg;base64," prefix.
     # Caps raised (2026-09-20): bytes land in R2 now, so Postgres no longer
     # constrains size — the client's adaptive ladder keeps payloads ≤2.4 MB
@@ -243,6 +244,7 @@ def _photo_meta(p: SharePhoto, author: dict) -> dict:
         "anchor_type": p.anchor_type,
         "place_id": p.place_id,
         "place_name": p.place_name,
+        "today_date": p.today_date,
         "area_label": p.area_label,
         "lat": p.lat,
         "lng": p.lng,
@@ -352,11 +354,25 @@ def create_photo(body: PhotoIn, user: User = Depends(get_current_user), db: Sess
     # Daily photo cap removed (2026-09-20, user request): the 30/day brake
     # dated from base64-in-Postgres days; photos live in R2 now and an active
     # friend hit the wall mid-trip. Post away.
+    # 'Today in NYC' (2026-09-26): one per user per ET day. The client offers
+    # one reshoot BEFORE posting; the server just enforces the daily slot.
+    today_date = None
+    if body.today:
+        from zoneinfo import ZoneInfo
+        from datetime import datetime as _dt
+        today_date = _dt.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
+        exists = db.execute(
+            select(SharePhoto.id).where(
+                SharePhoto.user_id == user.id, SharePhoto.today_date == today_date,
+                SharePhoto.status == "ok")
+        ).first()
+        if exists:
+            raise HTTPException(status.HTTP_409_CONFLICT, "already posted today")
     p = SharePhoto(
         user_id=user.id, anchor_type=body.anchor_type, place_id=body.place_id,
         place_name=body.place_name, area_label=body.area_label,
         lat=body.lat, lng=body.lng, group_id=body.group_id, kind=body.kind,
-        caption=(body.caption or None), taken_at=body.taken_at,
+        caption=(body.caption or None), taken_at=body.taken_at, today_date=today_date,
     )
     # Bytes go to R2 when configured; Postgres keeps only the keys. The upload
     # API shape is unchanged (client still sends b64) — only storage moved.

@@ -108,6 +108,9 @@ class SharePhoto(Base):
     lng: Mapped[Optional[float]] = mapped_column(nullable=True)
     group_id: Mapped[Optional[str]] = mapped_column(String(40), nullable=True, index=True)  # multi-image post
     kind: Mapped[str] = mapped_column(String(8), nullable=False, default="vibe")  # food|view|vibe
+    # 'Today in NYC' (2026-09-26): one live-camera photo per user per ET day.
+    # Holds the ET date string (YYYY-MM-DD) when the photo is a Today post.
+    today_date: Mapped[Optional[str]] = mapped_column(String(10), nullable=True, index=True)
     caption: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     # Legacy inline storage (nullable since the R2 swap, 2026-09-10) — rows
     # created before the swap carry b64 until migrated; new rows use keys.
