@@ -668,10 +668,12 @@ export default function ShareSheetHost({ embedded = false }) {
   // SCROLLABLE posts view (their posts newest→oldest), auto-scrolled to the
   // tapped post — exactly Instagram's profile behavior. null = grid mode.
   const [friendPostsStart, setFriendPostsStart] = React.useState(null)
-  React.useEffect(() => { setFriendPostsStart(null) }, [view]) // leaving a profile resets posts mode
+  const [myPostsStart, setMyPostsStart] = React.useState(null) // same, for My Stoop (2026-09-26)
+  React.useEffect(() => { setFriendPostsStart(null); setMyPostsStart(null) }, [view]) // leaving a profile resets posts mode
+  const closePosts = () => { setFriendPostsStart(null); setMyPostsStart(null) }
   const postsSwipe = React.useRef(null) // left-edge swipe-back, IG-style
   React.useEffect(() => {
-    if (friendPostsStart == null) return
+    if (friendPostsStart == null && myPostsStart == null) return
     const onStart = e => {
       const t0 = e.touches[0]
       postsSwipe.current = t0.clientX < 40 ? { x: t0.clientX, y: t0.clientY } : null
@@ -680,12 +682,12 @@ export default function ShareSheetHost({ embedded = false }) {
       const st = postsSwipe.current; postsSwipe.current = null
       if (!st) return
       const t1 = e.changedTouches[0]
-      if (t1.clientX - st.x > 70 && Math.abs(t1.clientY - st.y) < 60) setFriendPostsStart(null)
+      if (t1.clientX - st.x > 70 && Math.abs(t1.clientY - st.y) < 60) closePosts()
     }
     window.addEventListener('touchstart', onStart, { passive: true })
     window.addEventListener('touchend', onEnd, { passive: true })
     return () => { window.removeEventListener('touchstart', onStart); window.removeEventListener('touchend', onEnd) }
-  }, [friendPostsStart])
+  }, [friendPostsStart, myPostsStart])
   // Feed-card like (2026-09-20): same anchor, driven from list state.
   const togglePostLike = (g) => {
     const lead = g.lead
@@ -938,14 +940,47 @@ export default function ShareSheetHost({ embedded = false }) {
         {/* ── MY STOOP ── */}
         {view === 'me' && (
           <>
+            {myPostsStart == null && (
             <ProfileHeader key={'ph' + nameBump} user={user} name={myName} photos={mine} onSaveName={saveMyName}
               right={<button style={{ ...S.cta, flex: 1 }} onClick={() => { setPostMsg(''); setView('compose') }}>＋ {t('Add photo')}</button>} />
+            )}
+            {myPostsStart == null && (
             <div style={{ display: 'flex', gap: 5, padding: '0 0 10px' }}>
               <button onClick={() => setStoopView('grid')} style={S.tab(stoopView === 'grid')}><ToggleIcon kind="grid" />{t('Grid')}</button>
               <button onClick={() => setStoopView('map')} style={S.tab(stoopView === 'map')}><ToggleIcon kind="map" />{t('Map')}</button>
             </div>
-            {stoopView === 'grid'
-              ? <PhotoGrid photos={mine} onOpen={(p) => openViewer(p, true)}
+            )}
+            {myPostsStart != null ? (
+              <div>
+                {/* Same IG posts page as friend profiles (2026-09-26) — my own
+                    grid was still opening the single-photo viewer. */}
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 60, background: 'var(--bg, #FBF8F3)',
+                  display: 'flex', alignItems: 'center',
+                  padding: 'calc(env(safe-area-inset-top, 0px) + 6px) 10px 8px',
+                  borderBottom: '1px solid rgba(23,19,15,0.07)' }}>
+                  <button onClick={() => setMyPostsStart(null)} aria-label={t('Back')}
+                    style={{ width: 44, height: 40, background: 'none', border: 'none', cursor: 'pointer',
+                      fontSize: 22, lineHeight: 1, color: 'var(--ink)', fontFamily: 'inherit', textAlign: 'left' }}>
+                    ‹
+                  </button>
+                  <div style={{ flex: 1, textAlign: 'center' }}>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--ink)' }}>{t('Posts')}</div>
+                    <div style={{ fontSize: 11.5, color: 'var(--gray-500)' }}>{myName}</div>
+                  </div>
+                  <span style={{ width: 44 }} />
+                </div>
+                {collapseGroups(mine).map(g => (
+                  <ScrollIntoViewOnce key={g.lead.id} active={g.lead.id === myPostsStart}>
+                    <FeedPostCard g={g}
+                      onOpen={(gr) => openViewer(gr, true)}
+                      onToggleLike={togglePostLike}
+                      planner={plannerData(g.lead)}
+                      onPlanner={(d) => { try { window.dispatchEvent(new CustomEvent('nyc-add-to-planner', { detail: d })) } catch {} }} />
+                  </ScrollIntoViewOnce>
+                ))}
+              </div>
+            ) : stoopView === 'grid'
+              ? <PhotoGrid photos={mine} onOpen={(p) => setMyPostsStart((p.lead || p).id)}
                   emptyText={t('Your New York starts here — add the first photo from a place you loved.')} />
               : <StoopMap photos={mine} onOpenPhoto={(p) => openViewer(postGroupOf(p, mine), true)} />}
           </>
