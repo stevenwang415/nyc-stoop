@@ -40,7 +40,7 @@ const ZH = {
   'Restaurant': '餐廳', '1 restaurant': '1 間餐廳', '{N} restaurants': '{N} 間餐廳',
   'Add a place': '新增地點',
   'No dates': '未設日期', '~{N} min walking': '步行約 {N} 分鐘', 'more': '更多', 'Draft': '草稿',
-  'liked your photo': '喜歡你的相片', 'Like': '喜歡', 'Unlike': '收回喜歡', 'Posts': '貼文', 'Today in NYC': '今日紐約', 'Add yours': '新增你的', 'Use photo': '使用相片', 'Reshoot (1 left)': '重拍（剩 1 次）', 'That was your reshoot — this one counts.': '這是你的重拍 — 就是這張了。', 'You already posted today — see you tomorrow!': '你今天已經發布過了 — 明天見！',  'Delete this post?': '刪除這則貼文？', 'More': '更多', 'Reply': '回覆', 'Post': '發佈',
+  'liked your photo': '喜歡你的相片', 'Like': '喜歡', 'Unlike': '收回喜歡', 'Posts': '貼文', 'My Todays': '我的每日紐約', 'only you can see these': '只有你看得到',  'Today in NYC': '今日紐約', 'Add yours': '新增你的', 'Use photo': '使用相片', 'Reshoot (1 left)': '重拍（剩 1 次）', 'That was your reshoot — this one counts.': '這是你的重拍 — 就是這張了。', 'You already posted today — see you tomorrow!': '你今天已經發布過了 — 明天見！',  'Delete this post?': '刪除這則貼文？', 'More': '更多', 'Reply': '回覆', 'Post': '發佈',
   'Coffee': '咖啡', 'Cafés & bakeries': '咖啡館與烘焙坊',
   'Outdoors': '戶外', 'Parks & waterfront': '公園與河濱',
   'Culture': '文化', 'Museums & landmarks': '博物館與地標',

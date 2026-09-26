@@ -1004,6 +1004,33 @@ export default function ShareSheetHost({ embedded = false }) {
               <button onClick={() => setStoopView('map')} style={S.tab(stoopView === 'map')}><ToggleIcon kind="map" />{t('Map')}</button>
             </div>
             )}
+            {/* My Todays (2026-09-26): BeReal-style private archive of daily
+                photos. Friends never see this — their views filter today
+                photos out; this row reads straight from MY list. */}
+            {myPostsStart == null && (() => {
+              const todays = mine.filter(p => p.today_date).sort((a, b) => b.today_date.localeCompare(a.today_date))
+              if (!todays.length) return null
+              return (
+                <div style={{ padding: '0 0 12px' }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--ink)', padding: '0 0 7px' }}>
+                    {t('My Todays')} <span style={{ fontWeight: 600, color: 'var(--gray-400)' }}>· {t('only you can see these')}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 9, overflowX: 'auto', scrollbarWidth: 'none' }}>
+                    {todays.map(p => (
+                      <button key={'mt' + p.id} onClick={() => openViewer(p, true)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit',
+                          display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 3, flexShrink: 0 }}>
+                        <img src={thumbSrc(p)} alt="" style={{ width: 62, height: 62, borderRadius: 12, objectFit: 'cover',
+                          border: '1px solid rgba(23,19,15,0.12)' }} />
+                        <span style={{ fontSize: 9.5, color: 'var(--gray-500)', fontWeight: 600 }}>
+                          {(p.today_date || '').slice(5).replace('-', '/')}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
             {myPostsStart != null ? (
               <div>
                 {/* Same IG posts page as friend profiles (2026-09-26) — my own
