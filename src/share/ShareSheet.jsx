@@ -14,6 +14,7 @@ import {
   listComments, addComment, deleteComment, setMyAvatar, setMyName, reportComment,
 } from './shareApi.js'
 import { seedUserPlaces } from '../data/places.js'
+import { isGooglePlacesAvailable, searchGooglePlaces, getGooglePlaceDetails } from '../lib/googlePlaces.js'
 
 const AREAS = ['Midtown', 'Upper East Side', 'Upper West Side', 'Chelsea', 'Gramercy & Flatiron',
   'West Village', 'East Village', 'SoHo', 'Lower East Side', 'Chinatown', 'Financial District', 'Harlem',
@@ -820,7 +821,20 @@ export default function ShareSheetHost({ embedded = false }) {
 
   const runPlaceSearch = async () => {
     setPlaceSearching(true); setPlaceResults(null)
-    try { setPlaceResults(await searchPlaces((files[Math.min(activeIdx, files.length - 1)]?.place || '').trim())) }
+    const q = (files[Math.min(activeIdx, files.length - 1)]?.place || '').trim()
+    try {
+      // Google Places first (2026-09-26) — same engine as the Planner's Add
+      // place search, so small POIs (Kajiken, Dudleys…) resolve. Rows carry a
+      // placeId; coords are fetched on pick (one Details call per session).
+      if (isGooglePlacesAvailable()) {
+        const g = await searchGooglePlaces(q)
+        if (g && g.length) {
+          setPlaceResults(g.map(r => ({ name: r.name, detail: r.sub, placeId: r.placeId })))
+          return
+        }
+      }
+      setPlaceResults(await searchPlaces(q))
+    }
     catch { setPlaceResults([]) }
     finally { setPlaceSearching(false) }
   }
@@ -1264,7 +1278,17 @@ export default function ShareSheetHost({ embedded = false }) {
             {placeResults && placeResults.length > 0 && (
               <div style={{ marginTop: 6, border: '1px solid var(--gray-200)', borderRadius: 10, overflow: 'hidden', background: '#fff' }}>
                 {placeResults.map((r, i) => (
-                  <button key={i} onClick={() => { setPlaceVal(r.name); setCurGeoSearch({ lat: r.lat, lng: r.lng, src: 'search' }); setPlaceResults(null) }}
+                  <button key={i} onClick={async () => {
+                    if (r.placeId) {
+                      setPlaceResults(null); setPlaceSearching(true)
+                      try {
+                        const d = await getGooglePlaceDetails(r.placeId)
+                        setPlaceVal(d.name || r.name)
+                        if (d.lat != null && d.lng != null) setCurGeoSearch({ lat: d.lat, lng: d.lng, src: 'search' })
+                      } catch { setPlaceVal(r.name) }
+                      finally { setPlaceSearching(false) }
+                    } else { setPlaceVal(r.name); setCurGeoSearch({ lat: r.lat, lng: r.lng, src: 'search' }); setPlaceResults(null) }
+                  }}
                     style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none',
                       borderTop: i ? '1px solid var(--gray-100)' : 'none', padding: '9px 12px', cursor: 'pointer', fontFamily: 'inherit' }}>
                     <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink)' }}>📍 {r.name}</div>
