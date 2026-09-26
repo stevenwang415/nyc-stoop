@@ -5,6 +5,7 @@
 // capture="environment" opens the camera directly on iOS — no library picker,
 // which is what keeps "today" honest.
 import React from 'react'
+import { createPortal } from 'react-dom'
 import { t } from '../lib/i18n.js'
 import { isSignedIn } from '../auth/api.js'
 import {
@@ -107,22 +108,23 @@ export default function TodayStrip({ onPosted = null, wrapStyle = {}, size = 48 
         ))}
       </div>
       {msg && <div style={{ fontSize: 12, color: '#B3261E', padding: '4px 0 2px' }}>{msg}</div>}
-      {story && (
+      {story && createPortal(
         <div onTouchStart={storyTouchStart} onTouchMove={storyTouchMove} onTouchEnd={storyTouchEnd}
-          style={{ position: 'fixed', inset: 0, zIndex: 5000, background: `rgba(12,10,8,${Math.max(0.4, 0.95 - dragY / 500)})`,
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16,
+          style={{ position: 'fixed', inset: 0, zIndex: 6000,
+            background: `rgba(12,10,8,${Math.max(0.5, 1 - dragY / 400)})`,
+            display: 'flex', flexDirection: 'column',
             transition: dragY ? 'none' : 'background 160ms ease' }}>
           <div style={{ transform: `translateY(${dragY}px)`, transition: dragY ? 'none' : 'transform 160ms ease',
-            maxWidth: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <div style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'baseline', gap: 8, padding: '0 2px 8px' }}>
+            flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '0 0 24px' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '0 16px 10px' }}>
               <span style={{ color: '#F2EDE4', fontSize: 14.5, fontWeight: 800 }}>
                 {story.mine ? t('You') : story.p.author?.display_name}
               </span>
               <span style={{ color: '#B9AE9C', fontSize: 11.5 }}>{t('Today in NYC')} · {(story.p.today_date || '').slice(5).replace('-', '/')}</span>
             </div>
             <img src={story.p.image_url || thumbSrc(story.p)} alt=""
-              style={{ maxWidth: '100%', maxHeight: '72vh', borderRadius: 14, objectFit: 'contain' }} />
-            <div style={{ alignSelf: 'flex-start', padding: '10px 2px 0' }}>
+              style={{ width: '100%', maxHeight: '74vh', objectFit: 'contain', display: 'block' }} />
+            <div style={{ padding: '12px 16px 0' }}>
               {story.mine
                 ? <button onClick={() => { if (!confirm(t('Delete this post?'))) return; const id = story.p.id; setStory(null); deletePhoto(id).then(() => setMine(m => m.filter(x => x.id !== id))).catch(() => {}) }}
                     style={{ background: 'none', border: 'none', color: '#E8A79F', cursor: 'pointer', fontSize: 12.5, textDecoration: 'underline', fontFamily: 'inherit', padding: 0 }}>
@@ -137,10 +139,9 @@ export default function TodayStrip({ onPosted = null, wrapStyle = {}, size = 48 
           <button onClick={() => setStory(null)} aria-label="Close"
             style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top, 0px) + 14px)', right: 16, background: 'none',
               border: 'none', color: '#EDE6D6', fontSize: 22, cursor: 'pointer' }}>✕</button>
-        </div>
-      )}
-      {shot && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 5000, background: 'rgba(12,10,8,0.93)',
+        </div>, document.body)}
+      {shot && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 6000, background: 'rgba(12,10,8,0.96)',
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 18 }}>
           <img src={shot.url} alt="" style={{ maxWidth: '100%', maxHeight: '68vh', borderRadius: 14, objectFit: 'contain' }} />
           <div style={{ display: 'flex', gap: 10, marginTop: 18, width: '100%', maxWidth: 380 }}>
@@ -161,8 +162,7 @@ export default function TodayStrip({ onPosted = null, wrapStyle = {}, size = 48 
           <button onClick={() => { if (!posting) setShot(null) }} aria-label="Close"
             style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top, 0px) + 14px)', right: 16, background: 'none',
               border: 'none', color: '#EDE6D6', fontSize: 22, cursor: 'pointer' }}>✕</button>
-        </div>
-      )}
+        </div>, document.body)}
     </div>
   )
 }
