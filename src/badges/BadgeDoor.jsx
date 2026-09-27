@@ -16,7 +16,9 @@ export default function BadgeDoor({ onOpen }) {
 
   return (
     <button onClick={onOpen} aria-label="Badges"
-      style={{ position: 'fixed', right: 14, bottom: 'calc(64px + max(env(safe-area-inset-bottom, 0px) - 12px, 0px) + 76px)',
+      // Top-right of the map, tucked under the search bar — clear of the
+      // bottom sheet at every detent (device report 2026-09-27).
+      style={{ position: 'fixed', right: 12, top: 'calc(env(safe-area-inset-top, 0px) + 216px)',
         zIndex: 210, background: 'none', border: 'none', cursor: 'pointer', padding: 0,
         filter: 'drop-shadow(0 6px 14px rgba(23,19,15,0.35)) drop-shadow(0 0 14px rgba(201,162,39,0.45))' }}>
       <svg width="58" height="58" viewBox="0 0 100 100">
