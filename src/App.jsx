@@ -8128,7 +8128,7 @@ function MapScreen({ onSelectVenue, highlight = null, onClearHighlight = null, s
     })
     // Light Carto Positron basemap — matches the app's pastel UI far better
     // than default OSM raster and makes the category pin colors pop.
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
       subdomains: 'abcd',
       maxZoom: 19,
@@ -10280,7 +10280,7 @@ function TripRouteMap({ groups }) {
           rotateControl: { closeOnZeroBearing: false, position: 'topright' },
         } : {}),
       })
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
         subdomains: 'abcd', maxZoom: 19,
       }).addTo(mapRef.current)

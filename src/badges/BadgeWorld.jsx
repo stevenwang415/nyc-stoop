@@ -106,8 +106,10 @@ export default function BadgeWorld({ onClose }) {
       if (!map || map._container !== boxRef.current) {
         if (map) { try { map.remove() } catch {} }
         map = L.map(boxRef.current, { zoomControl: false, attributionControl: true })
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-          { attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19 }).addTo(map)
+        // OSM tiles inverted to dark via CSS (CARTO basemaps now require a key,
+        // 2026-09-27 — users saw "API KEY REQUIRED" watermarks).
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          { attribution: '&copy; OpenStreetMap', maxZoom: 19, className: 'badge-dark-tiles' }).addTo(map)
         map.setView([40.7420, -73.9880], 13)
         map._pins = L.layerGroup().addTo(map)
         mapRef.current = map
@@ -251,6 +253,7 @@ export default function BadgeWorld({ onClose }) {
     <div style={{ position: 'fixed', inset: 0, zIndex: 6000, background: '#090D13', display: 'flex', flexDirection: 'column',
       fontFamily: "-apple-system,'SF Pro Text','Helvetica Neue',sans-serif" }}>
       <style>{`
+        .badge-dark-tiles { filter: invert(1) hue-rotate(180deg) brightness(0.7) contrast(0.9) saturate(0.35); }
         @keyframes badge-beep { 0%,100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(227,195,107,0.5); }
           50% { transform: scale(1.18); box-shadow: 0 0 0 12px rgba(227,195,107,0); } }
         @keyframes badge-strike-spin { 0% { transform: rotateY(0deg) scale(0.6); filter: brightness(3); }
