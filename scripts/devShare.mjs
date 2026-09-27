@@ -247,6 +247,50 @@ export function devSharePlugin() {
             .map(({ image_b64, ...meta }) => withComments(likeMeta({ ...meta, author: publicUser(db, uid) }, user.id)))
           return json(res, 200, { photos: ph })
         }
+        // ── v3 badges prototype ──
+        const BADGE_CATALOG = {
+          empire: [40.7484, -73.9857], centralpark: [40.7740, -73.9709],
+          flatiron: [40.7411, -73.9897], washsq: [40.7308, -73.9973], katz: [40.7223, -73.9874],
+        }
+        const distM = (a, b, c, d) => {
+          const r = Math.PI / 180
+          const x = Math.sin((c - a) * r / 2) ** 2 + Math.cos(a * r) * Math.cos(c * r) * Math.sin((d - b) * r / 2) ** 2
+          return 2 * 6371000 * Math.asin(Math.sqrt(x))
+        }
+        db.badgeAwards = db.badgeAwards || []
+        const awardMeta = (a) => ({ badge_id: a.badge_id, visibility: a.visibility, created_at: a.created_at, thumb_url: null, thumb_b64: a.thumb_b64 })
+        if (url === '/share/badges/mine' && m === 'GET') {
+          return json(res, 200, { awards: db.badgeAwards.filter(a => String(a.user_id) === String(user.id)).map(awardMeta) })
+        }
+        const bOfM = url.match(/^\/share\/badges\/of\/(\d+)$/)
+        if (bOfM && m === 'GET') {
+          const uid = bOfM[1]
+          if (uid !== String(user.id) && !friendIds(db, user.id).includes(uid)) return detail(res, 404, 'Not found')
+          let rows = db.badgeAwards.filter(a => String(a.user_id) === uid)
+          if (uid !== String(user.id)) rows = rows.filter(a => a.visibility === 'public')
+          return json(res, 200, { awards: rows.map(awardMeta) })
+        }
+        if (url === '/share/badges/collect' && m === 'POST') {
+          const b = await readBody(req)
+          const cat = BADGE_CATALOG[b.badge_id]
+          if (!cat) return detail(res, 404, 'No such badge')
+          if (typeof b.lat !== 'number' || typeof b.lng !== 'number') return detail(res, 403, 'location required')
+          if (distM(b.lat, b.lng, cat[0], cat[1]) > 200) return detail(res, 403, 'too far away')
+          if (db.badgeAwards.some(a => String(a.user_id) === String(user.id) && a.badge_id === b.badge_id))
+            return detail(res, 409, 'already collected')
+          const a = { user_id: String(user.id), badge_id: b.badge_id, visibility: 'public',
+            thumb_b64: b.thumb_b64, image_b64: b.image_b64, created_at: new Date().toISOString() }
+          db.badgeAwards.push(a); save(db)
+          return json(res, 200, { ok: true, award: awardMeta(a) })
+        }
+        const bVisM = url.match(/^\/share\/badges\/(\w+)$/)
+        if (bVisM && m === 'PATCH') {
+          const b = await readBody(req)
+          const a = db.badgeAwards.find(x => String(x.user_id) === String(user.id) && x.badge_id === bVisM[1])
+          if (!a) return detail(res, 404, 'Not found')
+          a.visibility = b.visibility; save(db)
+          return json(res, 200, { ok: true })
+        }
         if (url === '/share/feed' && m === 'GET') {
           const ids = friendIds(db, user.id)
           const feed = db.photos.filter(p => ids.includes(p.user_id) && p.status === 'ok')

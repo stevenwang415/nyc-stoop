@@ -98,7 +98,7 @@ def _attach_comments(metas: list, db) -> list:
 
 from auth import get_current_user
 from database import get_db
-from models import Friendship, PushToken, ShareComment, ShareLike, SharePhoto, User
+from models import BadgeAward, Friendship, PushToken, ShareComment, ShareLike, SharePhoto, User
 
 router = APIRouter(prefix="/share", tags=["share"])
 
@@ -833,3 +833,108 @@ def place_search(q: str, user: User = Depends(get_current_user)) -> dict:
         out.append({"name": res.get("name") or q, "detail": " · ".join(x for x in [cat, addr] if x),
                     "lat": lat, "lng": lng})
     return {"results": out}
+
+
+# ── v3 Badges prototype (2026-09-27) ────────────────────────────
+# Static catalog mirrored from src/badges/catalog.js — the server is the
+# authority for the 200 m collect check. Presence is the verification
+# (camera-only client + GPS radius); no AI photo checking, no points.
+BADGE_CATALOG = {
+    "empire":      {"name": "Empire State Building",  "lat": 40.7484, "lng": -73.9857},
+    "centralpark": {"name": "Central Park",           "lat": 40.7740, "lng": -73.9709},
+    "flatiron":    {"name": "Flatiron Building",      "lat": 40.7411, "lng": -73.9897},
+    "washsq":      {"name": "Washington Square Arch", "lat": 40.7308, "lng": -73.9973},
+    "katz":        {"name": "Katz's Delicatessen",    "lat": 40.7223, "lng": -73.9874},
+}
+BADGE_COLLECT_RADIUS_M = 200
+
+
+def _badge_distance_m(lat1, lng1, lat2, lng2) -> float:
+    import math
+    r = math.pi / 180
+    a = (math.sin((lat2 - lat1) * r / 2) ** 2
+         + math.cos(lat1 * r) * math.cos(lat2 * r) * math.sin((lng2 - lng1) * r / 2) ** 2)
+    return 2 * 6371000 * math.asin(math.sqrt(a))
+
+
+def _award_meta(a: BadgeAward) -> dict:
+    thumb_url = r2_url(a.thumb_key) if (r2_enabled() and a.thumb_key) else None
+    return {"badge_id": a.badge_id, "visibility": a.visibility,
+            "created_at": a.created_at.isoformat() if a.created_at else None,
+            "thumb_url": thumb_url, "thumb_b64": (a.thumb_b64 if not thumb_url else None)}
+
+
+class BadgeCollectIn(BaseModel):
+    badge_id: str = Field(max_length=24)
+    lat: Optional[float] = Field(default=None, ge=-90, le=90)
+    lng: Optional[float] = Field(default=None, ge=-180, le=180)
+    image_b64: str = Field(min_length=100, max_length=3_000_000)
+    thumb_b64: str = Field(min_length=50, max_length=120_000)
+
+
+class BadgeVisibilityIn(BaseModel):
+    visibility: str = Field(pattern="^(public|private)$")
+
+
+@router.get("/badges/mine")
+def badges_mine(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    rows = db.execute(select(BadgeAward).where(BadgeAward.user_id == user.id)
+                      .order_by(BadgeAward.created_at)).scalars().all()
+    return {"awards": [_award_meta(a) for a in rows]}
+
+
+@router.get("/badges/of/{user_id}")
+def badges_of(user_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    if user_id != user.id and user_id not in _accepted_friend_ids(db, user.id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
+    rows = db.execute(select(BadgeAward).where(BadgeAward.user_id == user_id)
+                      .order_by(BadgeAward.created_at)).scalars().all()
+    if user_id != user.id:
+        rows = [a for a in rows if a.visibility == "public"]
+    return {"awards": [_award_meta(a) for a in rows]}
+
+
+@router.post("/badges/collect")
+def badge_collect(body: BadgeCollectIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    b = BADGE_CATALOG.get(body.badge_id)
+    if not b:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such badge")
+    if body.lat is None or body.lng is None:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "location required")
+    if _badge_distance_m(body.lat, body.lng, b["lat"], b["lng"]) > BADGE_COLLECT_RADIUS_M:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "too far away")
+    exists = db.execute(select(BadgeAward.id).where(
+        BadgeAward.user_id == user.id, BadgeAward.badge_id == body.badge_id)).first()
+    if exists:
+        raise HTTPException(status.HTTP_409_CONFLICT, "already collected")
+    a = BadgeAward(user_id=user.id, badge_id=body.badge_id, visibility="public")
+    if r2_enabled():
+        import base64 as _b64
+        from uuid import uuid4
+        stem = f"bg/{user.id}/{uuid4().hex}"
+        a.image_key = stem + ".jpg"
+        a.thumb_key = stem + ".t.jpg"
+        r2_put(a.image_key, _b64.b64decode(body.image_b64))
+        r2_put(a.thumb_key, _b64.b64decode(body.thumb_b64))
+    else:
+        a.image_b64 = body.image_b64
+        a.thumb_b64 = body.thumb_b64
+    db.add(a)
+    db.commit()
+    db.refresh(a)
+    _name = user.display_name or user.email.split("@")[0]
+    _push_to_users(db, _accepted_friend_ids(db, user.id), "NYC Stoop",
+                   f"{_name} collected a badge · {b['name']}")
+    return {"ok": True, "award": _award_meta(a)}
+
+
+@router.patch("/badges/{badge_id}")
+def badge_visibility(badge_id: str, body: BadgeVisibilityIn,
+                     user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    a = db.execute(select(BadgeAward).where(
+        BadgeAward.user_id == user.id, BadgeAward.badge_id == badge_id)).scalar_one_or_none()
+    if not a:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
+    a.visibility = body.visibility
+    db.commit()
+    return {"ok": True}

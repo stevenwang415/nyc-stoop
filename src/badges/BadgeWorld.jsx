@@ -1,0 +1,390 @@
+// ── The Badge World (v3 Phase A prototype) ──────────────────────────────────
+// A self-contained full-screen layer with its own dark identity (spec §2/§3).
+// One door on the main Map tab opens it; the ‹ pill or a left-edge swipe
+// exits. Prototype scope: Map + Badges tabs live, Route/Photos placeholders,
+// 5-badge catalog, camera-only collect with server-side 200 m check.
+import React from 'react'
+import { createPortal } from 'react-dom'
+import { t } from '../lib/i18n.js'
+import { prepareImage, thumbSrc } from '../share/shareApi.js'
+import { BADGES, byId, FINISHES, COLLECT_RADIUS_M, CLOSE_BY_M, distanceM, fmtDist, levelState } from './catalog.js'
+import { myAwards, collectBadge, setBadgeVisibility } from './badgesApi.js'
+import Medallion from './Medallion.jsx'
+
+const GOLD = '#E3C36B'
+const TXT = '#F2F4F7'
+const SUB = 'rgba(235,240,245,0.62)'
+const FAINT = 'rgba(235,240,245,0.34)'
+
+// Demo spots for local testing (labeled in the UI; real GPS otherwise).
+const DEMO_SPOTS = [
+  { label: 'Real GPS', loc: null },
+  { label: 'Flatiron', loc: { lat: 40.7400, lng: -73.9884 } },
+  { label: 'Empire State', loc: { lat: 40.7482, lng: -73.9860 } },
+  { label: 'Central Park', loc: { lat: 40.7738, lng: -73.9712 } },
+]
+
+function ensureLeaflet(cb) {
+  if (window.L) return cb(window.L)
+  if (!document.querySelector('link[data-leaflet-css]')) {
+    const l = document.createElement('link')
+    l.rel = 'stylesheet'; l.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'; l.dataset.leafletCss = '1'
+    document.head.appendChild(l)
+  }
+  const existing = document.querySelector('script[data-leaflet], script[data-leaflet-share], script[data-leaflet-badges]')
+  if (existing) { existing.addEventListener('load', () => window.L && cb(window.L)); if (window.L) cb(window.L); return }
+  const s = document.createElement('script')
+  s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'; s.dataset.leafletBadges = '1'
+  s.onload = () => cb(window.L)
+  document.body.appendChild(s)
+}
+
+const glass = {
+  background: 'rgba(30,36,46,0.62)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
+  border: '1px solid rgba(255,255,255,0.09)',
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10), 0 8px 24px rgba(0,0,0,0.35)',
+}
+
+export default function BadgeWorld({ onClose }) {
+  const [tab, setTab] = React.useState('map')            // map | badges | route | photos
+  const [awards, setAwards] = React.useState([])          // [{badge_id, created_at, visibility, thumb_b64?, thumb_url?}]
+  const [sheetSeg, setSheetSeg] = React.useState('mine')  // mine | missing
+  const [demoIdx, setDemoIdx] = React.useState(0)
+  const [gps, setGps] = React.useState(null)
+  const [collecting, setCollecting] = React.useState(null) // badge being photographed
+  const [busy, setBusy] = React.useState(false)
+  const [struckBadge, setStruckBadge] = React.useState(null) // strike animation overlay
+  const [visPrompt, setVisPrompt] = React.useState(null)     // badge awaiting Public/Private
+  const [toast, setToast] = React.useState(null)
+  const [err, setErr] = React.useState('')
+  const inputRef = React.useRef(null)
+  const boxRef = React.useRef(null)
+  const mapRef = React.useRef(null)
+  const swipe = React.useRef(null)
+  const levelBefore = React.useRef(null)
+
+  const loc = DEMO_SPOTS[demoIdx].loc || gps
+  const owned = new Set(awards.map(a => a.badge_id))
+  const lv = levelState([...owned])
+
+  const refresh = () => myAwards().then(r => setAwards(r.awards)).catch(() => {})
+  React.useEffect(() => { refresh() }, [])
+
+  // Real GPS (only consulted when demo is off).
+  React.useEffect(() => {
+    if (!navigator.geolocation) return
+    const id = navigator.geolocation.watchPosition(
+      p => setGps({ lat: p.coords.latitude, lng: p.coords.longitude }),
+      () => {}, { enableHighAccuracy: true, maximumAge: 15000 })
+    return () => navigator.geolocation.clearWatch(id)
+  }, [])
+
+  // Edge swipe-back exits the world (same gesture as the Posts page).
+  React.useEffect(() => {
+    const onStart = e => { const t0 = e.touches[0]; swipe.current = t0.clientX < 40 ? { x: t0.clientX, y: t0.clientY } : null }
+    const onEnd = e => {
+      const st = swipe.current; swipe.current = null
+      if (!st) return
+      const t1 = e.changedTouches[0]
+      if (t1.clientX - st.x > 70 && Math.abs(t1.clientY - st.y) < 60) onClose()
+    }
+    window.addEventListener('touchstart', onStart, { passive: true })
+    window.addEventListener('touchend', onEnd, { passive: true })
+    return () => { window.removeEventListener('touchstart', onStart); window.removeEventListener('touchend', onEnd) }
+  }, [onClose])
+
+  const distTo = (b) => loc ? distanceM(loc.lat, loc.lng, b.lat, b.lng) : null
+  const inRange = (b) => { const d = distTo(b); return d != null && d <= COLLECT_RADIUS_M }
+
+  // ── Leaflet map (created once; pins update in place — the StoopMap lesson) ──
+  React.useEffect(() => {
+    if (tab !== 'map') return
+    let dead = false
+    ensureLeaflet((L) => {
+      if (dead || !boxRef.current) return
+      let map = mapRef.current
+      if (!map || map._container !== boxRef.current) {
+        if (map) { try { map.remove() } catch {} }
+        map = L.map(boxRef.current, { zoomControl: false, attributionControl: true })
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+          { attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19 }).addTo(map)
+        map.setView([40.7420, -73.9880], 13)
+        map._pins = L.layerGroup().addTo(map)
+        mapRef.current = map
+        setTimeout(() => { try { map.invalidateSize() } catch {} }, 60)
+      }
+      const layer = map._pins
+      layer.clearLayers()
+      for (const b of BADGES) {
+        const has = owned.has(b.id)
+        const near = !has && inRange(b)
+        const f = FINISHES[b.finish]
+        const html = has
+          ? `<div style="position:relative;width:26px;height:26px">
+               <div style="width:26px;height:26px;border-radius:50%;border:2.5px solid #090D13;
+                 background:radial-gradient(circle at 35% 28%, ${f.hi}, ${f.base} 55%, ${f.shadow});
+                 box-shadow:0 0 14px 4px rgba(227,195,107,0.45)"></div>
+               <div style="position:absolute;left:-8px;top:13px;width:14px;height:17px;background:#F4EFE4;border-radius:2px;
+                 transform:rotate(-10deg);box-shadow:0 1px 3px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center">
+                 <div style="width:8px;height:10px;background:${f.base};border-radius:1px"></div></div>
+             </div>`
+          : `<div style="width:24px;height:24px;border-radius:50%;border:4.5px solid #8C949F;
+               ${near ? 'animation:badge-beep 1.6s ease-in-out infinite;border-color:' + GOLD + ';' : ''}"></div>`
+        const icon = L.divIcon({ className: '', iconSize: [26, 26], iconAnchor: [13, 13], html })
+        L.marker([b.lat, b.lng], { icon }).addTo(layer)
+          .on('click', () => { if (!has && inRange(b)) startCollect(b) })
+      }
+      if (loc) {
+        const uicon = L.divIcon({ className: '', iconSize: [20, 20], iconAnchor: [10, 10],
+          html: `<div style="width:20px;height:20px;border-radius:50%;background:#0A84FF;border:3.5px solid #fff;box-shadow:0 0 10px rgba(10,132,255,0.8)"></div>` })
+        L.marker([loc.lat, loc.lng], { icon: uicon, zIndexOffset: 500 }).addTo(layer)
+      }
+    })
+    return () => { dead = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, awards, demoIdx, gps])
+
+  React.useEffect(() => () => { if (mapRef.current) { try { mapRef.current.remove() } catch {}; mapRef.current = null } }, [])
+
+  // ── Collect flow ──
+  const startCollect = (b) => { setErr(''); setCollecting(b); inputRef.current?.click() }
+  const onFile = async (e) => {
+    const f = e.target.files?.[0]; e.target.value = ''
+    const b = collecting
+    if (!f || !b || busy) return
+    setBusy(true)
+    try {
+      const { image_b64, thumb_b64 } = await prepareImage(f)
+      levelBefore.current = levelState([...owned]).current
+      const r = await collectBadge({ badge_id: b.id, lat: loc?.lat, lng: loc?.lng, image_b64, thumb_b64 })
+      setAwards(a => [...a, r.award])
+      setStruckBadge(b)
+      setTimeout(() => setStruckBadge(null), 1300)
+      setTimeout(() => setVisPrompt(b), 1100)
+    } catch (e2) {
+      setErr(e2.status === 409 ? t('Already collected.')
+        : e2.status === 403 ? t('Too far away — get within 200 m.')
+        : (e2.message || t('Something went wrong. Please try again.')))
+    } finally { setBusy(false); setCollecting(null) }
+  }
+  const answerVisibility = (vis) => {
+    const b = visPrompt; setVisPrompt(null)
+    setBadgeVisibility(b.id, vis).catch(() => {})
+    setAwards(a => a.map(x => x.badge_id === b.id ? { ...x, visibility: vis } : x))
+    const after = levelState([...new Set([...owned, b.id])])
+    if (after.current > (levelBefore.current ?? 0)) {
+      setToast({ line1: `Level ${after.current} unlocked`, line2: after.currentName })
+      setTimeout(() => setToast(null), 3000)
+    }
+  }
+
+  // ── Shared bits ──
+  const seg = (items, active, onPick, small) => (
+    <div style={{ ...glass, borderRadius: 999, display: 'flex', padding: 4 }}>
+      {items.map(([id, label]) => (
+        <button key={id} onClick={() => onPick(id)}
+          style={{ flex: 1, border: active === id ? '1px solid rgba(255,255,255,0.12)' : 'none',
+            background: active === id ? 'rgba(255,255,255,0.16)' : 'none', borderRadius: 999,
+            padding: small ? '9px 0' : '11px 0', fontFamily: 'inherit', cursor: 'pointer',
+            fontSize: small ? 13.5 : 15, fontWeight: active === id ? 700 : 500,
+            color: active === id ? TXT : SUB }}>
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+
+  const levelCard = (
+    <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 18, padding: '13px 15px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <span style={{ fontSize: 17, fontWeight: 800, color: TXT }}>{lv.currentName}</span>
+        <span style={{ fontSize: 12, color: SUB }}>{lv.current === 0 ? t('No level yet') : `Level ${lv.current} of 5`}</span>
+      </div>
+      <div style={{ height: 6, borderRadius: 99, background: 'rgba(255,255,255,0.12)', margin: '11px 0 9px' }}>
+        <div style={{ width: `${lv.next ? Math.round(100 * lv.next.have / lv.next.need) : 100}%`, height: '100%', borderRadius: 99,
+          background: 'linear-gradient(90deg,#8A6A15,#E3C36B,#F6E39B)' }} />
+      </div>
+      {lv.next && (
+        <div style={{ fontSize: 13, color: SUB }}>
+          <b style={{ color: GOLD }}>{lv.next.left}</b> {t('to')} {lv.next.name}
+        </div>
+      )}
+      <div style={{ textAlign: 'right', fontSize: 12, color: FAINT, marginTop: 2 }}>{lv.owned}/{lv.total}</div>
+    </div>
+  )
+
+  const badgeRow = (b) => {
+    const d = distTo(b)
+    const has = owned.has(b.id)
+    const near = !has && inRange(b)
+    return (
+      <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 0' }}>
+        <Medallion badge={b} size={50} struck={has} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: TXT }}>
+            {b.name} {b.main && <span style={{ fontSize: 10, fontWeight: 800, color: GOLD, border: `1px solid ${GOLD}55`, borderRadius: 99, padding: '1.5px 7px', marginLeft: 4 }}>MAIN</span>}
+          </div>
+          <div style={{ fontSize: 12.5, color: near ? GOLD : SUB, marginTop: 2 }}>
+            {has ? `${t('Collected')} ${(awards.find(a => a.badge_id === b.id)?.created_at || '').slice(0, 10)}`
+              : near ? `${t("You're here")} · ${fmtDist(d)}`
+              : d != null ? `${fmtDist(d)} ${t('away')}` : b.category}
+          </div>
+        </div>
+        {near && (
+          <button onClick={() => startCollect(b)} disabled={busy}
+            style={{ background: 'linear-gradient(135deg,#F6E39B,#E3C36B 60%,#C9A227)', color: '#1A1405',
+              fontSize: 13.5, fontWeight: 800, padding: '11px 16px', borderRadius: 999, border: 'none',
+              cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 4px 14px rgba(227,195,107,0.35)', opacity: busy ? 0.6 : 1 }}>
+            📷 {t('Take photo')}
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  const closeBy = BADGES.filter(b => !owned.has(b.id)).map(b => [b, distTo(b)])
+    .filter(([, d]) => d != null && d <= CLOSE_BY_M).sort((a, b2) => a[1] - b2[1])
+  const missing = BADGES.filter(b => !owned.has(b.id))
+    .sort((a, b2) => (distTo(a) ?? 1e9) - (distTo(b2) ?? 1e9))
+
+  return createPortal(
+    <div style={{ position: 'fixed', inset: 0, zIndex: 6000, background: '#090D13', display: 'flex', flexDirection: 'column',
+      fontFamily: "-apple-system,'SF Pro Text','Helvetica Neue',sans-serif" }}>
+      <style>{`
+        @keyframes badge-beep { 0%,100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(227,195,107,0.5); }
+          50% { transform: scale(1.18); box-shadow: 0 0 0 12px rgba(227,195,107,0); } }
+        @keyframes badge-strike-spin { 0% { transform: rotateY(0deg) scale(0.6); filter: brightness(3); }
+          60% { transform: rotateY(720deg) scale(1.06); filter: brightness(1.4); }
+          100% { transform: rotateY(720deg) scale(1); filter: brightness(1); } }
+        @keyframes badge-flash { 0% { opacity: 1; } 100% { opacity: 0; } }
+        @keyframes badge-toast { 0% { transform: translateY(-24px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+      `}</style>
+
+      <input ref={inputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={onFile} />
+
+      {/* top chrome */}
+      <div style={{ padding: 'calc(env(safe-area-inset-top, 0px) + 10px) 14px 0' }}>
+        {seg([['map', t('Map')], ['badges', t('Badges')], ['route', t('Route')], ['photos', t('Photos')]], tab, setTab)}
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
+          <button onClick={onClose} style={{ ...glass, borderRadius: 999, padding: '8px 14px', fontSize: 12.5,
+            color: 'rgba(235,240,245,0.85)', fontFamily: 'inherit', cursor: 'pointer' }}>
+            ‹ NYC Stoop
+          </button>
+          <button onClick={() => setDemoIdx(i => (i + 1) % DEMO_SPOTS.length)}
+            style={{ ...glass, borderRadius: 999, padding: '8px 14px', fontSize: 12, fontFamily: 'inherit', cursor: 'pointer',
+              color: demoIdx ? GOLD : FAINT }}>
+            {demoIdx ? `🧪 ${t('Demo')}: ${DEMO_SPOTS[demoIdx].label}` : `🧪 ${t('Demo off')}`}
+          </button>
+        </div>
+      </div>
+
+      {/* ── MAP ── */}
+      {tab === 'map' && (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div ref={boxRef} style={{ flex: 1, minHeight: 200, margin: '10px 0 0', background: '#090D13' }} />
+          <div style={{ ...glass, borderRadius: '26px 26px 0 0', background: 'rgba(22,27,35,0.88)',
+            padding: '10px 16px calc(env(safe-area-inset-bottom, 0px) + 14px)', maxHeight: '46vh', overflowY: 'auto' }}>
+            <div style={{ width: 40, height: 4.5, borderRadius: 99, background: 'rgba(255,255,255,0.25)', margin: '0 auto 10px' }} />
+            {seg([['mine', t('My badges')], ['missing', t('Missing')]], sheetSeg, setSheetSeg, true)}
+            <div style={{ height: 12 }} />
+            {levelCard}
+            {err && <div style={{ color: '#E08A7A', fontSize: 12.5, padding: '8px 2px 0' }}>{err}</div>}
+            {sheetSeg === 'mine' ? (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '14px 0 4px' }}>
+                  <span style={{ fontSize: 15.5, fontWeight: 800, color: TXT }}>{t('Close by')}</span>
+                  <span style={{ fontSize: 12, color: FAINT }}>{t('within 900 m')}</span>
+                </div>
+                {closeBy.length ? closeBy.map(([b]) => badgeRow(b))
+                  : <div style={{ fontSize: 13, color: FAINT, padding: '6px 0 10px' }}>{t('Nothing close by — open Missing to see every badge.')}</div>}
+                {awards.length > 0 && (
+                  <>
+                    <div style={{ fontSize: 15.5, fontWeight: 800, color: TXT, padding: '10px 0 4px' }}>{t('Your badges')}</div>
+                    {awards.map(a => byId[a.badge_id]).filter(Boolean).map(b => badgeRow(b))}
+                  </>
+                )}
+              </>
+            ) : (
+              <div style={{ paddingTop: 8 }}>{missing.map(b => badgeRow(b))}</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── BADGES (shelf) ── */}
+      {tab === 'badges' && (
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px calc(env(safe-area-inset-bottom, 0px) + 20px)' }}>
+          {levelCard}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '18px 0 10px' }}>
+            <span style={{ fontSize: 17, fontWeight: 800, color: TXT }}>{t('On the map')}</span>
+            <span style={{ fontSize: 12.5, color: SUB }}>{lv.owned} {t('of')} {lv.total} {t('collected')}</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
+            {BADGES.map(b => {
+              const has = owned.has(b.id)
+              const d = distTo(b)
+              return (
+                <div key={b.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                  <Medallion badge={b} size={92} struck={has} />
+                  <div style={{ fontSize: 12, fontWeight: 700, color: TXT, textAlign: 'center' }}>{b.name}</div>
+                  <div style={{ fontSize: 11, color: has ? GOLD : b.main ? GOLD : FAINT }}>
+                    {has ? t('Collected') : b.main ? t('Main spot') : d != null ? fmtDist(d) : ''}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── placeholders ── */}
+      {(tab === 'route' || tab === 'photos') && (
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: FAINT, fontSize: 14, padding: 30, textAlign: 'center' }}>
+          {tab === 'route' ? t('Routes arrive with the full catalog (Phase B).') : t('Stamps & photos arrive in Phase C.')}
+        </div>
+      )}
+
+      {/* strike overlay */}
+      {struckBadge && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 6500, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(9,13,19,0.85)' }}>
+          <div style={{ position: 'absolute', inset: 0, background: '#fff', animation: 'badge-flash 0.35s ease-out forwards' }} />
+          <Medallion badge={struckBadge} size={210} struck spinning />
+        </div>
+      )}
+
+      {/* visibility prompt */}
+      {visPrompt && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 6600, display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+          background: 'rgba(9,13,19,0.6)', padding: '0 14px calc(env(safe-area-inset-bottom, 0px) + 24px)' }}>
+          <div style={{ ...glass, background: 'rgba(22,27,35,0.94)', borderRadius: 30, padding: '20px 18px', width: '100%', maxWidth: 400 }}>
+            <div style={{ textAlign: 'center', marginBottom: 4 }}><Medallion badge={visPrompt} size={64} struck /></div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: TXT, textAlign: 'center', marginBottom: 14 }}>{t('Who can see this badge?')}</div>
+            <button onClick={() => answerVisibility('public')}
+              style={{ display: 'block', width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 16, padding: '13px 15px', cursor: 'pointer', fontFamily: 'inherit', marginBottom: 9 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: TXT }}>🌐 {t('Public')}</div>
+              <div style={{ fontSize: 12.5, color: SUB, marginTop: 3 }}>{t('Friends can see this badge on your Stoop.')}</div>
+            </button>
+            <button onClick={() => answerVisibility('private')}
+              style={{ display: 'block', width: '100%', textAlign: 'left', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: 16, padding: '13px 15px', cursor: 'pointer', fontFamily: 'inherit' }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: TXT }}>🔒 {t('Private')}</div>
+              <div style={{ fontSize: 12.5, color: SUB, marginTop: 3 }}>{t('Only you can see it.')}</div>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* level toast */}
+      {toast && (
+        <div style={{ position: 'fixed', top: 'calc(env(safe-area-inset-top, 0px) + 70px)', left: '50%', transform: 'translateX(-50%)',
+          zIndex: 6700, animation: 'badge-toast 0.35s ease-out' }}>
+          <div style={{ ...glass, background: 'rgba(22,27,35,0.95)', borderRadius: 18, padding: '12px 22px', textAlign: 'center' }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: GOLD }}>{toast.line1}</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: TXT, marginTop: 2 }}>{toast.line2}</div>
+          </div>
+        </div>
+      )}
+    </div>, document.body)
+}

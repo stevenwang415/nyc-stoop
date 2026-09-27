@@ -153,6 +153,24 @@ class ShareLike(Base):
     __table_args__ = (UniqueConstraint("photo_id", "user_id", name="uq_like_photo_user"),)
 
 
+class BadgeAward(Base):
+    """v3 badges prototype: one row per (user, badge). The catalog is static
+    (share.py BADGE_CATALOG); the server enforces the 200 m collect radius."""
+    __tablename__ = "badge_awards"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    badge_id: Mapped[str] = mapped_column(String(24), nullable=False, index=True)
+    visibility: Mapped[str] = mapped_column(String(8), nullable=False, default="public")
+    image_key: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
+    thumb_key: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
+    image_b64: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    thumb_b64: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (UniqueConstraint("user_id", "badge_id", name="uq_badge_award"),)
+
+
 class PushToken(Base):
     """APNs device token per install (2026-09-24). A user can hold several
     (iPhone + iPad); tokens are pruned when APNs reports them dead (410)."""

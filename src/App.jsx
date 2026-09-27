@@ -26,6 +26,8 @@ import { Filesystem, Directory } from '@capacitor/filesystem'
 // that aren't in our curated catalog. Falls back gracefully if the key is unset.
 import { isGooglePlacesAvailable, searchGooglePlaces, getGooglePlaceDetails, getPlacePhotoByName } from './lib/googlePlaces'
 import TodayStrip from './share/TodayStrip.jsx'
+import BadgeDoor from './badges/BadgeDoor.jsx'
+import BadgeWorld from './badges/BadgeWorld.jsx'
 import { fetchThisWeek, getThisWeekCached, eventMapsUrl, eventOfficialUrl, eventSearchUrl } from './lib/nycEvents'
 import { fetchTicketmaster } from './lib/ticketmaster'
 import { parseTakeoutFile } from './lib/googleTakeout'
@@ -17960,6 +17962,7 @@ export default function App() {
 
   // ── Auth — token + user cached in localStorage by ./auth/api ────────────
   const [user, setUserState] = useState(() => getUser())
+  const [badgeWorldOpen, setBadgeWorldOpen] = useState(false) // v3 badges prototype
   // Migration for installs that predate per-account workspaces: if someone is
   // already signed in but no active-profile flag exists, adopt the device's
   // current data as THEIR workspace (don't orphan it to 'guest').
@@ -18808,6 +18811,9 @@ export default function App() {
         savedCount={Object.keys(savedItems).length}
         onAddPlace={() => setAddPlaceOpen(true)}
       />
+      {/* v3 Badges prototype: the door lives on the Map tab only. */}
+      {activeTab === 'map' && user && !badgeWorldOpen && <BadgeDoor onOpen={() => setBadgeWorldOpen(true)} />}
+      {badgeWorldOpen && <BadgeWorld onClose={() => setBadgeWorldOpen(false)} />}
       {/* First-time-user onboarding overlay */}
       {showOnboarding && <OnboardingModal onDismiss={dismissOnboarding} />}
       {/* One maps chooser for every "open in maps" action app-wide. */}
