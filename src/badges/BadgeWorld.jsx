@@ -10,6 +10,9 @@ import { prepareImage, thumbSrc } from '../share/shareApi.js'
 import { BADGES, byId, FINISHES, COLLECT_RADIUS_M, CLOSE_BY_M, distanceM, fmtDist, levelState } from './catalog.js'
 import { myAwards, collectBadge, setBadgeVisibility } from './badgesApi.js'
 import Medallion from './Medallion.jsx'
+import BadgeDetail from './BadgeDetail.jsx'
+import RoutesTab, { AddToRouteSheet } from './RoutesTab.jsx'
+import PhotosTab from './PhotosTab.jsx'
 
 const GOLD = '#E3C36B'
 const TXT = '#F2F4F7'
@@ -56,6 +59,9 @@ export default function BadgeWorld({ onClose }) {
   const [struckBadge, setStruckBadge] = React.useState(null) // strike animation overlay
   const [visPrompt, setVisPrompt] = React.useState(null)     // badge awaiting Public/Private
   const [toast, setToast] = React.useState(null)
+  const [detail, setDetail] = React.useState(null)        // badge in the detail sheet
+  const [addRoute, setAddRoute] = React.useState(null)    // badge in the add-to-route sheet
+  const [activeRoute, setActiveRoute] = React.useState(null) // { key, name, stops }
   const [err, setErr] = React.useState('')
   const inputRef = React.useRef(null)
   const boxRef = React.useRef(null)
@@ -117,9 +123,25 @@ export default function BadgeWorld({ onClose }) {
       }
       const layer = map._pins
       layer.clearLayers()
+      const routeSet = activeRoute ? new Set(activeRoute.stops) : null
+      if (activeRoute) {
+        const pts = activeRoute.stops.map(id => [byId[id].lat, byId[id].lng])
+        L.polyline(pts, { color: '#E3C36B', weight: 6, opacity: 0.35 }).addTo(layer)
+        L.polyline(pts, { color: '#E3C36B', weight: 2.5, opacity: 0.95 }).addTo(layer)
+        activeRoute.stops.forEach((id, i) => {
+          const b2 = byId[id]
+          const done = owned.has(id)
+          L.marker([b2.lat, b2.lng], { zIndexOffset: 400, icon: L.divIcon({ className: '', iconSize: [24, 24], iconAnchor: [12, 12],
+            html: `<div style="width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+              font:800 12px -apple-system,sans-serif;background:${done ? '#E3C36B' : '#1A1F27'};
+              color:${done ? '#1A1405' : '#F2F4F7'};border:2px solid #E3C36B">${done ? '\u2713' : i + 1}</div>` }) })
+            .addTo(layer).on('click', () => setDetail(b2))
+        })
+      }
       for (const b of BADGES) {
         const has = owned.has(b.id)
         const near = !has && inRange(b)
+        const dim = routeSet && !routeSet.has(b.id)
         const f = FINISHES[b.finish]
         const html = has
           ? `<div style="position:relative;width:26px;height:26px">
@@ -132,10 +154,17 @@ export default function BadgeWorld({ onClose }) {
              </div>`
           : `<div style="width:24px;height:24px;border-radius:50%;border:4.5px solid #8C949F;
                ${near ? 'animation:badge-beep 1.6s ease-in-out infinite;border-color:' + GOLD + ';' : ''}"></div>`
-        const icon = L.divIcon({ className: '', iconSize: [26, 26], iconAnchor: [13, 13], html })
+        if (routeSet && routeSet.has(b.id)) continue // route pins drawn above
+        const icon = L.divIcon({ className: '', iconSize: [26, 26], iconAnchor: [13, 13],
+          html: dim ? `<div style="opacity:0.28">${html}</div>` : html })
         L.marker([b.lat, b.lng], { icon }).addTo(layer)
-          .on('click', () => { if (!has && inRange(b)) startCollect(b) })
+          .on('click', () => setDetail(b))
       }
+      if (activeRoute && !map._routeFit) {
+        try { map.fitBounds(L.latLngBounds(activeRoute.stops.map(id => [byId[id].lat, byId[id].lng])).pad(0.3)) } catch {}
+        map._routeFit = true
+      }
+      if (!activeRoute) map._routeFit = false
       if (loc) {
         const uicon = L.divIcon({ className: '', iconSize: [20, 20], iconAnchor: [10, 10],
           html: `<div style="width:20px;height:20px;border-radius:50%;background:#0A84FF;border:3.5px solid #fff;box-shadow:0 0 10px rgba(10,132,255,0.8)"></div>` })
@@ -144,7 +173,7 @@ export default function BadgeWorld({ onClose }) {
     })
     return () => { dead = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, awards, demoIdx, gps])
+  }, [tab, awards, demoIdx, gps, activeRoute])
 
   React.useEffect(() => () => { if (mapRef.current) { try { mapRef.current.remove() } catch {}; mapRef.current = null } }, [])
 
@@ -327,25 +356,71 @@ export default function BadgeWorld({ onClose }) {
               const has = owned.has(b.id)
               const d = distTo(b)
               return (
-                <div key={b.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                <button key={b.id} onClick={() => setDetail(b)}
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+                    background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}>
                   <Medallion badge={b} size={92} struck={has} />
                   <div style={{ fontSize: 12, fontWeight: 700, color: TXT, textAlign: 'center' }}>{b.name}</div>
                   <div style={{ fontSize: 11, color: has ? GOLD : b.main ? GOLD : FAINT }}>
                     {has ? t('Collected') : b.main ? t('Main spot') : d != null ? fmtDist(d) : ''}
                   </div>
-                </div>
+                </button>
               )
             })}
           </div>
         </div>
       )}
 
-      {/* ── placeholders ── */}
-      {(tab === 'route' || tab === 'photos') && (
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: FAINT, fontSize: 14, padding: 30, textAlign: 'center' }}>
-          {tab === 'route' ? t('Routes arrive with the full catalog (Phase B).') : t('Stamps & photos arrive in Phase C.')}
-        </div>
+      {/* ── ROUTE ── */}
+      {tab === 'route' && (
+        <RoutesTab owned={owned} loc={loc} activeRoute={activeRoute}
+          onStartRoute={(r) => { setActiveRoute(r); setTab('map') }}
+          onEndRoute={() => setActiveRoute(null)}
+          openBadge={(b) => setDetail(b)} />
       )}
+
+      {/* ── PHOTOS ── */}
+      {tab === 'photos' && <PhotosTab awards={awards} />}
+
+      {/* active-route banner on the map */}
+      {tab === 'map' && activeRoute && (() => {
+        const next = activeRoute.stops.map(id => byId[id]).find(b => !owned.has(b.id))
+        return (
+          <div style={{ position: 'absolute', left: 14, right: 14, top: 'calc(env(safe-area-inset-top, 0px) + 108px)', zIndex: 30 }}>
+            <div style={{ ...glass, background: 'rgba(22,27,35,0.9)', borderRadius: 16, padding: '10px 14px',
+              display: 'flex', alignItems: 'center', gap: 11 }}>
+              {next && <Medallion badge={next} size={38} struck={false} />}
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 800, color: TXT }}>
+                  {next ? `${t('Next')}: ${next.name}` : t('Route complete!')} 
+                </div>
+                <div style={{ fontSize: 11, color: SUB }}>{activeRoute.name}{next && distTo(next) != null ? ` · ${fmtDist(distTo(next))}` : ''}</div>
+              </div>
+              <button onClick={() => setActiveRoute(null)}
+                style={{ background: 'none', border: 'none', color: FAINT, fontSize: 15, cursor: 'pointer' }}>✕</button>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* badge detail sheet */}
+      {detail && (
+        <BadgeDetail badge={detail} award={awards.find(a => a.badge_id === detail.id) || null}
+          dist={distTo(detail)}
+          progressLine={`Badge ${lv.owned} of ${lv.total} \u00b7 ${lv.currentName}`}
+          onClose={() => setDetail(null)}
+          onTakePhoto={() => { const b = detail; setDetail(null); startCollect(b) }}
+          onVisibility={(v) => {
+            setBadgeVisibility(detail.id, v).catch(() => {})
+            setAwards(a => a.map(x => x.badge_id === detail.id ? { ...x, visibility: v } : x))
+          }}
+          onAddToRoute={() => setAddRoute(detail)}
+          onShowOnMap={() => {
+            const b = detail; setDetail(null); setTab('map')
+            setTimeout(() => { try { mapRef.current?.setView([b.lat, b.lng], 15) } catch {} }, 250)
+          }} />
+      )}
+      {addRoute && <AddToRouteSheet badge={addRoute} onClose={() => setAddRoute(null)} />}
 
       {/* strike overlay */}
       {struckBadge && (

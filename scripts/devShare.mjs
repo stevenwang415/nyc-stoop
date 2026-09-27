@@ -258,7 +258,7 @@ export function devSharePlugin() {
           return 2 * 6371000 * Math.asin(Math.sqrt(x))
         }
         db.badgeAwards = db.badgeAwards || []
-        const awardMeta = (a) => ({ badge_id: a.badge_id, visibility: a.visibility, created_at: a.created_at, thumb_url: null, thumb_b64: a.thumb_b64 })
+        const awardMeta = (a) => ({ badge_id: a.badge_id, visibility: a.visibility, created_at: a.created_at, thumb_url: null, thumb_b64: a.thumb_b64, image_url: null, image_b64: a.image_b64 })
         if (url === '/share/badges/mine' && m === 'GET') {
           return json(res, 200, { awards: db.badgeAwards.filter(a => String(a.user_id) === String(user.id)).map(awardMeta) })
         }

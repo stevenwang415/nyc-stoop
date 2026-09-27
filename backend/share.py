@@ -859,9 +859,11 @@ def _badge_distance_m(lat1, lng1, lat2, lng2) -> float:
 
 def _award_meta(a: BadgeAward) -> dict:
     thumb_url = r2_url(a.thumb_key) if (r2_enabled() and a.thumb_key) else None
+    image_url = r2_url(a.image_key) if (r2_enabled() and a.image_key) else None
     return {"badge_id": a.badge_id, "visibility": a.visibility,
             "created_at": a.created_at.isoformat() if a.created_at else None,
-            "thumb_url": thumb_url, "thumb_b64": (a.thumb_b64 if not thumb_url else None)}
+            "thumb_url": thumb_url, "thumb_b64": (a.thumb_b64 if not thumb_url else None),
+            "image_url": image_url, "image_b64": (a.image_b64 if not image_url else None)}
 
 
 class BadgeCollectIn(BaseModel):
