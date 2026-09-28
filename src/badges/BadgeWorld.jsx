@@ -13,6 +13,9 @@ import Medallion from './Medallion.jsx'
 import BadgeDetail from './BadgeDetail.jsx'
 import RoutesTab, { AddToRouteSheet } from './RoutesTab.jsx'
 import PhotosTab from './PhotosTab.jsx'
+import Stamp from './Stamp.jsx'
+import BadgeShareSheet, { awardPhotoSrc } from './BadgeShareSheet.jsx'
+import { getUser } from '../auth/api.js'
 
 const GOLD = '#E3C36B'
 const TXT = '#F2F4F7'
@@ -62,6 +65,11 @@ export default function BadgeWorld({ onClose }) {
   const [detail, setDetail] = React.useState(null)        // badge in the detail sheet
   const [addRoute, setAddRoute] = React.useState(null)    // badge in the add-to-route sheet
   const [activeRoute, setActiveRoute] = React.useState(null) // { key, name, stops }
+  const [selPin, setSelPin] = React.useState(null)        // collected badge bubble on the map
+  const [share, setShare] = React.useState(null)          // { badge, award, initial }
+  const [photosAutoOpen, setPhotosAutoOpen] = React.useState(null)
+  const selPinClear = React.useRef(null)
+  selPinClear.current = () => setSelPin(null)
   const [err, setErr] = React.useState('')
   const inputRef = React.useRef(null)
   const boxRef = React.useRef(null)
@@ -118,6 +126,7 @@ export default function BadgeWorld({ onClose }) {
           { attribution: '&copy; OpenStreetMap', maxZoom: 19, className: 'badge-dark-tiles' }).addTo(map)
         map.setView([40.7420, -73.9880], 13)
         map._pins = L.layerGroup().addTo(map)
+        map.on('click', () => selPinClear.current?.())
         mapRef.current = map
         setTimeout(() => { try { map.invalidateSize() } catch {} }, 60)
       }
@@ -159,7 +168,10 @@ export default function BadgeWorld({ onClose }) {
         const icon = L.divIcon({ className: '', iconSize: [26, 26], iconAnchor: [13, 13],
           html: dim ? `<div style="opacity:0.28">${html}</div>` : html })
         L.marker([b.lat, b.lng], { icon }).addTo(layer)
-          .on('click', () => setDetail(b))
+          .on('click', () => {
+            if (has) { setSelPin(b); try { map.setView([b.lat, b.lng], Math.max(map.getZoom(), 14)) } catch {} }
+            else setDetail(b)
+          })
       }
       if (activeRoute && !map._routeFit) {
         try { map.fitBounds(L.latLngBounds(activeRoute.stops.map(id => [byId[id].lat, byId[id].lng])).pad(0.3)) } catch {}
@@ -388,13 +400,50 @@ export default function BadgeWorld({ onClose }) {
       )}
 
       {/* ── PHOTOS ── */}
-      {tab === 'photos' && <PhotosTab awards={awards} />}
+      {tab === 'photos' && (
+        <PhotosTab awards={awards}
+          onShare={(badge, award, initial) => setShare({ badge, award, initial })}
+          onOpenBadge={(b) => setDetail(b)}
+          autoOpen={photosAutoOpen} onAutoOpened={() => setPhotosAutoOpen(null)} />
+      )}
+
+      {/* selected collected pin — badge bubble (mockup §Map) */}
+      {tab === 'map' && selPin && (() => {
+        const award = awards.find(a => a.badge_id === selPin.id)
+        if (!award) return null
+        const me = getUser()?.display_name || 'Me'
+        return (
+          <div style={{ position: 'absolute', left: 0, right: 0, top: 'calc(env(safe-area-inset-top, 0px) + 150px)', zIndex: 900,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', pointerEvents: 'none' }}>
+            <div style={{ position: 'relative', pointerEvents: 'auto', animation: 'badge-toast 0.42s cubic-bezier(0.3,1.5,0.5,1)' }}>
+              <button onClick={() => { setSelPin(null); setDetail(selPin) }} aria-label={`Open ${selPin.name} badge`}
+                style={{ ...glass, width: 92, height: 92, borderRadius: 46, border: 'none', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, background: 'rgba(30,36,46,0.72)' }}>
+                <Medallion badge={selPin} size={76} struck />
+              </button>
+              <button onClick={() => { setSelPin(null); setTab('photos'); setPhotosAutoOpen(selPin.id) }}
+                aria-label={`Open your photos at ${selPin.name}`}
+                style={{ position: 'absolute', left: -34, bottom: -14, border: 'none', background: 'none', padding: 0,
+                  cursor: 'pointer', transform: 'rotate(-8deg)', filter: 'drop-shadow(0 6px 10px rgba(0,0,0,0.6))' }}>
+                <Stamp src={awardPhotoSrc(award)} place={selPin.name} owner={me} width={48} />
+              </button>
+              <button onClick={() => setShare({ badge: selPin, award, initial: 'story' })} aria-label={`Share ${selPin.name}`}
+                style={{ ...glass, position: 'absolute', right: -46, top: 26, width: 40, height: 40, borderRadius: 20,
+                  border: 'none', color: TXT, fontSize: 15, cursor: 'pointer', background: 'rgba(30,36,46,0.72)' }}>↥</button>
+            </div>
+            <div style={{ ...glass, marginTop: 14, borderRadius: 999, padding: '6px 13px', fontSize: 12.5, fontWeight: 700,
+              color: TXT, background: 'rgba(30,36,46,0.8)', pointerEvents: 'auto' }}>
+              {selPin.name}
+            </div>
+          </div>
+        )
+      })()}
 
       {/* active-route banner on the map */}
       {tab === 'map' && activeRoute && (() => {
         const next = activeRoute.stops.map(id => byId[id]).find(b => !owned.has(b.id))
         return (
-          <div style={{ position: 'absolute', left: 14, right: 14, top: 'calc(env(safe-area-inset-top, 0px) + 108px)', zIndex: 30 }}>
+          <div style={{ position: 'absolute', left: 14, right: 14, top: 'calc(env(safe-area-inset-top, 0px) + 108px)', zIndex: 900 }}>
             <div style={{ ...glass, background: 'rgba(22,27,35,0.9)', borderRadius: 16, padding: '10px 14px',
               display: 'flex', alignItems: 'center', gap: 11 }}>
               {next && <Medallion badge={next} size={38} struck={false} />}
@@ -417,6 +466,7 @@ export default function BadgeWorld({ onClose }) {
           dist={distTo(detail)}
           progressLine={`Badge ${lv.owned} of ${lv.total} \u00b7 ${lv.currentName}`}
           onClose={() => setDetail(null)}
+          onShare={(badge, award, initial) => setShare({ badge, award, initial })}
           onTakePhoto={() => { const b = detail; setDetail(null); startCollect(b) }}
           onVisibility={(v) => {
             setBadgeVisibility(detail.id, v).catch(() => {})
@@ -429,6 +479,11 @@ export default function BadgeWorld({ onClose }) {
           }} />
       )}
       {addRoute && <AddToRouteSheet badge={addRoute} onClose={() => setAddRoute(null)} />}
+      {share && (
+        <BadgeShareSheet badge={share.badge} award={share.award} initial={share.initial}
+          progressLine={`Badge ${lv.owned} of ${lv.total} \u00b7 ${lv.currentName}`}
+          onClose={() => setShare(null)} />
+      )}
 
       {/* strike overlay */}
       {struckBadge && (

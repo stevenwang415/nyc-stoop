@@ -42,7 +42,7 @@ function BadgeBack({ badge, size }) {
   )
 }
 
-export default function BadgeDetail({ badge, award, dist, onClose, onTakePhoto, onVisibility, onAddToRoute, onShowOnMap, progressLine }) {
+export default function BadgeDetail({ badge, award, dist, onClose, onTakePhoto, onVisibility, onAddToRoute, onShowOnMap, onShare, progressLine }) {
   const [flipped, setFlipped] = React.useState(false)
   const [busyShare, setBusyShare] = React.useState(false)
   const has = !!award
@@ -50,14 +50,11 @@ export default function BadgeDetail({ badge, award, dist, onClose, onTakePhoto, 
   const near = dist != null && dist <= collectRadius(badge) && open
   const photo = award && (award.image_url || (award.image_b64 ? 'data:image/jpeg;base64,' + award.image_b64 : null) || award.thumb_url || (award.thumb_b64 ? 'data:image/jpeg;base64,' + award.thumb_b64 : null))
 
-  const doShare = async () => {
-    if (busyShare) return
+  const doShare = () => { if (onShare) onShare(badge, award, 'story'); else if (!busyShare) {
     setBusyShare(true)
-    try {
-      await shareStory({ badge, photoSrc: photo, owner: getUser()?.display_name || 'Me',
-        dateLabel: (award?.created_at || '').slice(0, 10), progressLine })
-    } finally { setBusyShare(false) }
-  }
+    shareStory({ badge, photoSrc: photo, owner: getUser()?.display_name || 'Me',
+      dateLabel: (award?.created_at || '').slice(0, 10), progressLine }).finally(() => setBusyShare(false))
+  } }
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 6400, display: 'flex', alignItems: 'flex-end', background: 'rgba(9,13,19,0.6)' }}

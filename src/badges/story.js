@@ -119,3 +119,55 @@ export async function shareStory(args) {
   setTimeout(() => URL.revokeObjectURL(url), 5000)
   return 'downloaded'
 }
+
+
+// ── Standalone stamp PNG (1200 px wide, spec §9) ────────────────────────────
+export async function renderStampPng({ badgeName, photoSrc, owner }) {
+  const SW = 1200, SH = Math.round(SW * 1.38)
+  const cv = document.createElement('canvas'); cv.width = SW; cv.height = SH
+  const ctx = cv.getContext('2d')
+  ctx.fillStyle = '#F4EFE4'; ctx.fillRect(0, 0, SW, SH)
+  // perforation
+  ctx.globalCompositeOperation = 'destination-out'
+  const step = 88, R = 30
+  for (let x = step / 2; x < SW; x += step) { ctx.beginPath(); ctx.arc(x, 0, R, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(x, SH, R, 0, 7); ctx.fill() }
+  for (let y = step / 2; y < SH; y += step) { ctx.beginPath(); ctx.arc(0, y, R, 0, 7); ctx.fill(); ctx.beginPath(); ctx.arc(SW, y, R, 0, 7); ctx.fill() }
+  ctx.globalCompositeOperation = 'source-over'
+  // photo
+  const PM = 84, PW = SW - PM * 2, PH = Math.round(PW * 4 / 3)
+  if (photoSrc) {
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = photoSrc }).catch(() => null)
+    if (img) {
+      const sc = Math.max(PW / img.width, PH / img.height)
+      ctx.save(); ctx.beginPath(); ctx.rect(PM, PM, PW, PH); ctx.clip()
+      ctx.drawImage(img, PM + (PW - img.width * sc) / 2, PM + (PH - img.height * sc) / 2, img.width * sc, img.height * sc)
+      ctx.restore()
+    }
+  }
+  ctx.strokeStyle = 'rgba(29,33,40,0.2)'; ctx.lineWidth = 4; ctx.strokeRect(PM, PM, PW, PH)
+  // caption band
+  const y0 = PM + PH
+  ctx.textAlign = 'left'
+  ctx.fillStyle = '#1D2128'; ctx.font = '700 64px -apple-system, sans-serif'; ctx.fillText(badgeName, PM, y0 + 96)
+  ctx.fillStyle = '#4E545D'; ctx.font = '500 50px -apple-system, sans-serif'; ctx.fillText(owner, PM, y0 + 168)
+  ctx.fillStyle = '#8A8F96'; ctx.font = '400 40px -apple-system, sans-serif'; ctx.fillText('Taken on NYC Stoop', PM, y0 + 232)
+  return new Promise(res => cv.toBlob(b => res(b), 'image/png'))
+}
+
+export async function photoBlob(photoSrc) {
+  const r = await fetch(photoSrc)
+  return r.blob()
+}
+
+// Share any blob via the system sheet; download fallback. Returns
+// 'shared' | 'cancelled' | 'downloaded'.
+export async function shareBlob(blob, name, title) {
+  const file = new File([blob], name, { type: blob.type || 'image/png' })
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title }); return 'shared' } catch { return 'cancelled' }
+  }
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a'); a.href = url; a.download = name; a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 5000)
+  return 'downloaded'
+}
