@@ -399,9 +399,14 @@ def create_photo(body: PhotoIn, user: User = Depends(get_current_user), db: Sess
     db.refresh(p)
     if first_of_group:
         _name = user.display_name or user.email.split("@")[0]
-        _where = p.place_name or p.area_label
-        _push_to_users(db, _accepted_friend_ids(db, user.id), "NYC Stoop",
-                       f"{_name} added a photo" + (f" \u00b7 {_where}" if _where else ""))
+        if p.today_date:
+            # The daily ritual deserves its own words — and its own FOMO.
+            _push_to_users(db, _accepted_friend_ids(db, user.id), "NYC Stoop",
+                           f"{_name} posted their Today in NYC \U0001F4F8")
+        else:
+            _where = p.place_name or p.area_label
+            _push_to_users(db, _accepted_friend_ids(db, user.id), "NYC Stoop",
+                           f"{_name} added a photo" + (f" \u00b7 {_where}" if _where else ""))
     return {"ok": True, "photo": _inline_thumbs([_photo_meta(p, _public_user(user))], [p])[0]}
 
 
