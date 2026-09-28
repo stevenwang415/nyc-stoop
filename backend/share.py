@@ -402,7 +402,7 @@ def create_photo(body: PhotoIn, user: User = Depends(get_current_user), db: Sess
         if p.today_date:
             # The daily ritual deserves its own words — and its own FOMO.
             _push_to_users(db, _accepted_friend_ids(db, user.id), "NYC Stoop",
-                           f"{_name} posted their Today in NYC \U0001F4F8")
+                           f"{_name} posted their Today in NYC 📸")
         else:
             _where = p.place_name or p.area_label
             _push_to_users(db, _accepted_friend_ids(db, user.id), "NYC Stoop",
