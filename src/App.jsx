@@ -27,6 +27,7 @@ import { Filesystem, Directory } from '@capacitor/filesystem'
 import { isGooglePlacesAvailable, searchGooglePlaces, getGooglePlaceDetails, getPlacePhotoByName } from './lib/googlePlaces'
 import TodayStrip from './share/TodayStrip.jsx'
 import BadgeDoor from './badges/BadgeDoor.jsx'
+import { badgesEnabled } from './badges/catalog.js'
 import BadgeWorld from './badges/BadgeWorld.jsx'
 import { fetchThisWeek, getThisWeekCached, eventMapsUrl, eventOfficialUrl, eventSearchUrl } from './lib/nycEvents'
 import { fetchTicketmaster } from './lib/ticketmaster'
@@ -18812,7 +18813,7 @@ export default function App() {
         onAddPlace={() => setAddPlaceOpen(true)}
       />
       {/* v3 Badges prototype: the door lives on the Map tab only. */}
-      {activeTab === 'map' && user && !badgeWorldOpen && <BadgeDoor onOpen={() => setBadgeWorldOpen(true)} />}
+      {activeTab === 'map' && user && !badgeWorldOpen && badgesEnabled() && <BadgeDoor onOpen={() => setBadgeWorldOpen(true)} />}
       {badgeWorldOpen && <BadgeWorld onClose={() => setBadgeWorldOpen(false)} />}
       {/* First-time-user onboarding overlay */}
       {showOnboarding && <OnboardingModal onDismiss={dismissOnboarding} />}

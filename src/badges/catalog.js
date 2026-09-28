@@ -66,3 +66,11 @@ export function levelState(ownedIds) {
   return { current, currentName: current === 0 ? 'Just arrived' : LEVELS[current - 1].name,
     next, owned: owned.size, total: nonSeasonal.length, levels: LEVELS }
 }
+
+// Beta gate (2026-09-28): badges stay invisible in production until launch.
+// Dev builds always on; a tester can flip it with
+// localStorage.setItem('nyc_badges_beta', '1') in the console.
+export function badgesEnabled() {
+  if (import.meta.env.DEV) return true
+  try { return localStorage.getItem('nyc_badges_beta') === '1' } catch { return false }
+}
