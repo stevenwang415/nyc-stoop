@@ -50,7 +50,7 @@ export default function BadgeDetail({ badge, award, dist, onClose, onTakePhoto, 
         backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', display: 'flex', alignItems: 'flex-end' }}>
       <div onClick={e => e.stopPropagation()}
         style={{ ...glass, margin: 8, marginBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)',
-          width: 'calc(100% - 16px)', maxHeight: 'calc(100% - 60px)', overflowY: 'auto',
+          width: 'calc(100% - 16px)', maxHeight: 'calc(100% - env(safe-area-inset-top, 0px) - 74px)', overflowY: 'auto',
           borderRadius: 38, padding: '14px 20px 20px', boxSizing: 'border-box' }}>
 
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
