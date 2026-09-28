@@ -55,7 +55,6 @@ export default function BadgeWorld({ onClose }) {
   const [demoIdx, setDemoIdx] = React.useState(0)
   const [gps, setGps] = React.useState(null)
   const [collecting, setCollecting] = React.useState(null) // badge being photographed
-  const [shot, setShot] = React.useState(null) // { f, url, badge } — photo awaiting review
   const [busy, setBusy] = React.useState(false)
   const [struckBadge, setStruckBadge] = React.useState(null) // strike animation overlay
   const [visPrompt, setVisPrompt] = React.useState(null)     // badge awaiting Public/Private
@@ -181,31 +180,25 @@ export default function BadgeWorld({ onClose }) {
 
   // ── Collect flow ──
   const startCollect = (b) => { setErr(''); setCollecting(b); inputRef.current?.click() }
-  // Shot review (Steven, 2026-09-28): the photo shows FIRST — Retake or Use
-  // photo — and only a confirmed photo earns the strike ceremony.
-  const onFile = (e) => {
+  // The iOS system camera's own Retake / Use Photo screen is the review
+  // step (Steven, 2026-09-28) — a confirmed photo lands here and strikes.
+  const onFile = async (e) => {
     const f = e.target.files?.[0]; e.target.value = ''
     const b = collecting
-    if (!f || !b) return
-    setShot(prev => { if (prev?.url) URL.revokeObjectURL(prev.url); return { f, url: URL.createObjectURL(f), badge: b } })
-  }
-  const confirmShot = async () => {
-    if (!shot || busy) return
+    if (!f || !b || busy) return
     setBusy(true)
     try {
-      const { image_b64, thumb_b64 } = await prepareImage(shot.f)
+      const { image_b64, thumb_b64 } = await prepareImage(f)
       levelBefore.current = levelState([...owned]).current
-      const r = await collectBadge({ badge_id: shot.badge.id, lat: loc?.lat, lng: loc?.lng, image_b64, thumb_b64 })
+      const r = await collectBadge({ badge_id: b.id, lat: loc?.lat, lng: loc?.lng, image_b64, thumb_b64 })
       setAwards(a => [...a, r.award])
       // The strike stays on screen until the user taps, then hands off to
       // the visibility prompt.
-      setStruckBadge(shot.badge)
-      setShot(null)
+      setStruckBadge(b)
     } catch (e2) {
       setErr(e2.status === 409 ? t('Already collected.')
         : e2.status === 403 ? t('Too far away — get within 200 m.')
         : (e2.message || t('Something went wrong. Please try again.')))
-      setShot(null)
     } finally { setBusy(false); setCollecting(null) }
   }
   const answerVisibility = (vis) => {
@@ -436,38 +429,6 @@ export default function BadgeWorld({ onClose }) {
           }} />
       )}
       {addRoute && <AddToRouteSheet badge={addRoute} onClose={() => setAddRoute(null)} />}
-
-      {/* shot review — Retake / Use photo */}
-      {shot && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 6450, background: 'rgba(9,13,19,0.96)',
-          display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 'calc(env(safe-area-inset-top, 0px) + 14px) 16px 10px' }}>
-            <Medallion badge={shot.badge} size={40} struck={false} />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 15, fontWeight: 800, color: TXT }}>{shot.badge.name}</div>
-              <div style={{ fontSize: 11.5, color: SUB }}>{t('Happy with this photo?')}</div>
-            </div>
-            <button onClick={() => { if (!busy) { setShot(null); setCollecting(null) } }} aria-label="Close"
-              style={{ background: 'none', border: 'none', color: '#EDE6D6', fontSize: 20, cursor: 'pointer' }}>✕</button>
-          </div>
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 14px', minHeight: 0 }}>
-            <img src={shot.url} alt="" style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 14, objectFit: 'contain' }} />
-          </div>
-          <div style={{ display: 'flex', gap: 10, padding: '16px 16px calc(env(safe-area-inset-bottom, 0px) + 22px)' }}>
-            <button onClick={() => { setCollecting(shot.badge); inputRef.current?.click() }} disabled={busy}
-              style={{ flex: 1, padding: '14px 0', borderRadius: 999, border: '1.5px solid #EDE6D6', background: 'none',
-                color: '#EDE6D6', fontFamily: 'inherit', fontSize: 14.5, fontWeight: 700, cursor: 'pointer' }}>
-              📷 {t('Retake')}
-            </button>
-            <button onClick={confirmShot} disabled={busy}
-              style={{ flex: 1, padding: '14px 0', borderRadius: 999, border: 'none',
-                background: 'linear-gradient(135deg,#F6E39B,#E3C36B 60%,#C9A227)', color: '#1A1405',
-                fontFamily: 'inherit', fontSize: 14.5, fontWeight: 800, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
-              {busy ? t('Posting…') : t('Use photo')}
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* strike overlay */}
       {struckBadge && (
