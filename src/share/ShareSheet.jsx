@@ -455,7 +455,7 @@ function StoopMap({ photos, onOpenPhoto }) {
         map = L.map(boxRef.current, { zoomControl: false, attributionControl: true, scrollWheelZoom: false, tap: true })
         // Carto light basemap (same as the app's live map) — muted and label-light,
         // so the photo pins carry the view (Corner-style, 2026-08-25).
-        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19 }).addTo(map)
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors', maxZoom: 19 }).addTo(map)
         map._pinLayer = L.layerGroup().addTo(map)
         map._didFit = false
         mapRef.current = map
