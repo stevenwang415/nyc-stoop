@@ -287,9 +287,13 @@ export default function BadgeWorld({ onClose }) {
         .badge-dark-tiles { filter: invert(1) hue-rotate(180deg) brightness(0.7) contrast(0.9) saturate(0.35); }
         @keyframes badge-beep { 0%,100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(227,195,107,0.5); }
           50% { transform: scale(1.18); box-shadow: 0 0 0 12px rgba(227,195,107,0); } }
-        @keyframes badge-strike-spin { 0% { transform: rotateY(0deg) scale(0.6); filter: brightness(3); }
-          60% { transform: rotateY(720deg) scale(1.06); filter: brightness(1.4); }
-          100% { transform: rotateY(720deg) scale(1); filter: brightness(1); } }
+        /* Strike = two composed animations. SPIN: three full turns whose
+           easing curve decelerates smoothly to zero at 2s — rotation never
+           pauses, so nothing reads as stuck. POP: a springy scale-up with
+           the mint flash, over in 0.7s while the spin keeps going. */
+        @keyframes badge-strike-rot { from { transform: rotateY(0deg); } to { transform: rotateY(1080deg); } }
+        @keyframes badge-strike-pop { 0% { transform: scale(0.4); filter: brightness(3); }
+          100% { transform: scale(1); filter: brightness(1); } }
         @keyframes badge-flash { 0% { opacity: 1; } 100% { opacity: 0; } }
         @keyframes badge-toast { 0% { transform: translateY(-24px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
       `}</style>
@@ -430,7 +434,11 @@ export default function BadgeWorld({ onClose }) {
           style={{ position: 'fixed', inset: 0, zIndex: 6500, display: 'flex', flexDirection: 'column',
             alignItems: 'center', justifyContent: 'center', gap: 22, background: 'rgba(9,13,19,0.92)', cursor: 'pointer' }}>
           <div style={{ position: 'absolute', inset: 0, background: '#fff', animation: 'badge-flash 0.5s ease-out forwards', pointerEvents: 'none' }} />
-          <Medallion badge={struckBadge} size={230} struck spinning />
+          <div style={{ animation: 'badge-strike-pop 0.7s cubic-bezier(0.3,1.4,0.5,1) both' }}>
+            <div style={{ animation: 'badge-strike-rot 2s cubic-bezier(0.15,0.65,0.2,1) both', transformStyle: 'preserve-3d' }}>
+              <Medallion badge={struckBadge} size={230} struck />
+            </div>
+          </div>
           <div style={{ textAlign: 'center', animation: 'badge-toast 0.6s ease-out 1.2s backwards' }}>
             <div style={{ fontSize: 21, fontWeight: 800, color: TXT }}>{struckBadge.name}</div>
             <div style={{ fontSize: 13, color: GOLD, fontWeight: 700, marginTop: 5, letterSpacing: '0.06em' }}>{t('BADGE COLLECTED')}</div>

@@ -30,6 +30,8 @@ export const FALLBACK = {
   iris: 'M0 -16 V8 M-10 -10 L10 2 M10 -10 L-10 2 M-6 -16 L0 -10 L6 -16 M-6 8 L0 2 L6 8', // snowflake
 }
 
+import { ART } from './glyphsArt.js'
+
 export function glyphOf(badge) {
-  return GLYPHS[badge.id] || FALLBACK[badge.finish] || FALLBACK.brass
+  return ART[badge.id] || GLYPHS[badge.id] || FALLBACK[badge.finish] || FALLBACK.brass
 }

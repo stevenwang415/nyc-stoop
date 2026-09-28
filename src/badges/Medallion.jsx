@@ -14,8 +14,7 @@ export default function Medallion({ badge, size = 64, struck = true, spinning = 
   const bottom = badge.main ? '★ MAIN ★' : 'MANHATTAN'
 
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100"
-      style={spinning ? { animation: 'badge-strike-spin 2s cubic-bezier(0.25,0.7,0.3,1)' } : undefined}>
+    <svg width={size} height={size} viewBox="0 0 100 100">
       <defs>
         <linearGradient id={`rim${uid}`} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor={f.hi} /><stop offset="0.38" stopColor={f.base} />
@@ -35,10 +34,18 @@ export default function Medallion({ badge, size = 64, struck = true, spinning = 
           <text fontFamily={SERIF} fontSize={badge.short.length > 11 ? 7.6 : 9} letterSpacing="1.8" fill={f.ink}>
             <textPath href={`#${arcId}`} startOffset="50%" textAnchor="middle">{badge.short}</textPath>
           </text>
-          <g transform="translate(50,56)">
-            <path d={badge.glyph} stroke={f.ink} strokeWidth="3" fill="none" transform="translate(0,1.3)" opacity="0.8" strokeLinecap="round" />
-            <path d={badge.glyph} stroke={f.hi} strokeWidth="3" fill="none" strokeLinecap="round" />
-          </g>
+          {(() => {
+            const g = badge.glyph
+            const abs = typeof g === 'object'
+            const d = abs ? g.d : g
+            const w = abs ? Math.min(4, (g.w || 6) * 0.55) : 3
+            return (
+              <g transform={abs ? 'translate(50,50) scale(0.52) translate(-50,-44)' : 'translate(50,56)'}>
+                <path d={d} stroke={f.ink} strokeWidth={w} fill="none" transform="translate(0,1.3)" opacity="0.8" strokeLinecap="round" strokeLinejoin="round" />
+                <path d={d} stroke={f.hi} strokeWidth={w} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              </g>
+            )
+          })()}
           <text x="50" y="88" fontFamily={SERIF} fontSize="6.8" letterSpacing="2" fill={f.ink} textAnchor="middle">{bottom}</text>
         </>
       ) : (
@@ -49,8 +56,13 @@ export default function Medallion({ badge, size = 64, struck = true, spinning = 
           <text fontFamily={SERIF} fontSize={badge.short.length > 11 ? 7.6 : 9} letterSpacing="1.8" fill="rgba(255,255,255,0.5)">
             <textPath href={`#${arcId}`} startOffset="50%" textAnchor="middle">{badge.short}</textPath>
           </text>
-          <path d={badge.glyph} stroke="rgba(255,255,255,0.62)" strokeWidth="2.6" fill="none" strokeLinecap="round"
-            transform="translate(50,56)" />
+          {(() => {
+            const g = badge.glyph
+            const abs = typeof g === 'object'
+            return <path d={abs ? g.d : g} stroke="rgba(255,255,255,0.62)" strokeWidth={abs ? Math.min(3.6, (g.w || 6) * 0.5) : 2.6}
+              fill="none" strokeLinecap="round" strokeLinejoin="round"
+              transform={abs ? 'translate(50,50) scale(0.52) translate(-50,-44)' : 'translate(50,56)'} />
+          })()}
         </>
       )}
     </svg>
