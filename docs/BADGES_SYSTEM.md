@@ -5,7 +5,7 @@ chat ("add … to the Badges System file"); this file is the single source of
 truth for structure decisions before they're ingested into the app catalog
 (`docs/badge-catalog-template.csv` → `src/badges/catalog.js`).
 
-Last updated: 2026-09-28 (nickel 11 · Museums 6 · v3.1 make-your-own-badge idea)
+Last updated: 2026-09-28 (iris batch 1: tree + two rinks)
 
 ---
 
@@ -43,9 +43,17 @@ from brass to nickel but absent from the confirmed 11) · Charging Bull
 
 Katz's Delicatessen · (more to come)
 
-## 5. Iris badges — in progress
+## 5. Iris badges (seasonal) — in progress
 
-Rockefeller Center Tree (Nov 25 – Jan 6) · (more to come)
+Confirmed 2026-09-28:
+- Rockefeller Center Tree (Nov 25 – Jan 6)
+- Wollman Rink, Central Park ice skating (late Oct – early Mar)
+- Bryant Park Winter Village rink (late Oct – early Mar)
+
+Note: winter windows cross the year boundary (e.g. 10-22~03-01) — the
+season check must handle the wrap. Bryant Park now has TWO badges: the
+nickel park (year-round) and the iris Winter Village (seasonal) — same
+spot, different badges, intended.
 
 ---
 
