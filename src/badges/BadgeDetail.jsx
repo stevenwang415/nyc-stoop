@@ -1,160 +1,160 @@
-// ── Badge detail sheet (spec §7) ────────────────────────────────────────────
-// The spinning badge (tap flips to the engraved back), status, your photo,
-// visibility toggle, "At this spot" (locked in the prototype), Add to route,
-// Show on map, Take photo when in range, Share story for collected badges.
+// ── Badge detail sheet (mockup-exact) ───────────────────────────────────────
+// Floating rounded card: share/✕ circles, the SpinBadge (physics intro spin,
+// drag to spin, tap to flip), name + category + gold status, Your photos with
+// count + on-site tile, Visibility with segmented control + caption, locked
+// "At this spot", then Take photo / Add to route / Show on map.
 import React from 'react'
 import { t } from '../lib/i18n.js'
-import { getUser } from '../auth/api.js'
-import { FINISHES, fmtDist, collectRadius, seasonOpen } from './catalog.js'
-import Medallion from './Medallion.jsx'
-import { shareStory } from './story.js'
+import { fmtDist, collectRadius, seasonOpen } from './catalog.js'
+import SpinBadge from './SpinBadge.jsx'
+import { ShareIcon, CloseIcon, CameraIcon, LockIcon } from './icons.jsx'
 
 const GOLD = '#E3C36B'
 const TXT = '#F2F4F7'
 const SUB = 'rgba(235,240,245,0.62)'
 const FAINT = 'rgba(235,240,245,0.34)'
-const SERIF = "Didot, 'Bodoni 72', 'Times New Roman', serif"
 const glass = {
   background: 'rgba(22,27,35,0.94)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
   border: '1px solid rgba(255,255,255,0.09)',
-  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10), 0 -12px 40px rgba(0,0,0,0.5)',
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10), 0 18px 60px rgba(0,0,0,0.55)',
+}
+const circleBtn = {
+  width: 32, height: 32, borderRadius: 16, border: 'none', display: 'grid', placeItems: 'center',
+  cursor: 'pointer', background: 'rgba(255,255,255,0.08)',
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08)', flexShrink: 0,
 }
 
-function BadgeBack({ badge, size }) {
-  const f = FINISHES[badge.finish] || FINISHES.brass
-  const me = (getUser()?.display_name || 'YOU').toUpperCase()
-  const uid = React.useId().replace(/[:]/g, '')
-  return (
-    <svg width={size} height={size} viewBox="0 0 100 100">
-      <defs>
-        <linearGradient id={`br${uid}`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor={f.hi} /><stop offset="0.38" stopColor={f.base} />
-          <stop offset="0.72" stopColor={f.shadow} /><stop offset="1" stopColor={f.base} />
-        </linearGradient>
-        <radialGradient id={`bf${uid}`} cx="0.34" cy="0.26" r="0.9">
-          <stop offset="0" stopColor={f.hi} /><stop offset="0.55" stopColor={f.base} /><stop offset="1" stopColor={f.shadow} />
-        </radialGradient>
-      </defs>
-      <circle cx="50" cy="50" r="49" fill={`url(#br${uid})`} />
-      <circle cx="50" cy="50" r="43" fill={`url(#bf${uid})`} />
-      <text x="50" y="54" fontFamily={SERIF} fontSize={me.length > 10 ? 8 : 10} letterSpacing="2.5" fill={f.ink} textAnchor="middle">{me}</text>
-    </svg>
-  )
+function fmtWhen(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return isNaN(d) ? iso.slice(0, 10) : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-export default function BadgeDetail({ badge, award, dist, onClose, onTakePhoto, onVisibility, onAddToRoute, onShowOnMap, onShare, progressLine }) {
-  const [flipped, setFlipped] = React.useState(false)
-  const [busyShare, setBusyShare] = React.useState(false)
+export default function BadgeDetail({ badge, award, dist, onClose, onTakePhoto, onVisibility, onAddToRoute, onShowOnMap, onShare }) {
   const has = !!award
   const open = seasonOpen(badge)
-  const near = dist != null && dist <= collectRadius(badge) && open
+  const near = dist != null && dist <= collectRadius(badge)
   const photo = award && (award.image_url || (award.image_b64 ? 'data:image/jpeg;base64,' + award.image_b64 : null) || award.thumb_url || (award.thumb_b64 ? 'data:image/jpeg;base64,' + award.thumb_b64 : null))
+  const vis = award?.visibility || 'private'
 
-  const doShare = () => { if (onShare) onShare(badge, award, 'story'); else if (!busyShare) {
-    setBusyShare(true)
-    shareStory({ badge, photoSrc: photo, owner: getUser()?.display_name || 'Me',
-      dateLabel: (award?.created_at || '').slice(0, 10), progressLine }).finally(() => setBusyShare(false))
-  } }
+  const status = has
+    ? <span style={{ color: GOLD }}>{t('Collected')} {fmtWhen(award.created_at)}</span>
+    : !open ? <span style={{ color: '#C9B6FF' }}>{t('Seasonal')} · {badge.season}</span>
+    : (near && open) ? <span style={{ color: GOLD }}>{t("You're here")} · {fmtDist(dist)} {t('away')}</span>
+    : dist != null ? <>{fmtDist(dist)} {t('away')} · {t('collect within')} {collectRadius(badge)} m</>
+    : <>{t('collect within')} {collectRadius(badge)} m</>
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 6400, display: 'flex', alignItems: 'flex-end', background: 'rgba(9,13,19,0.6)' }}
-      onClick={onClose}>
+    <div onClick={onClose}
+      style={{ position: 'fixed', inset: 0, zIndex: 6400, background: 'rgba(3,5,8,0.45)', display: 'flex', alignItems: 'flex-end' }}>
       <div onClick={e => e.stopPropagation()}
-        style={{ ...glass, width: '100%', borderRadius: '34px 34px 0 0', padding: '14px 20px calc(env(safe-area-inset-bottom, 0px) + 22px)', maxHeight: '84vh', overflowY: 'auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        style={{ ...glass, margin: 8, marginBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)',
+          width: 'calc(100% - 16px)', maxHeight: 'calc(100% - 60px)', overflowY: 'auto',
+          borderRadius: 38, padding: '14px 20px 20px', boxSizing: 'border-box' }}>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           {has ? (
-            <button onClick={doShare} disabled={busyShare}
-              style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 999,
-                width: 40, height: 40, color: TXT, fontSize: 16, cursor: 'pointer', opacity: busyShare ? 0.5 : 1 }}>↥</button>
-          ) : <span style={{ width: 40 }} />}
-          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 999,
-            width: 40, height: 40, color: TXT, fontSize: 15, cursor: 'pointer' }}>✕</button>
+            <button onClick={() => onShare && onShare(badge, award, 'story')} aria-label="Share badge" style={circleBtn}>
+              <ShareIcon c={SUB} />
+            </button>
+          ) : <span />}
+          <button onClick={onClose} aria-label="Close" style={circleBtn}><CloseIcon c={SUB} /></button>
         </div>
 
-        {/* the spinning badge — tap to flip */}
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0 10px', perspective: 700 }}>
-          <button onClick={() => setFlipped(f => !f)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-              transform: `rotateY(${flipped ? 180 : 0}deg)`, transformStyle: 'preserve-3d',
-              transition: 'transform 650ms cubic-bezier(0.3,0.9,0.4,1)' }}>
-            <div style={{ backfaceVisibility: 'hidden' }}>
-              <Medallion badge={badge} size={190} struck={has} />
-            </div>
-            <div style={{ position: 'absolute', inset: 0, transform: 'rotateY(180deg)', backfaceVisibility: 'hidden',
-              display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {has ? <BadgeBack badge={badge} size={190} />
-                : <svg width="190" height="190" viewBox="0 0 100 100"><circle cx="50" cy="50" r="48" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2" /></svg>}
-            </div>
-          </button>
-        </div>
-
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 21, fontWeight: 800, color: TXT }}>{badge.name}</div>
-          <div style={{ fontSize: 13, color: SUB, marginTop: 4 }}>{badge.main ? t('Main spot') : badge.category}</div>
-          <div style={{ fontSize: 14, marginTop: 8, fontWeight: 600,
-            color: has ? GOLD : !open ? '#C9B6FF' : near ? GOLD : SUB }}>
-            {has ? `${t('Collected')} ${(award.created_at || '').slice(0, 10)}`
-              : !open ? `${t('Seasonal')} · ${badge.season}`
-              : near ? `${t("You're here")} · ${fmtDist(dist)}`
-              : dist != null ? `${fmtDist(dist)} ${t('away')} · ${t('collect within')} ${collectRadius(badge)} m` : `${t('collect within')} ${collectRadius(badge)} m`}
-          </div>
+        {/* the coin — physics spin on open, drag to spin, tap to flip */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginTop: -8 }}>
+          <SpinBadge badge={badge} struck={has} size={196} spinKey={has ? 'struck' : 'open'} />
+          <h2 style={{ fontSize: 24, fontWeight: 700, letterSpacing: -0.5, margin: '18px 0 0', color: TXT }}>{badge.name}</h2>
+          <p style={{ fontSize: 14, color: SUB, margin: '4px 0 0' }}>{badge.main ? t('Main spot') : badge.category}{badge.season ? ` · ${t('Seasonal')}` : ''}</p>
+          <p style={{ fontSize: 14, color: SUB, margin: '10px 0 0' }}>{status}</p>
         </div>
 
         {has && (
-          <>
-            <div style={{ fontSize: 14.5, fontWeight: 800, color: TXT, padding: '18px 0 8px' }}>{t('Your photos')}</div>
-            <div style={{ display: 'flex', gap: 9, overflowX: 'auto' }}>
-              {photo && <img src={photo} alt="" style={{ width: 88, height: 118, objectFit: 'cover', borderRadius: 12 }} />}
-              <div style={{ width: 88, height: 118, borderRadius: 12, border: '1.5px dashed rgba(255,255,255,0.25)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
-                fontSize: 10.5, color: FAINT, flexShrink: 0, padding: 6 }}>
-                {near ? t('More photos with the full catalog') : t('On site only')}
+          <div style={{ marginTop: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '0 2px' }}>
+              <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: -0.3, color: TXT }}>{t('Your photos')}</span>
+              <span style={{ fontSize: 13, color: SUB }}>{photo ? 1 : 0}</span>
+            </div>
+            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', marginTop: 10, scrollbarWidth: 'none' }}>
+              {photo && <img src={photo} alt="" style={{ flex: '0 0 auto', width: 92, height: 122, objectFit: 'cover', borderRadius: 16 }} />}
+              <div style={{ flex: '0 0 auto', width: 92, height: 122, borderRadius: 16,
+                background: 'rgba(255,255,255,0.05)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6,
+                color: FAINT, fontSize: 12, fontWeight: 600 }}>
+                <CameraIcon c={FAINT} />
+                {t('On site only')}
               </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 0 4px' }}>
-              <span style={{ fontSize: 14.5, fontWeight: 800, color: TXT }}>{t('Visibility')}</span>
-              <div style={{ display: 'flex', background: 'rgba(255,255,255,0.08)', borderRadius: 999, padding: 3 }}>
+            {!near && dist != null && (
+              <p style={{ fontSize: 12.5, color: SUB, margin: '10px 2px 0', lineHeight: 1.45 }}>
+                {t('You can add photos here when you\'re within')} {collectRadius(badge)} m. {t("You're")} {fmtDist(dist)} {t('away')}.
+              </p>
+            )}
+          </div>
+        )}
+
+        {has && (
+          <div style={{ marginTop: 22 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '0 2px' }}>
+              <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: -0.3, color: TXT }}>{t('Visibility')}</span>
+              <div style={{ display: 'flex', width: 190, background: 'rgba(255,255,255,0.08)',
+                boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.35)', borderRadius: 999, padding: 4 }}>
                 {['public', 'private'].map(v => (
                   <button key={v} onClick={() => onVisibility(v)}
-                    style={{ border: 'none', borderRadius: 999, padding: '7px 15px', fontFamily: 'inherit', cursor: 'pointer',
-                      fontSize: 12.5, fontWeight: 700,
-                      background: award.visibility === v ? 'rgba(255,255,255,0.18)' : 'none',
-                      color: award.visibility === v ? TXT : SUB }}>
+                    style={{ flex: 1, border: 'none', borderRadius: 999, padding: '8px 6px', fontFamily: 'inherit', cursor: 'pointer',
+                      fontSize: 13, fontWeight: vis === v ? 600 : 500,
+                      background: vis === v ? 'rgba(255,255,255,0.18)' : 'none',
+                      boxShadow: vis === v ? 'inset 0 1px 0 rgba(255,255,255,0.14)' : 'none',
+                      color: vis === v ? TXT : SUB, whiteSpace: 'nowrap' }}>
                     {t(v === 'public' ? 'Public' : 'Private')}
                   </button>
                 ))}
               </div>
             </div>
-            <div style={{ fontSize: 12, color: FAINT }}>
-              {award.visibility === 'public' ? t('Friends can see this badge on your Stoop.') : t('Only you can see it.')}
-            </div>
-          </>
+            <p style={{ fontSize: 12.5, color: SUB, margin: '8px 2px 0', lineHeight: 1.45 }}>
+              {vis === 'public'
+                ? `${t('People at')} ${badge.name} ${t('can see your badge and photos while they\'re there.')}`
+                : t('Only you can see this badge. You can still share it to your stories.')}
+            </p>
+          </div>
         )}
 
         {/* At this spot — locked in the prototype */}
-        <div style={{ marginTop: 16, background: 'rgba(255,255,255,0.05)', border: '1px dashed rgba(255,255,255,0.14)',
-          borderRadius: 16, padding: '13px 15px', fontSize: 12.5, color: FAINT, lineHeight: 1.5 }}>
-          🔒 {t("Friends' public badges and photos show up here while you're at")} {badge.name}. <span style={{ color: FAINT }}>({t('coming with the full catalog')})</span>
+        <div style={{ marginTop: 22 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '0 2px' }}>
+            <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: -0.3, color: TXT }}>{t('At this spot')}</span>
+            <span style={{ fontSize: 12.5, color: SUB }}>{t('Only visible here')}</span>
+          </div>
+          <div style={{ background: 'rgba(255,255,255,0.05)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)',
+            borderRadius: 18, padding: '13px 14px', marginTop: 10, display: 'flex', gap: 12, alignItems: 'center' }}>
+            <LockIcon c={SUB} />
+            <span style={{ fontSize: 13, color: SUB, lineHeight: 1.45 }}>
+              {t("Other people's public badges and photos show up here while you're at")} {badge.name}.
+            </span>
+          </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 9, marginTop: 16, flexWrap: 'wrap' }}>
-          {!has && near && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 22 }}>
+          {!has && near && open && (
             <button onClick={onTakePhoto}
-              style={{ flex: '1 1 100%', background: 'linear-gradient(135deg,#F6E39B,#E3C36B 60%,#C9A227)', color: '#1A1405',
-                fontSize: 15, fontWeight: 800, padding: '14px 0', borderRadius: 999, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
-              📷 {t('Take photo')}
+              style={{ background: 'linear-gradient(135deg,#F6E39B,#E3C36B 60%,#C9A227)', color: '#1A1405',
+                fontSize: 15, fontWeight: 800, padding: '14px 0', borderRadius: 999, border: 'none', cursor: 'pointer',
+                fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <CameraIcon c="#1A1405" /> {t('Take photo')}
             </button>
           )}
-          <button onClick={onAddToRoute}
-            style={{ flex: 1, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', color: TXT,
-              fontSize: 14, fontWeight: 700, padding: '13px 0', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit' }}>
-            {t('Add to route')}
-          </button>
-          <button onClick={onShowOnMap}
-            style={{ flex: 1, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', color: TXT,
-              fontSize: 14, fontWeight: 700, padding: '13px 0', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit' }}>
-            {t('Show on map')}
-          </button>
+          <div style={{ display: 'flex', gap: 9 }}>
+            <button onClick={onAddToRoute}
+              style={{ flex: 1, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', color: TXT,
+                fontSize: 14, fontWeight: 700, padding: '13px 0', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit' }}>
+              {t('Add to route')}
+            </button>
+            <button onClick={onShowOnMap}
+              style={{ flex: 1, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', color: TXT,
+                fontSize: 14, fontWeight: 700, padding: '13px 0', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit' }}>
+              {t('Show on map')}
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -8,6 +8,7 @@ import { getUser } from '../auth/api.js'
 import { byId } from './catalog.js'
 import Stamp from './Stamp.jsx'
 import Medallion from './Medallion.jsx'
+import { ShareIcon } from './icons.jsx'
 import { awardPhotoSrc } from './BadgeShareSheet.jsx'
 
 const GOLD = '#E3C36B'
@@ -83,7 +84,7 @@ export default function PhotosTab({ awards, onShare, onOpenBadge, autoOpen, onAu
             </button>
             <button onClick={() => onShare(byId[a.badge_id], a, 'story')}
               style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 999,
-                width: 36, height: 36, color: TXT, fontSize: 14, cursor: 'pointer', flexShrink: 0 }}>↥</button>
+                width: 36, height: 36, color: TXT, cursor: 'pointer', flexShrink: 0, display: 'grid', placeItems: 'center' }}><ShareIcon size={16} /></button>
           </div>
           <div style={{ display: 'flex', gap: 10, overflowX: 'auto' }}>{stampOf(a, 108)}</div>
         </div>
@@ -141,7 +142,7 @@ export default function PhotosTab({ awards, onShare, onOpenBadge, autoOpen, onAu
                 </div>
                 <div style={{ fontSize: 13, color: SUB, marginTop: 2 }}>{sub}</div>
               </div>
-              <button onClick={() => onShare(byId[viewer.badge_id], viewer, mode)} aria-label="Share" style={{ ...glassCircle, fontSize: 16 }}>↥</button>
+              <button onClick={() => onShare(byId[viewer.badge_id], viewer, mode)} aria-label="Share" style={glassCircle}><ShareIcon /></button>
             </div>
             {/* stage */}
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6px 18px', minHeight: 0 }}>

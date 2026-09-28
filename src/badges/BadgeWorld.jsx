@@ -10,6 +10,7 @@ import { prepareImage, thumbSrc } from '../share/shareApi.js'
 import { BADGES, byId, FINISHES, COLLECT_RADIUS_M, CLOSE_BY_M, distanceM, fmtDist, levelState, collectRadius, seasonOpen } from './catalog.js'
 import { myAwards, collectBadge, setBadgeVisibility } from './badgesApi.js'
 import Medallion from './Medallion.jsx'
+import { ShareIcon } from './icons.jsx'
 import BadgeDetail from './BadgeDetail.jsx'
 import RoutesTab, { AddToRouteSheet } from './RoutesTab.jsx'
 import PhotosTab from './PhotosTab.jsx'
@@ -432,7 +433,7 @@ export default function BadgeWorld({ onClose }) {
               </button>
               <button onClick={() => setShare({ badge: selPin, award, initial: 'story' })} aria-label={`Share ${selPin.name}`}
                 style={{ ...glass, position: 'absolute', right: -46, top: 26, width: 40, height: 40, borderRadius: 20,
-                  border: 'none', color: TXT, fontSize: 15, cursor: 'pointer', background: 'rgba(30,36,46,0.72)' }}>↥</button>
+                  border: 'none', color: TXT, cursor: 'pointer', background: 'rgba(30,36,46,0.72)', display: 'grid', placeItems: 'center' }}><ShareIcon size={16} /></button>
             </div>
             <div style={{ ...glass, marginTop: 14, borderRadius: 999, padding: '6px 13px', fontSize: 12.5, fontWeight: 700,
               color: TXT, background: 'rgba(30,36,46,0.8)', pointerEvents: 'auto' }}>

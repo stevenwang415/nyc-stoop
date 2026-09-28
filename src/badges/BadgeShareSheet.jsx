@@ -2,6 +2,7 @@
 // Three preview cards — Story · Stamp · Photo — with the image pre-rendered
 // as soon as a mode is picked, so the system share sheet opens instantly on
 // iOS (user-gesture rule). Gold button shares; download fallback on desktop.
+import { ShareIcon } from './icons.jsx'
 import React from 'react'
 import { t } from '../lib/i18n.js'
 import { getUser } from '../auth/api.js'
@@ -113,8 +114,9 @@ export default function BadgeShareSheet({ badge, award, initial = 'story', progr
             <button onClick={doShare} disabled={!blob}
               style={{ width: '100%', padding: '14px 0', borderRadius: 999, border: 'none',
                 background: blob ? 'linear-gradient(135deg,#F6E39B,#E3C36B 60%,#C9A227)' : 'rgba(255,255,255,0.1)',
-                color: blob ? '#1A1405' : SUB, fontFamily: 'inherit', fontSize: 15, fontWeight: 800, cursor: 'pointer' }}>
-              ↥ {blob ? `${t('Share')} ${label[mode].toLowerCase()}` : t('Preparing…')}
+                color: blob ? '#1A1405' : SUB, fontFamily: 'inherit', fontSize: 15, fontWeight: 800, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <ShareIcon c={blob ? '#1A1405' : SUB} size={17} /> {blob ? `${t('Share')} ${label[mode].toLowerCase()}` : t('Preparing…')}
             </button>
           )}
         </div>
