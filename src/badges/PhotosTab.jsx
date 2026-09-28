@@ -172,7 +172,7 @@ export default function PhotosTab({ awards, onShare, onOpenBadge, autoOpen, onAu
             </div>
             {/* Open badge pill */}
             <div style={{ display: 'flex', justifyContent: 'center', padding: '14px 0 calc(env(safe-area-inset-bottom, 0px) + 20px)' }}>
-              <button onClick={() => { setViewerIdx(null); onOpenBadge(byId[viewer.badge_id]) }}
+              <button onClick={() => { setViewerIdx(null); if (fromMap.current) { fromMap.current = false; onBackToMap?.() } ; onOpenBadge(byId[viewer.badge_id]) }}
                 style={{ display: 'flex', alignItems: 'center', gap: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.08)',
                   borderRadius: 999, padding: '10px 24px 10px 10px', color: TXT, fontFamily: 'inherit', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>
                 <Medallion badge={byId[viewer.badge_id]} size={34} struck /> {t('Open badge')}
