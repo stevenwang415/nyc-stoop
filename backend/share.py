@@ -845,11 +845,44 @@ def place_search(q: str, user: User = Depends(get_current_user)) -> dict:
 # authority for the 200 m collect check. Presence is the verification
 # (camera-only client + GPS radius); no AI photo checking, no points.
 BADGE_CATALOG = {
-    "empire":      {"name": "Empire State Building",  "lat": 40.7484, "lng": -73.9857},
-    "centralpark": {"name": "Central Park",           "lat": 40.7740, "lng": -73.9709},
-    "flatiron":    {"name": "Flatiron Building",      "lat": 40.7411, "lng": -73.9897},
-    "washsq":      {"name": "Washington Square Arch", "lat": 40.7308, "lng": -73.9973},
-    "katz":        {"name": "Katz's Delicatessen",    "lat": 40.7223, "lng": -73.9874},
+    "empire": {"name": "Empire State Building", "lat": 40.7484, "lng": -73.9857, "radius": 200},
+    "centralpark": {"name": "Central Park", "lat": 40.7740, "lng": -73.9709, "radius": 200},
+    "flatiron": {"name": "Flatiron Building", "lat": 40.7411, "lng": -73.9897, "radius": 200},
+    "rockefeller": {"name": "Rockefeller Center", "lat": 40.7587, "lng": -73.9787, "radius": 200},
+    "radiocity": {"name": "Radio City Music Hall", "lat": 40.7600, "lng": -73.9800, "radius": 200},
+    "yankee": {"name": "Yankee Stadium", "lat": 40.8296, "lng": -73.9262, "radius": 200},
+    "libertystatue": {"name": "Statue of Liberty", "lat": 40.6892, "lng": -74.0445, "radius": 1200},
+    "met": {"name": "The Met", "lat": 40.7794, "lng": -73.9632, "radius": 200},
+    "brooklynbridge": {"name": "Brooklyn Bridge", "lat": 40.7061, "lng": -73.9969, "radius": 200},
+    "stpatricks": {"name": "St. Patrick's Cathedral", "lat": 40.7585, "lng": -73.9760, "radius": 200},
+    "grandcentral": {"name": "Grand Central Terminal", "lat": 40.7527, "lng": -73.9772, "radius": 200},
+    "wallstreet": {"name": "Wall Street", "lat": 40.7069, "lng": -74.0113, "radius": 200},
+    "dumbo": {"name": "Dumbo", "lat": 40.7033, "lng": -73.9894, "radius": 200},
+    "chinatown": {"name": "Chinatown", "lat": 40.7158, "lng": -73.9970, "radius": 200},
+    "timessquare": {"name": "Times Square", "lat": 40.7580, "lng": -73.9855, "radius": 200},
+    "washsq": {"name": "Washington Square Arch", "lat": 40.7308, "lng": -73.9973, "radius": 200},
+    "katz": {"name": "Katz's Delicatessen", "lat": 40.7223, "lng": -73.9874, "radius": 200},
+    "rocktree": {"name": "Rockefeller Center Tree", "lat": 40.7587, "lng": -73.9787, "radius": 200, "season": "11-25~01-06"},
+    "bryantpark": {"name": "Bryant Park", "lat": 40.7536, "lng": -73.9832, "radius": 200},
+    "whitney": {"name": "Whitney Museum", "lat": 40.7396, "lng": -74.0089, "radius": 200},
+    "guggenheim": {"name": "Guggenheim", "lat": 40.7830, "lng": -73.9590, "radius": 200},
+    "lincolncenter": {"name": "Lincoln Center", "lat": 40.7725, "lng": -73.9835, "radius": 200},
+    "chrysler": {"name": "Chrysler Building", "lat": 40.7516, "lng": -73.9755, "radius": 200},
+    "wtc": {"name": "World Trade Center", "lat": 40.7127, "lng": -74.0134, "radius": 200},
+    "littleisland": {"name": "Little Island", "lat": 40.7420, "lng": -74.0100, "radius": 200},
+    "coneyisland": {"name": "Coney Island", "lat": 40.5749, "lng": -73.9787, "radius": 400},
+    "brooklynmuseum": {"name": "Brooklyn Museum", "lat": 40.6712, "lng": -73.9636, "radius": 200},
+    "apollo": {"name": "Apollo Theater", "lat": 40.8100, "lng": -73.9500, "radius": 200},
+    "wollmanrink": {"name": "Wollman Rink", "lat": 40.7686, "lng": -73.9740, "radius": 200, "season": "10-22~03-01"},
+    "wintervillage": {"name": "Bryant Park Winter Village", "lat": 40.7536, "lng": -73.9832, "radius": 200, "season": "10-25~03-01"},
+    "halloween": {"name": "Village Halloween Parade", "lat": 40.7338, "lng": -73.9993, "radius": 400, "season": "10-31~10-31"},
+    "thanksgiving": {"name": "Macy's Thanksgiving Parade", "lat": 40.7508, "lng": -73.9890, "radius": 400, "season": "11-20~11-28"},
+    "cherryblossom": {"name": "Brooklyn Botanic Cherry Blossoms", "lat": 40.6676, "lng": -73.9632, "radius": 300, "season": "04-01~04-30"},
+    "shakespeare": {"name": "Shakespeare in the Park", "lat": 40.7799, "lng": -73.9688, "radius": 200, "season": "06-01~08-31"},
+    "marathon": {"name": "NYC Marathon", "lat": 40.7716, "lng": -73.9765, "radius": 400, "season": "11-01~11-07"},
+    "usopen": {"name": "US Open", "lat": 40.7500, "lng": -73.8451, "radius": 400, "season": "08-24~09-07"},
+    "pride": {"name": "Pride March", "lat": 40.7336, "lng": -74.0027, "radius": 400, "season": "06-24~06-30"},
+    "dykerlights": {"name": "Dyker Heights Christmas Lights", "lat": 40.6210, "lng": -74.0152, "radius": 400, "season": "12-01~12-31"},
 }
 BADGE_COLLECT_RADIUS_M = 200
 
@@ -908,8 +941,17 @@ def badge_collect(body: BadgeCollectIn, user: User = Depends(get_current_user), 
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such badge")
     if body.lat is None or body.lng is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "location required")
-    if _badge_distance_m(body.lat, body.lng, b["lat"], b["lng"]) > BADGE_COLLECT_RADIUS_M:
+    if _badge_distance_m(body.lat, body.lng, b["lat"], b["lng"]) > b.get("radius", BADGE_COLLECT_RADIUS_M):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "too far away")
+    if b.get("season"):
+        # MM-DD~MM-DD window in ET; winter windows wrap the new year.
+        from zoneinfo import ZoneInfo
+        from datetime import datetime as _dt
+        today = _dt.now(ZoneInfo("America/New_York")).strftime("%m-%d")
+        a, z = b["season"].split("~")
+        in_season = (a <= today <= z) if a <= z else (today >= a or today <= z)
+        if not in_season:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "out of season")
     exists = db.execute(select(BadgeAward.id).where(
         BadgeAward.user_id == user.id, BadgeAward.badge_id == body.badge_id)).first()
     if exists:

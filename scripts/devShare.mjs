@@ -248,10 +248,8 @@ export function devSharePlugin() {
           return json(res, 200, { photos: ph })
         }
         // ── v3 badges prototype ──
-        const BADGE_CATALOG = {
-          empire: [40.7484, -73.9857], centralpark: [40.7740, -73.9709],
-          flatiron: [40.7411, -73.9897], washsq: [40.7308, -73.9973], katz: [40.7223, -73.9874],
-        }
+        const { CATALOG } = await import('../src/badges/catalogData.js')
+        const BADGE_CATALOG = Object.fromEntries(CATALOG.map(c => [c.id, c]))
         const distM = (a, b, c, d) => {
           const r = Math.PI / 180
           const x = Math.sin((c - a) * r / 2) ** 2 + Math.cos(a * r) * Math.cos(c * r) * Math.sin((d - b) * r / 2) ** 2
@@ -275,7 +273,13 @@ export function devSharePlugin() {
           const cat = BADGE_CATALOG[b.badge_id]
           if (!cat) return detail(res, 404, 'No such badge')
           if (typeof b.lat !== 'number' || typeof b.lng !== 'number') return detail(res, 403, 'location required')
-          if (distM(b.lat, b.lng, cat[0], cat[1]) > 200) return detail(res, 403, 'too far away')
+          if (distM(b.lat, b.lng, cat.lat, cat.lng) > (cat.radius || 200)) return detail(res, 403, 'too far away')
+          if (cat.season) {
+            const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }).slice(5)
+            const [sa, sz] = cat.season.split('~')
+            const inSeason = sa <= sz ? (today >= sa && today <= sz) : (today >= sa || today <= sz)
+            if (!inSeason) return detail(res, 403, 'out of season')
+          }
           if (db.badgeAwards.some(a => String(a.user_id) === String(user.id) && a.badge_id === b.badge_id))
             return detail(res, 409, 'already collected')
           const a = { user_id: String(user.id), badge_id: b.badge_id, visibility: 'public',

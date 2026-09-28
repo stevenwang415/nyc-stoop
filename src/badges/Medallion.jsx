@@ -15,7 +15,7 @@ export default function Medallion({ badge, size = 64, struck = true, spinning = 
 
   return (
     <svg width={size} height={size} viewBox="0 0 100 100"
-      style={spinning ? { animation: 'badge-strike-spin 0.9s cubic-bezier(0.2,0.8,0.3,1)' } : undefined}>
+      style={spinning ? { animation: 'badge-strike-spin 2s cubic-bezier(0.25,0.7,0.3,1)' } : undefined}>
       <defs>
         <linearGradient id={`rim${uid}`} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor={f.hi} /><stop offset="0.38" stopColor={f.base} />

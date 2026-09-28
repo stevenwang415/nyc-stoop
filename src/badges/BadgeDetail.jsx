@@ -5,7 +5,7 @@
 import React from 'react'
 import { t } from '../lib/i18n.js'
 import { getUser } from '../auth/api.js'
-import { FINISHES, COLLECT_RADIUS_M, fmtDist } from './catalog.js'
+import { FINISHES, fmtDist, collectRadius, seasonOpen } from './catalog.js'
 import Medallion from './Medallion.jsx'
 import { shareStory } from './story.js'
 
@@ -46,7 +46,8 @@ export default function BadgeDetail({ badge, award, dist, onClose, onTakePhoto, 
   const [flipped, setFlipped] = React.useState(false)
   const [busyShare, setBusyShare] = React.useState(false)
   const has = !!award
-  const near = dist != null && dist <= COLLECT_RADIUS_M
+  const open = seasonOpen(badge)
+  const near = dist != null && dist <= collectRadius(badge) && open
   const photo = award && (award.image_url || (award.image_b64 ? 'data:image/jpeg;base64,' + award.image_b64 : null) || award.thumb_url || (award.thumb_b64 ? 'data:image/jpeg;base64,' + award.thumb_b64 : null))
 
   const doShare = async () => {
@@ -94,10 +95,11 @@ export default function BadgeDetail({ badge, award, dist, onClose, onTakePhoto, 
           <div style={{ fontSize: 21, fontWeight: 800, color: TXT }}>{badge.name}</div>
           <div style={{ fontSize: 13, color: SUB, marginTop: 4 }}>{badge.main ? t('Main spot') : badge.category}</div>
           <div style={{ fontSize: 14, marginTop: 8, fontWeight: 600,
-            color: has ? GOLD : near ? GOLD : SUB }}>
+            color: has ? GOLD : !open ? '#C9B6FF' : near ? GOLD : SUB }}>
             {has ? `${t('Collected')} ${(award.created_at || '').slice(0, 10)}`
+              : !open ? `${t('Seasonal')} · ${badge.season}`
               : near ? `${t("You're here")} · ${fmtDist(dist)}`
-              : dist != null ? `${fmtDist(dist)} ${t('away')} · ${t('collect within 200 m')}` : t('collect within 200 m')}
+              : dist != null ? `${fmtDist(dist)} ${t('away')} · ${t('collect within')} ${collectRadius(badge)} m` : `${t('collect within')} ${collectRadius(badge)} m`}
           </div>
         </div>
 

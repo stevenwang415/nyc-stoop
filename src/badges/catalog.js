@@ -7,18 +7,26 @@
 export const COLLECT_RADIUS_M = 200
 export const CLOSE_BY_M = 900
 
-export const BADGES = [
-  { id: 'empire',      name: 'Empire State Building', short: 'EMPIRE STATE', category: 'places', finish: 'brass',  main: true,  lat: 40.7484, lng: -73.9857,
-    glyph: 'M0 8 V-20 M0 -20 L0 -27 M-7 8 V-8 M7 8 V-8 M-12 8 H12 M-3.5 -8 H3.5' },
-  { id: 'centralpark', name: 'Central Park',          short: 'CENTRAL PARK', category: 'places', finish: 'brass',  main: true,  lat: 40.7740, lng: -73.9709,
-    glyph: 'M0 -18 A 9 9 0 1 1 -0.01 -18 M0 -2 V8 M-10 8 H10' },
-  { id: 'flatiron',    name: 'Flatiron Building',     short: 'FLATIRON',     category: 'places', finish: 'nickel', main: false, lat: 40.7411, lng: -73.9897,
-    glyph: 'M-8 8 L0 -22 L8 8 Z M0 -22 V8 M-12 8 H12' },
-  { id: 'washsq',      name: 'Washington Square Arch', short: 'WASHINGTON SQ', category: 'places', finish: 'nickel', main: false, lat: 40.7308, lng: -73.9973,
-    glyph: 'M-11 8 V-8 A 11 11 0 0 1 11 -8 V8 M-5 8 V-6 A 5 5 0 0 1 5 -6 V8 M-15 8 H15 M-13 -14 H13' },
-  { id: 'katz',        name: "Katz's Delicatessen",   short: "KATZ'S",       category: 'food',   finish: 'copper', main: false, lat: 40.7223, lng: -73.9874,
-    glyph: 'M-13 -2 A 13 8 0 0 1 13 -2 M-13 -2 H13 M-13 3 H13 M-13 8 A 13 8 0 0 0 13 8 M-13 3 Q-15 5 -13 8 M13 3 Q15 5 13 8' },
-]
+import { CATALOG } from './catalogData.js'
+import { glyphOf } from './glyphs.js'
+
+// Full catalog (generated from the CSV) with glyphs attached. Component code
+// keeps the same shape it always used: { id, name, short, category, finish,
+// main, lat, lng, season, radius, glyph }.
+export const BADGES = CATALOG.map(b => ({ ...b, glyph: glyphOf(b) }))
+
+// Seasonal window check — handles windows that wrap the new year
+// (e.g. 10-22~03-01). Dates compare as MM-DD strings in ET.
+export function seasonOpen(badge, now = new Date()) {
+  if (!badge.season) return true
+  const [a, z] = badge.season.split('~')
+  const today = now.toLocaleDateString('en-CA', { timeZone: 'America/New_York' }).slice(5)
+  return a <= z ? (today >= a && today <= z) : (today >= a || today <= z)
+}
+
+export function collectRadius(badge) {
+  return badge.radius || COLLECT_RADIUS_M
+}
 
 export const FINISHES = {
   brass:  { base: '#C9A227', hi: '#F6E39B', shadow: '#6B5210', ink: '#4A3806' },
@@ -72,5 +80,12 @@ export function levelState(ownedIds) {
 // localStorage.setItem('nyc_badges_beta', '1') in the console.
 export function badgesEnabled() {
   if (import.meta.env.DEV) return true
-  try { return localStorage.getItem('nyc_badges_beta') === '1' } catch { return false }
+  try {
+    // Tester unlock: opening nyc-stoop.vercel.app/?badges=1 (or =0 to relock)
+    // persists the flag — no console needed on a phone.
+    const q = new URLSearchParams(window.location.search).get('badges')
+    if (q === '1') localStorage.setItem('nyc_badges_beta', '1')
+    if (q === '0') localStorage.removeItem('nyc_badges_beta')
+    return localStorage.getItem('nyc_badges_beta') === '1'
+  } catch { return false }
 }

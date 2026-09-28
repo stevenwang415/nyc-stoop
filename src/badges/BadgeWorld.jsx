@@ -7,7 +7,7 @@ import React from 'react'
 import { createPortal } from 'react-dom'
 import { t } from '../lib/i18n.js'
 import { prepareImage, thumbSrc } from '../share/shareApi.js'
-import { BADGES, byId, FINISHES, COLLECT_RADIUS_M, CLOSE_BY_M, distanceM, fmtDist, levelState } from './catalog.js'
+import { BADGES, byId, FINISHES, COLLECT_RADIUS_M, CLOSE_BY_M, distanceM, fmtDist, levelState, collectRadius, seasonOpen } from './catalog.js'
 import { myAwards, collectBadge, setBadgeVisibility } from './badgesApi.js'
 import Medallion from './Medallion.jsx'
 import BadgeDetail from './BadgeDetail.jsx'
@@ -100,7 +100,7 @@ export default function BadgeWorld({ onClose }) {
   }, [onClose])
 
   const distTo = (b) => loc ? distanceM(loc.lat, loc.lng, b.lat, b.lng) : null
-  const inRange = (b) => { const d = distTo(b); return d != null && d <= COLLECT_RADIUS_M }
+  const inRange = (b) => { const d = distTo(b); return d != null && d <= collectRadius(b) && seasonOpen(b) }
 
   // ── Leaflet map (created once; pins update in place — the StoopMap lesson) ──
   React.useEffect(() => {
@@ -152,7 +152,8 @@ export default function BadgeWorld({ onClose }) {
                  transform:rotate(-10deg);box-shadow:0 1px 3px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center">
                  <div style="width:8px;height:10px;background:${f.base};border-radius:1px"></div></div>
              </div>`
-          : `<div style="width:24px;height:24px;border-radius:50%;border:4.5px solid #8C949F;
+          : `<div style="width:24px;height:24px;border-radius:50%;
+               border:4.5px solid ${b.finish === 'iris' ? '#C9B6FF' : '#8C949F'};
                ${near ? 'animation:badge-beep 1.6s ease-in-out infinite;border-color:' + GOLD + ';' : ''}"></div>`
         if (routeSet && routeSet.has(b.id)) continue // route pins drawn above
         const icon = L.divIcon({ className: '', iconSize: [26, 26], iconAnchor: [13, 13],
@@ -189,9 +190,9 @@ export default function BadgeWorld({ onClose }) {
       levelBefore.current = levelState([...owned]).current
       const r = await collectBadge({ badge_id: b.id, lat: loc?.lat, lng: loc?.lng, image_b64, thumb_b64 })
       setAwards(a => [...a, r.award])
+      // The strike is the whole point — it stays on screen until the user
+      // taps, then hands off to the visibility prompt (Steven, 2026-09-28).
       setStruckBadge(b)
-      setTimeout(() => setStruckBadge(null), 1300)
-      setTimeout(() => setVisPrompt(b), 1100)
     } catch (e2) {
       setErr(e2.status === 409 ? t('Already collected.')
         : e2.status === 403 ? t('Too far away — get within 200 m.')
@@ -255,8 +256,9 @@ export default function BadgeWorld({ onClose }) {
           <div style={{ fontSize: 15, fontWeight: 700, color: TXT }}>
             {b.name} {b.main && <span style={{ fontSize: 10, fontWeight: 800, color: GOLD, border: `1px solid ${GOLD}55`, borderRadius: 99, padding: '1.5px 7px', marginLeft: 4 }}>MAIN</span>}
           </div>
-          <div style={{ fontSize: 12.5, color: near ? GOLD : SUB, marginTop: 2 }}>
+          <div style={{ fontSize: 12.5, color: has ? SUB : (!seasonOpen(b) ? '#C9B6FF' : near ? GOLD : SUB), marginTop: 2 }}>
             {has ? `${t('Collected')} ${(awards.find(a => a.badge_id === b.id)?.created_at || '').slice(0, 10)}`
+              : !seasonOpen(b) ? `${t('Seasonal')} · ${b.season}`
               : near ? `${t("You're here")} · ${fmtDist(d)}`
               : d != null ? `${fmtDist(d)} ${t('away')}` : b.category}
           </div>
@@ -424,10 +426,18 @@ export default function BadgeWorld({ onClose }) {
 
       {/* strike overlay */}
       {struckBadge && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 6500, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(9,13,19,0.85)' }}>
-          <div style={{ position: 'absolute', inset: 0, background: '#fff', animation: 'badge-flash 0.35s ease-out forwards' }} />
-          <Medallion badge={struckBadge} size={210} struck spinning />
+        <div onClick={() => { const b = struckBadge; setStruckBadge(null); setVisPrompt(b) }}
+          style={{ position: 'fixed', inset: 0, zIndex: 6500, display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', gap: 22, background: 'rgba(9,13,19,0.92)', cursor: 'pointer' }}>
+          <div style={{ position: 'absolute', inset: 0, background: '#fff', animation: 'badge-flash 0.5s ease-out forwards', pointerEvents: 'none' }} />
+          <Medallion badge={struckBadge} size={230} struck spinning />
+          <div style={{ textAlign: 'center', animation: 'badge-toast 0.6s ease-out 1.2s backwards' }}>
+            <div style={{ fontSize: 21, fontWeight: 800, color: TXT }}>{struckBadge.name}</div>
+            <div style={{ fontSize: 13, color: GOLD, fontWeight: 700, marginTop: 5, letterSpacing: '0.06em' }}>{t('BADGE COLLECTED')}</div>
+          </div>
+          <div style={{ position: 'absolute', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 46px)', fontSize: 12.5, color: FAINT }}>
+            {t('Tap to continue')}
+          </div>
         </div>
       )}
 
