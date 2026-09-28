@@ -112,56 +112,72 @@ export default function PhotosTab({ awards, onShare, onOpenBadge, autoOpen, onAu
         </div>
       ))}
 
-      {/* ── viewer: stamp first · swipe/toggle to photo · ‹ › · Open badge ── */}
-      {viewer && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 6900, background: '#05070A', display: 'flex', flexDirection: 'column' }}
-          onTouchStart={e => { viewer._x = e.touches[0].clientX }}
-          onTouchEnd={e => {
-            const dx = e.changedTouches[0].clientX - (viewer._x ?? 0)
-            if (dx < -60) setMode('photo'); else if (dx > 60) setMode('stamp')
-          }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            padding: 'calc(env(safe-area-inset-top, 0px) + 12px) 16px 8px' }}>
-            <button onClick={() => setViewerIdx(null)} style={{ background: 'none', border: 'none', color: '#EDE6D6', fontSize: 20, cursor: 'pointer' }}>✕</button>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 14.5, fontWeight: 800, color: TXT }}>{byId[viewer.badge_id].name}</div>
-              <div style={{ fontSize: 11, color: FAINT }}>{(viewer.created_at || '').slice(0, 10)} · {viewerIdx + 1} {t('of')} {items.length}</div>
+      {/* ── viewer (mockup-exact): glass header, big stamp, wide controls ── */}
+      {viewer && (() => {
+        const dt = viewer.created_at ? new Date(viewer.created_at) : null
+        const sub = dt
+          ? `${dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} · ${viewerIdx + 1} ${t('of')} ${items.length}`
+          : `${viewerIdx + 1} ${t('of')} ${items.length}`
+        const glassCircle = {
+          width: 44, height: 44, borderRadius: 22, border: '1px solid rgba(255,255,255,0.1)',
+          background: 'rgba(255,255,255,0.08)', color: '#F2F4F7', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+        }
+        const stampW = Math.min(340, (typeof window !== 'undefined' ? window.innerWidth : 390) - 70)
+        return (
+          <div style={{ position: 'fixed', inset: 0, zIndex: 6900, background: '#05070A', display: 'flex', flexDirection: 'column' }}
+            onTouchStart={e => { viewer._x = e.touches[0].clientX }}
+            onTouchEnd={e => {
+              const dx = e.changedTouches[0].clientX - (viewer._x ?? 0)
+              if (dx < -60) setMode('photo'); else if (dx > 60) setMode('stamp')
+            }}>
+            {/* header — glass ✕ left · title+meta center · glass share right */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12,
+              padding: 'calc(env(safe-area-inset-top, 0px) + 14px) 16px 10px' }}>
+              <button onClick={() => setViewerIdx(null)} aria-label="Close" style={{ ...glassCircle, fontSize: 16 }}>✕</button>
+              <div style={{ flex: 1, textAlign: 'center', minWidth: 0 }}>
+                <div style={{ fontSize: 17, fontWeight: 800, color: TXT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {byId[viewer.badge_id].name}
+                </div>
+                <div style={{ fontSize: 13, color: SUB, marginTop: 2 }}>{sub}</div>
+              </div>
+              <button onClick={() => onShare(byId[viewer.badge_id], viewer, mode)} aria-label="Share" style={{ ...glassCircle, fontSize: 16 }}>↥</button>
             </div>
-            <button onClick={() => onShare(byId[viewer.badge_id], viewer, mode)}
-              style={{ background: 'none', border: 'none', color: '#EDE6D6', fontSize: 17, cursor: 'pointer' }}>↥</button>
-          </div>
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 18, minHeight: 0 }}>
-            {mode === 'stamp'
-              ? <Stamp src={awardPhotoSrc(viewer)} place={byId[viewer.badge_id].name} owner={me} width={270} date={(viewer.created_at || '').slice(5, 10).replace('-', '/')} />
-              : <img src={awardPhotoSrc(viewer)} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 10 }} />}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, padding: '0 16px' }}>
-            <button onClick={() => setViewerIdx(i => Math.max(0, i - 1))} disabled={viewerIdx === 0}
-              style={{ width: 44, height: 44, borderRadius: 22, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.08)',
-                color: TXT, fontSize: 17, cursor: 'pointer', opacity: viewerIdx === 0 ? 0.35 : 1 }}>‹</button>
-            <div style={{ display: 'flex', background: 'rgba(255,255,255,0.08)', borderRadius: 999, padding: 4 }}>
-              {[['stamp', t('Stamp')], ['photo', t('Photo')]].map(([id, label]) => (
-                <button key={id} onClick={() => setMode(id)}
-                  style={{ border: 'none', borderRadius: 999, padding: '9px 22px', fontFamily: 'inherit', cursor: 'pointer',
-                    fontSize: 13, fontWeight: 700, background: mode === id ? 'rgba(255,255,255,0.18)' : 'none',
-                    color: mode === id ? TXT : SUB }}>
-                  {label}
-                </button>
-              ))}
+            {/* stage */}
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6px 18px', minHeight: 0 }}>
+              {mode === 'stamp'
+                ? <Stamp src={awardPhotoSrc(viewer)} place={byId[viewer.badge_id].name} owner={me} width={stampW} date={(viewer.created_at || '').slice(5, 10).replace('-', '/')} />
+                : <img src={awardPhotoSrc(viewer)} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 10 }} />}
             </div>
-            <button onClick={() => setViewerIdx(i => Math.min(items.length - 1, i + 1))} disabled={viewerIdx === items.length - 1}
-              style={{ width: 44, height: 44, borderRadius: 22, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.08)',
-                color: TXT, fontSize: 17, cursor: 'pointer', opacity: viewerIdx === items.length - 1 ? 0.35 : 1 }}>›</button>
+            {/* controls — ‹ at edge · wide Stamp|Photo pill · › at edge */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '4px 20px 0' }}>
+              <button onClick={() => setViewerIdx(i => Math.max(0, i - 1))} disabled={viewerIdx === 0} aria-label="Previous"
+                style={{ ...glassCircle, width: 52, height: 52, borderRadius: 26, fontSize: 19, opacity: viewerIdx === 0 ? 0.35 : 1 }}>‹</button>
+              <div style={{ flex: 1, display: 'flex', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: 999, padding: 4 }}>
+                {[['stamp', t('Stamp')], ['photo', t('Photo')]].map(([id, label]) => (
+                  <button key={id} onClick={() => setMode(id)}
+                    style={{ flex: 1, border: 'none', borderRadius: 999, padding: '13px 0', fontFamily: 'inherit', cursor: 'pointer',
+                      fontSize: 16, fontWeight: 700, background: mode === id ? 'rgba(255,255,255,0.18)' : 'none',
+                      color: mode === id ? TXT : SUB }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setViewerIdx(i => Math.min(items.length - 1, i + 1))} disabled={viewerIdx === items.length - 1} aria-label="Next"
+                style={{ ...glassCircle, width: 52, height: 52, borderRadius: 26, fontSize: 19, opacity: viewerIdx === items.length - 1 ? 0.35 : 1 }}>›</button>
+            </div>
+            {/* Open badge pill */}
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '14px 0 calc(env(safe-area-inset-bottom, 0px) + 20px)' }}>
+              <button onClick={() => { setViewerIdx(null); onOpenBadge(byId[viewer.badge_id]) }}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.08)',
+                  borderRadius: 999, padding: '10px 24px 10px 10px', color: TXT, fontFamily: 'inherit', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>
+                <Medallion badge={byId[viewer.badge_id]} size={34} struck /> {t('Open badge')}
+              </button>
+            </div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 calc(env(safe-area-inset-bottom, 0px) + 18px)' }}>
-            <button onClick={() => { setViewerIdx(null); onOpenBadge(byId[viewer.badge_id]) }}
-              style={{ display: 'flex', alignItems: 'center', gap: 9, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.08)',
-                borderRadius: 999, padding: '8px 18px 8px 8px', color: TXT, fontFamily: 'inherit', fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}>
-              <Medallion badge={byId[viewer.badge_id]} size={30} struck /> {t('Open badge')}
-            </button>
-          </div>
-        </div>
-      )}
+        )
+      })()}
     </div>
   )
 }
