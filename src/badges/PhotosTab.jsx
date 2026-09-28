@@ -16,7 +16,8 @@ const TXT = '#F2F4F7'
 const SUB = 'rgba(235,240,245,0.62)'
 const FAINT = 'rgba(235,240,245,0.34)'
 
-export default function PhotosTab({ awards, onShare, onOpenBadge, autoOpen, onAutoOpened }) {
+export default function PhotosTab({ awards, onShare, onOpenBadge, autoOpen, onAutoOpened, onBackToMap }) {
+  const fromMap = React.useRef(false)
   const [seg, setSeg] = React.useState('places')
   const [viewerIdx, setViewerIdx] = React.useState(null)
   const [mode, setMode] = React.useState('stamp')
@@ -27,6 +28,7 @@ export default function PhotosTab({ awards, onShare, onOpenBadge, autoOpen, onAu
   // Map-bubble stamp tap lands here with the badge to open (mockup flow).
   React.useEffect(() => {
     if (!autoOpen) return
+    fromMap.current = true
     const i = items.findIndex(a => a.badge_id === autoOpen)
     if (i >= 0) { setViewerIdx(i); setMode('stamp') }
     onAutoOpened?.()
@@ -135,7 +137,7 @@ export default function PhotosTab({ awards, onShare, onOpenBadge, autoOpen, onAu
             {/* header — glass ✕ left · title+meta center · glass share right */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12,
               padding: 'calc(env(safe-area-inset-top, 0px) + 14px) 16px 10px' }}>
-              <button onClick={() => setViewerIdx(null)} aria-label="Close" style={{ ...glassCircle, fontSize: 16 }}>✕</button>
+              <button onClick={() => { setViewerIdx(null); if (fromMap.current) { fromMap.current = false; onBackToMap?.() } }} aria-label="Close" style={{ ...glassCircle, fontSize: 16 }}>✕</button>
               <div style={{ flex: 1, textAlign: 'center', minWidth: 0 }}>
                 <div style={{ fontSize: 17, fontWeight: 800, color: TXT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {byId[viewer.badge_id].name}

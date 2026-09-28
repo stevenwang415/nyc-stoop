@@ -408,7 +408,7 @@ export default function BadgeWorld({ onClose }) {
         <PhotosTab awards={awards}
           onShare={(badge, award, initial) => setShare({ badge, award, initial })}
           onOpenBadge={(b) => setDetail(b)}
-          autoOpen={photosAutoOpen} onAutoOpened={() => setPhotosAutoOpen(null)} />
+          autoOpen={photosAutoOpen} onAutoOpened={() => setPhotosAutoOpen(null)} onBackToMap={() => setTab('map')} />
       )}
 
       {/* selected collected pin — badge bubble (mockup §Map) */}
