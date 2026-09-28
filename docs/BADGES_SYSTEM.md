@@ -5,7 +5,7 @@ chat ("add … to the Badges System file"); this file is the single source of
 truth for structure decisions before they're ingested into the app catalog
 (`docs/badge-catalog-template.csv` → `src/badges/catalog.js`).
 
-Last updated: 2026-09-28 (iris batch 1: tree + two rinks)
+Last updated: 2026-09-28 (iris complete: 11 seasonal badges)
 
 ---
 
@@ -50,10 +50,23 @@ Confirmed 2026-09-28:
 - Wollman Rink, Central Park ice skating (late Oct – early Mar)
 - Bryant Park Winter Village rink (late Oct – early Mar)
 
-Note: winter windows cross the year boundary (e.g. 10-22~03-01) — the
-season check must handle the wrap. Bryant Park now has TWO badges: the
-nickel park (year-round) and the iris Winter Village (seasonal) — same
-spot, different badges, intended.
+Batch 2 confirmed 2026-09-28 (11 iris total):
+- Village Halloween Parade (Oct 31 only — the rarest badge in the system)
+- Macy's Thanksgiving Parade (Thanksgiving week; Herald Square pin)
+- Brooklyn Botanic Cherry Blossoms (April)
+- Shakespeare in the Park / Delacorte (Jun–Aug)
+- NYC Marathon (first week of Nov; Central Park finish pin)
+- US Open (late Aug – early Sep, Flushing Meadows — first Queens badge)
+- Pride March (last week of June; Stonewall pin)
+- Dyker Heights Christmas Lights (December, Brooklyn)
+
+Notes: winter windows cross the year boundary (e.g. 10-22~03-01) — the
+season check must handle the wrap. Bryant Park has TWO badges (nickel
+park + iris rink) — intended. Date-varies events (Thanksgiving, Marathon,
+Pride) need a small annual window adjustment on the server — add to the
+ops calendar. Event badges use generous radii (300–400 m) for crowds and
+barriers. A future "Collection of NYC Winter" (tree + 2 rinks + Dyker)
+assembles itself — parked.
 
 ---
 

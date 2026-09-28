@@ -29,3 +29,11 @@ brooklynmuseum,Brooklyn Museum,布魯克林博物館,BKLYN MUSEUM,places,nickel,
 apollo,Apollo Theater,阿波羅劇院,APOLLO,places,nickel,no,40.8100,-73.9500,,
 wollmanrink,Wollman Rink,中央公園溜冰場,WOLLMAN RINK,places,iris,no,40.7686,-73.9740,10-22~03-01,
 wintervillage,Bryant Park Winter Village,冬季村溜冰場,WINTER VILLAGE,places,iris,no,40.7536,-73.9832,10-25~03-01,
+halloween,Village Halloween Parade,萬聖節遊行,HALLOWEEN,places,iris,no,40.7338,-73.9993,10-31~10-31,400
+thanksgiving,Macy's Thanksgiving Parade,梅西感恩節遊行,THANKSGIVING,places,iris,no,40.7508,-73.9890,11-20~11-28,400
+cherryblossom,Brooklyn Botanic Cherry Blossoms,布魯克林植物園櫻花,CHERRY BLOSSOM,places,iris,no,40.6676,-73.9632,04-01~04-30,300
+shakespeare,Shakespeare in the Park,莎士比亞公園劇場,SHAKESPEARE,places,iris,no,40.7799,-73.9688,06-01~08-31,
+marathon,NYC Marathon,紐約馬拉松,NYC MARATHON,places,iris,no,40.7716,-73.9765,11-01~11-07,400
+usopen,US Open,美國網球公開賽,US OPEN,places,iris,no,40.7500,-73.8451,08-24~09-07,400
+pride,Pride March,驕傲遊行,PRIDE,places,iris,no,40.7336,-74.0027,06-24~06-30,400
+dykerlights,Dyker Heights Christmas Lights,戴克高地聖誕燈飾,DYKER LIGHTS,places,iris,no,40.6210,-74.0152,12-01~12-31,400
