@@ -406,7 +406,7 @@ def create_photo(body: PhotoIn, user: User = Depends(get_current_user), db: Sess
         else:
             _where = p.place_name or p.area_label
             _push_to_users(db, _accepted_friend_ids(db, user.id), "NYC Stoop",
-                           f"{_name} added a photo" + (f" \u00b7 {_where}" if _where else ""))
+                           f"{_name} added a photo" + (f" · {_where}" if _where else ""))
     return {"ok": True, "photo": _inline_thumbs([_photo_meta(p, _public_user(user))], [p])[0]}
 
 
@@ -554,7 +554,7 @@ def like_photo(photo_id: int, user: User = Depends(get_current_user), db: Sessio
             db.commit()
             if p.user_id != user.id:
                 _name = user.display_name or user.email.split("@")[0]
-                _push_to_users(db, [p.user_id], "NYC Stoop", f"\u2665 {_name} liked your photo")
+                _push_to_users(db, [p.user_id], "NYC Stoop", f"♥ {_name} liked your photo")
         except Exception:  # unique-constraint race — someone double-tapped fast
             db.rollback()
     count = db.execute(select(func.count()).select_from(ShareLike).where(ShareLike.photo_id == photo_id)).scalar()
