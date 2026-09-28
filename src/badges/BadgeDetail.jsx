@@ -46,7 +46,8 @@ export default function BadgeDetail({ badge, award, dist, onClose, onTakePhoto, 
 
   return (
     <div onClick={onClose}
-      style={{ position: 'fixed', inset: 0, zIndex: 6400, background: 'rgba(3,5,8,0.45)', display: 'flex', alignItems: 'flex-end' }}>
+      style={{ position: 'fixed', inset: 0, zIndex: 6400, background: 'rgba(5,7,10,0.97)',
+        backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)', display: 'flex', alignItems: 'flex-end' }}>
       <div onClick={e => e.stopPropagation()}
         style={{ ...glass, margin: 8, marginBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)',
           width: 'calc(100% - 16px)', maxHeight: 'calc(100% - 60px)', overflowY: 'auto',
