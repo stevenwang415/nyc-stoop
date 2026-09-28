@@ -123,7 +123,7 @@ export async function shareStory(args) {
 
 // ── Standalone stamp PNG (1200 px wide, spec §9) ────────────────────────────
 export async function renderStampPng({ badgeName, photoSrc, owner }) {
-  const SW = 1200, SH = Math.round(SW * 1.38)
+  const SW = 1200, SH = Math.round(SW * 1.4767) // margin + 3:4 photo + caption band
   const cv = document.createElement('canvas'); cv.width = SW; cv.height = SH
   const ctx = cv.getContext('2d')
   ctx.fillStyle = '#F4EFE4'; ctx.fillRect(0, 0, SW, SH)
@@ -148,9 +148,9 @@ export async function renderStampPng({ badgeName, photoSrc, owner }) {
   // caption band
   const y0 = PM + PH
   ctx.textAlign = 'left'
-  ctx.fillStyle = '#1D2128'; ctx.font = '700 64px -apple-system, sans-serif'; ctx.fillText(badgeName, PM, y0 + 96)
-  ctx.fillStyle = '#4E545D'; ctx.font = '500 50px -apple-system, sans-serif'; ctx.fillText(owner, PM, y0 + 168)
-  ctx.fillStyle = '#8A8F96'; ctx.font = '400 40px -apple-system, sans-serif'; ctx.fillText('Taken on NYC Stoop', PM, y0 + 232)
+  ctx.fillStyle = '#1D2128'; ctx.font = '700 74px -apple-system, sans-serif'; ctx.fillText(badgeName, PM, y0 + 104)
+  ctx.fillStyle = '#4E545D'; ctx.font = '500 58px -apple-system, sans-serif'; ctx.fillText(owner, PM, y0 + 186)
+  ctx.fillStyle = '#8A8F96'; ctx.font = '400 48px -apple-system, sans-serif'; ctx.fillText('Taken on NYC Stoop', PM, y0 + 258)
   return new Promise(res => cv.toBlob(b => res(b), 'image/png'))
 }
 

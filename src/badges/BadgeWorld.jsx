@@ -52,7 +52,10 @@ const glass = {
 }
 
 export default function BadgeWorld({ onClose }) {
-  const [tab, setTab] = React.useState('map')            // map | badges | route | photos
+  const [tab, setTabState] = React.useState(() => {      // map | badges | route | photos
+    try { return sessionStorage.getItem('nyc_badge_tab') || 'map' } catch { return 'map' }
+  })
+  const setTab = (v) => { setTabState(v); try { sessionStorage.setItem('nyc_badge_tab', v) } catch {} }
   const [awards, setAwards] = React.useState([])          // [{badge_id, created_at, visibility, thumb_b64?, thumb_url?}]
   const [sheetSeg, setSheetSeg] = React.useState('mine')  // mine | missing
   const [demoIdx, setDemoIdx] = React.useState(0)

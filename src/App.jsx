@@ -17963,7 +17963,16 @@ export default function App() {
 
   // ── Auth — token + user cached in localStorage by ./auth/api ────────────
   const [user, setUserState] = useState(() => getUser())
-  const [badgeWorldOpen, setBadgeWorldOpen] = useState(false) // v3 badges prototype
+  // v3 badges prototype — like activeTab, the open world survives iOS page
+  // eviction (device report 2026-09-28: backgrounding in the badge world
+  // reloaded back onto the Map tab).
+  const [badgeWorldOpen, setBadgeWorldOpenState] = useState(() => {
+    try { return sessionStorage.getItem('nyc_badge_world') === '1' } catch { return false }
+  })
+  const setBadgeWorldOpen = (v) => {
+    setBadgeWorldOpenState(v)
+    try { v ? sessionStorage.setItem('nyc_badge_world', '1') : sessionStorage.removeItem('nyc_badge_world') } catch {}
+  }
   // Migration for installs that predate per-account workspaces: if someone is
   // already signed in but no active-profile flag exists, adopt the device's
   // current data as THEIR workspace (don't orphan it to 'guest').
