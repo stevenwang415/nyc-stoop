@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="rim-brass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F6E39B"/><stop offset="0.38" stop-color="#C9A227"/>
+      <stop offset="0.72" stop-color="#6B5210"/><stop offset="1" stop-color="#C9A227"/>
+    </linearGradient>
+    <radialGradient id="face-brass" cx="0.34" cy="0.26" r="0.9">
+      <stop offset="0" stop-color="#F6E39B"/><stop offset="0.55" stop-color="#C9A227"/>
+      <stop offset="1" stop-color="#6B5210"/>
+    </radialGradient>
+  </defs>
+  <circle cx="50" cy="50" r="49" fill="url(#rim-brass)"/>
+  <circle cx="50" cy="50" r="43" fill="url(#face-brass)"/>
+  <circle cx="50" cy="50" r="33.5" fill="none" stroke="#4A3806" stroke-width="1.4" opacity="0.55"/>
+  <path id="arc-brass" d="M 21 50 A 29 29 0 0 1 79 50" fill="none"/>
+  <text font-family="Didot, 'Bodoni 72', 'Times New Roman', serif" font-size="9" letter-spacing="1.8" fill="#4A3806">
+    <textPath href="#arc-brass" startOffset="50%" text-anchor="middle">PLACE NAME</textPath>
+  </text>
+  <text x="50" y="88" font-family="Didot, 'Bodoni 72', 'Times New Roman', serif" font-size="6.8" letter-spacing="2" fill="#4A3806" text-anchor="middle">★ MAIN ★</text>
+</svg>

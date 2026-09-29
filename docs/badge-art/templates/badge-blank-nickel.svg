@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="rim-nickel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F3F7FA"/><stop offset="0.38" stop-color="#B9C0C7"/>
+      <stop offset="0.72" stop-color="#5F6A74"/><stop offset="1" stop-color="#B9C0C7"/>
+    </linearGradient>
+    <radialGradient id="face-nickel" cx="0.34" cy="0.26" r="0.9">
+      <stop offset="0" stop-color="#F3F7FA"/><stop offset="0.55" stop-color="#B9C0C7"/>
+      <stop offset="1" stop-color="#5F6A74"/>
+    </radialGradient>
+  </defs>
+  <circle cx="50" cy="50" r="49" fill="url(#rim-nickel)"/>
+  <circle cx="50" cy="50" r="43" fill="url(#face-nickel)"/>
+  <circle cx="50" cy="50" r="33.5" fill="none" stroke="#36404A" stroke-width="1.4" opacity="0.55"/>
+  <path id="arc-nickel" d="M 21 50 A 29 29 0 0 1 79 50" fill="none"/>
+  <text font-family="Didot, 'Bodoni 72', 'Times New Roman', serif" font-size="9" letter-spacing="1.8" fill="#36404A">
+    <textPath href="#arc-nickel" startOffset="50%" text-anchor="middle">PLACE NAME</textPath>
+  </text>
+  <text x="50" y="88" font-family="Didot, 'Bodoni 72', 'Times New Roman', serif" font-size="6.8" letter-spacing="2" fill="#36404A" text-anchor="middle">MANHATTAN</text>
+</svg>

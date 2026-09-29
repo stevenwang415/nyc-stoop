@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="rim-iris" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/><stop offset="0.38" stop-color="#B8C6FF"/>
+      <stop offset="0.72" stop-color="#6C78B0"/><stop offset="1" stop-color="#B8C6FF"/>
+    </linearGradient>
+    <radialGradient id="face-iris" cx="0.34" cy="0.26" r="0.9">
+      <stop offset="0" stop-color="#FFFFFF"/><stop offset="0.55" stop-color="#B8C6FF"/>
+      <stop offset="1" stop-color="#6C78B0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="50" cy="50" r="49" fill="url(#rim-iris)"/>
+  <circle cx="50" cy="50" r="43" fill="url(#face-iris)"/>
+  <circle cx="50" cy="50" r="33.5" fill="none" stroke="#2B2F55" stroke-width="1.4" opacity="0.55"/>
+  <path id="arc-iris" d="M 21 50 A 29 29 0 0 1 79 50" fill="none"/>
+  <text font-family="Didot, 'Bodoni 72', 'Times New Roman', serif" font-size="9" letter-spacing="1.8" fill="#2B2F55">
+    <textPath href="#arc-iris" startOffset="50%" text-anchor="middle">PLACE NAME</textPath>
+  </text>
+  <text x="50" y="88" font-family="Didot, 'Bodoni 72', 'Times New Roman', serif" font-size="6.8" letter-spacing="2" fill="#2B2F55" text-anchor="middle">MANHATTAN</text>
+</svg>
