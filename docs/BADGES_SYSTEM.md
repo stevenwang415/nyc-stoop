@@ -112,6 +112,8 @@ layer, privacy guardrail (no homes), glyph library owner.
 
 ## 8. Open items / to reconcile
 
+- **v3.0 launch blocker — EU DSA trader status**: account is declared **non-trader** (Sep 2026, app fully free). Before enabling the $3.99 IAP in v3.0: either switch to **trader** in App Store Connect (public contact info required — consider not using home address) **or exclude EU countries** in Pricing & Availability. IAP will be rejected/blocked in EU otherwise.
+
 - **Natural History and MoMA are declared Brass via the Museums Collection
   but are not yet in the brass list (§2) or the CSV** — confirm whether the
   brass set becomes 16, or whether these two are brass-tier without the
