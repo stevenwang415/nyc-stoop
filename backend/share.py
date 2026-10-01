@@ -89,11 +89,14 @@ def _attach_comments(metas: list, db) -> list:
         .where(ShareComment.photo_id.in_(ids), ShareComment.status == "ok")
         .order_by(ShareComment.created_at)
     ).all()
-    by_photo: dict = {}
+    # Post-scoped (2026-10-01): a multi-photo post is ONE thread. Comments may
+    # be anchored to any photo of the group (legacy), so pool them by group.
+    keyof = {m["id"]: (m.get("group_id") or f"solo-{m['id']}") for m in metas}
+    by_key: dict = {}
     for c, u in rows:
-        by_photo.setdefault(c.photo_id, []).append(_comment_meta(c, _public_user(u)))
+        by_key.setdefault(keyof.get(c.photo_id), []).append(_comment_meta(c, _public_user(u)))
     for m in metas:
-        m["comments"] = by_photo.get(m["id"], [])
+        m["comments"] = by_key.get(keyof[m["id"]], [])
     return metas
 
 from auth import get_current_user
@@ -608,9 +611,13 @@ def list_comments(photo_id: int, user: User = Depends(get_current_user), db: Ses
     p = db.get(SharePhoto, photo_id)
     if not _photo_visible(db, user, p):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
+    ids = [p.id]
+    if p.group_id:  # post-scoped thread: every photo of the group counts
+        ids = db.execute(select(SharePhoto.id).where(
+            SharePhoto.group_id == p.group_id, SharePhoto.user_id == p.user_id)).scalars().all() or ids
     rows = db.execute(
         select(ShareComment, User).join(User, User.id == ShareComment.user_id)
-        .where(ShareComment.photo_id == photo_id, ShareComment.status == "ok")
+        .where(ShareComment.photo_id.in_(ids), ShareComment.status == "ok")
         .order_by(ShareComment.created_at)
     ).all()
     return {"comments": [_comment_meta(c, _public_user(u)) for c, u in rows]}
@@ -622,7 +629,14 @@ def add_comment(photo_id: int, body: CommentIn,
     p = db.get(SharePhoto, photo_id)
     if not _photo_visible(db, user, p):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
-    c = ShareComment(photo_id=photo_id, user_id=user.id, text=body.text.strip())
+    anchor_id = p.id
+    if p.group_id:  # anchor to the post's lead photo (smallest id in the group)
+        lead = db.execute(select(SharePhoto.id).where(
+            SharePhoto.group_id == p.group_id, SharePhoto.user_id == p.user_id)
+            .order_by(SharePhoto.id)).scalars().first()
+        if lead:
+            anchor_id = lead
+    c = ShareComment(photo_id=anchor_id, user_id=user.id, text=body.text.strip())
     db.add(c)
     db.commit()
     db.refresh(c)
