@@ -672,16 +672,18 @@ def push_register(body: PushRegisterIn, user: User = Depends(get_current_user), 
 def push_test(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     """Diagnostics (temporary): sends a test push to the caller's own devices
     and returns the raw APNs verdict per token, plus config visibility."""
+    import traceback
     from apns import _HOST  # noqa — debug visibility
-    rows = db.execute(select(PushToken).where(PushToken.user_id == user.id)).scalars().all()
-    tokens = [r.token for r in rows]
-    results = send_push(tokens, "NYC Stoop", "Test push — it works 🔔", debug=True)
-    return {
-        "apns_enabled": apns_enabled(),
-        "gateway": _HOST,
-        "registered_tokens": len(tokens),
-        "results": {t[-8:]: v for t, v in results.items()},
-    }
+    out = {"apns_enabled": apns_enabled(), "gateway": _HOST}
+    try:
+        rows = db.execute(select(PushToken).where(PushToken.user_id == user.id)).scalars().all()
+        tokens = [r.token for r in rows]
+        out["registered_tokens"] = len(tokens)
+        results = send_push(tokens, "NYC Stoop", "Test push — it works 🔔", debug=True)
+        out["results"] = {t[-8:]: v for t, v in results.items()}
+    except Exception:
+        out["error"] = traceback.format_exc()[-600:]
+    return out
 
 
 @router.post("/push/unregister")
