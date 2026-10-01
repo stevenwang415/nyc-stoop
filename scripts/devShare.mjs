@@ -80,6 +80,19 @@ export function devSharePlugin() {
         const m = req.method
 
         // ── friends ──
+        // ── app-state backup (v2.2.2) ──
+        if (url === '/share/state' && m === 'GET') {
+          const st = (db.userState || {})[String(user.id)] || { rev: 0, data: null }
+          return json(res, 200, { rev: st.rev, data: st.data })
+        }
+        if (url === '/share/state' && m === 'PUT') {
+          const b = await readBody(req)
+          db.userState = db.userState || {}
+          const prev = db.userState[String(user.id)] || { rev: 0 }
+          db.userState[String(user.id)] = { rev: (prev.rev || 0) + 1, data: b.data }
+          save(db)
+          return json(res, 200, { rev: db.userState[String(user.id)].rev })
+        }
         if (url === '/share/me/code' && m === 'GET') {
           const firstVisit = !db.codes[user.id].code
           if (firstVisit) { db.codes[user.id].code = newCode() }

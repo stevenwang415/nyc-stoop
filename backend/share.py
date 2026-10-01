@@ -101,7 +101,7 @@ def _attach_comments(metas: list, db) -> list:
 
 from auth import get_current_user
 from database import get_db
-from models import BadgeAward, Friendship, PushToken, ShareComment, ShareLike, SharePhoto, User
+from models import BadgeAward, Friendship, PushToken, ShareComment, ShareLike, SharePhoto, User, UserState
 
 router = APIRouter(prefix="/share", tags=["share"])
 
@@ -680,6 +680,33 @@ def push_register(body: PushRegisterIn, user: User = Depends(get_current_user), 
         db.add(PushToken(user_id=user.id, token=body.token, platform=body.platform))
     db.commit()
     return {"ok": True}
+
+
+@router.get("/state")
+def get_state(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    """App-state backup: the caller's saved bundle + revision."""
+    r = db.get(UserState, user.id)
+    return {"rev": r.rev if r else 0, "data": r.data if r else None}
+
+
+class StateIn(BaseModel):
+    data: str
+
+
+@router.put("/state")
+def put_state(body: StateIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    """Overwrite the caller's bundle; rev increments so devices can compare."""
+    if len(body.data) > 400_000:
+        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "State too large")
+    r = db.get(UserState, user.id)
+    if r is None:
+        r = UserState(user_id=user.id, data=body.data, rev=1)
+        db.add(r)
+    else:
+        r.data = body.data
+        r.rev = (r.rev or 0) + 1
+    db.commit()
+    return {"rev": r.rev}
 
 
 @router.post("/push/test")

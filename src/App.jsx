@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { tonightPicks } from './data/tonight.js'
 import { moods, moodById, flattenMoodPicks, ACTIVITIES, ACTIVITY_ORDER } from './data/moods.js'
 import { initPush, teardownPush } from './lib/push.js'
+import { restoreStateIfNewer, schedulePushState, flushState } from './lib/stateSync.js'
 import { CUISINE_OPTIONS, RESTAURANT_DATA, RESTAURANT_COORDS, PLANNER_RESTAURANTS } from './data/restaurants.js'
 import { userPicks, mapsUrl } from './data/userPicks.js'
 import {
@@ -62,7 +63,11 @@ import { hasPlus, usePlus, openPaywall, initIap, buyPlus, restorePlus, plusPrice
 // can throw on setItem; a failed persist should never crash the app.
 function lsSet(key, value) {
   try { window.localStorage.setItem(key, value) } catch {}
+  try { schedulePushState() } catch {}
 }
+// Backup flush when the app is backgrounded or the page goes away.
+if (typeof window !== 'undefined') window.addEventListener('pagehide', () => { try { flushState() } catch {} })
+
 
 // (venueColors + venueCoords previously lived inline here — ~210 lines of
 // hardcoded data. Moved to ./data/venueMeta.js so this file stays focused on
@@ -17043,6 +17048,17 @@ function _profileDataKeys() {
   } catch {}
   return out
 }
+// Server-side state restore (2026-10-01): apply the account's backed-up
+// bundle when it's newer than this install, then reload once so every
+// localStorage-seeded state re-initializes. Guarded per session.
+function _maybeRestoreState() {
+  if (sessionStorage.getItem('nyc_state_restore_done')) return
+  restoreStateIfNewer().then(outcome => {
+    if (outcome === 'skip') return // no token yet / offline — retry on next call
+    sessionStorage.setItem('nyc_state_restore_done', '1')
+    if (outcome === 'applied') window.location.reload()
+  }).catch(() => {})
+}
 function switchDataProfile(nextId) {
   try {
     const prevId = localStorage.getItem('nyc_active_profile') || 'guest'
@@ -18002,11 +18018,12 @@ export default function App() {
     // 30-day one on every launch — the daily "session expired" wall came
     // from 24h tokens with no refresh. Falls back to fetchMe (profile
     // refresh only) if the refresh endpoint isn't deployed yet.
+    _maybeRestoreState() // token already on device: restore runs at once, not behind the network
     refreshSession()
-      .then(r => { if (r?.access_token) authSetToken(r.access_token); if (r?.user) { authSetUser(r.user); setUserState(r.user) } initPush() })
+      .then(r => { if (r?.access_token) authSetToken(r.access_token); if (r?.user) { authSetUser(r.user); setUserState(r.user) } initPush(); _maybeRestoreState() })
       .catch(() => {
         fetchMe()
-          .then(u => { authSetUser(u); setUserState(u); initPush() })
+          .then(u => { authSetUser(u); setUserState(u); initPush(); _maybeRestoreState() })
           .catch(() => {})
       })
   }, [])

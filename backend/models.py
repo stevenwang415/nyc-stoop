@@ -19,7 +19,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import String, Text, DateTime, ForeignKey, Index, UniqueConstraint, func
+from sqlalchemy import Integer, String, Text, DateTime, ForeignKey, Index, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
@@ -182,3 +182,15 @@ class PushToken(Base):
     platform: Mapped[str] = mapped_column(String(12), nullable=False, default="ios")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
+
+
+class UserState(Base):
+    """Per-account app-state backup (2026-10-01, v2.2.2). One JSON blob of the
+    user's local bundle — plans, trips, saved events, planner tweaks — so a
+    reinstall or a second device restores everything. Last write wins (rev)."""
+    __tablename__ = "user_state"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    data: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    rev: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
