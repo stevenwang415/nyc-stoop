@@ -673,8 +673,9 @@ def push_test(user: User = Depends(get_current_user), db: Session = Depends(get_
     """Diagnostics (temporary): sends a test push to the caller's own devices
     and returns the raw APNs verdict per token, plus config visibility."""
     import traceback
-    from apns import _HOST  # noqa — debug visibility
-    out = {"apns_enabled": apns_enabled(), "gateway": _HOST}
+    from apns import _HOST, _P8  # noqa — debug visibility
+    out = {"apns_enabled": apns_enabled(), "gateway": _HOST,
+           "p8_head": _P8[:30], "p8_tail": _P8[-28:], "p8_lines": _P8.count("\n") + 1, "p8_len": len(_P8)}
     try:
         rows = db.execute(select(PushToken).where(PushToken.user_id == user.id)).scalars().all()
         tokens = [r.token for r in rows]
@@ -682,7 +683,7 @@ def push_test(user: User = Depends(get_current_user), db: Session = Depends(get_
         results = send_push(tokens, "NYC Stoop", "Test push — it works 🔔", debug=True)
         out["results"] = {t[-8:]: v for t, v in results.items()}
     except Exception:
-        out["error"] = traceback.format_exc()[-600:]
+        out["error"] = traceback.format_exc()[-1200:]
     return out
 
 
