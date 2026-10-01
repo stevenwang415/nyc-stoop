@@ -17994,7 +17994,7 @@ export default function App() {
       .then(r => { if (r?.access_token) authSetToken(r.access_token); if (r?.user) { authSetUser(r.user); setUserState(r.user) } initPush() })
       .catch(() => {
         fetchMe()
-          .then(u => { authSetUser(u); setUserState(u) })
+          .then(u => { authSetUser(u); setUserState(u); initPush() })
           .catch(() => {})
       })
   }, [])
