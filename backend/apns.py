@@ -46,9 +46,10 @@ def _provider_jwt() -> str:
     return tok
 
 
-def send_push(tokens: list, title: str, body: str) -> dict:
+def send_push(tokens: list, title: str, body: str, debug: bool = False) -> dict:
     """Best-effort fan-out to a list of device tokens. Returns per-token
-    status; 410/BadDeviceToken tokens should be pruned by the caller."""
+    status; 410/BadDeviceToken tokens should be pruned by the caller.
+    With debug=True, values are {"status": int, "reason": str} instead."""
     if not (apns_enabled() and tokens):
         return {}
     import httpx
@@ -65,9 +66,9 @@ def send_push(tokens: list, title: str, body: str) -> dict:
             for t in tokens:
                 try:
                     r = client.post(f"{_HOST}/3/device/{t}", json=payload, headers=headers)
-                    results[t] = r.status_code
-                except Exception:
-                    results[t] = 0
+                    results[t] = {"status": r.status_code, "reason": r.text[:200]} if debug else r.status_code
+                except Exception as e:
+                    results[t] = {"status": 0, "reason": repr(e)[:200]} if debug else 0
     except Exception:
         pass
     return results
