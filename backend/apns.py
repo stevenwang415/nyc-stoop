@@ -22,6 +22,12 @@ import time
 _TEAM = os.environ.get("APNS_TEAM_ID", "").strip()
 _KEY_ID = os.environ.get("APNS_KEY_ID", "").strip()
 _P8 = os.environ.get("APNS_P8", "").replace("\\n", "\n").strip()
+# Tolerate a key pasted without its PEM armor (just the base64 body):
+if _P8 and "BEGIN" not in _P8:
+    _b = "".join(_P8.split())
+    _P8 = ("-----BEGIN PRIVATE KEY-----\n"
+           + "\n".join(_b[i:i + 64] for i in range(0, len(_b), 64))
+           + "\n-----END PRIVATE KEY-----")
 _TOPIC = os.environ.get("APNS_TOPIC", "com.nycstoop.app").strip()
 _HOST = ("https://api.sandbox.push.apple.com"
          if os.environ.get("APNS_SANDBOX", "").strip() == "1"
