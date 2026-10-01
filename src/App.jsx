@@ -26,9 +26,21 @@ import { Filesystem, Directory } from '@capacitor/filesystem'
 // that aren't in our curated catalog. Falls back gracefully if the key is unset.
 import { isGooglePlacesAvailable, searchGooglePlaces, getGooglePlaceDetails, getPlacePhotoByName } from './lib/googlePlaces'
 import TodayStrip from './share/TodayStrip.jsx'
-import BadgeDoor from './badges/BadgeDoor.jsx'
-import { badgesEnabled } from './badges/catalog.js'
-import BadgeWorld from './badges/BadgeWorld.jsx'
+// ── v3 badge system: LAZY chunk (2026-10-01) ───────────────────────────────
+// No static import — Vite splits src/badges/* into its own file that a
+// production user's app never downloads or executes unless the beta flag is
+// on (web tester unlock: ?badges=1). v3.0 launch = no re-wiring needed.
+const BadgeDoor = React.lazy(() => import('./badges/BadgeDoor.jsx'))
+const BadgeWorld = React.lazy(() => import('./badges/BadgeWorld.jsx'))
+function badgesEnabled() {
+  if (import.meta.env.DEV) return true
+  try {
+    const q = new URLSearchParams(window.location.search).get('badges')
+    if (q === '1') localStorage.setItem('nyc_badges_beta', '1')
+    if (q === '0') localStorage.removeItem('nyc_badges_beta')
+    return localStorage.getItem('nyc_badges_beta') === '1'
+  } catch { return false }
+}
 import { fetchThisWeek, getThisWeekCached, eventMapsUrl, eventOfficialUrl, eventSearchUrl } from './lib/nycEvents'
 import { fetchTicketmaster } from './lib/ticketmaster'
 import { parseTakeoutFile } from './lib/googleTakeout'
@@ -18822,8 +18834,12 @@ export default function App() {
         onAddPlace={() => setAddPlaceOpen(true)}
       />
       {/* v3 Badges prototype: the door lives on the Map tab only. */}
-      {activeTab === 'map' && user && !badgeWorldOpen && badgesEnabled() && <BadgeDoor onOpen={() => setBadgeWorldOpen(true)} />}
-      {badgeWorldOpen && <BadgeWorld onClose={() => setBadgeWorldOpen(false)} />}
+      {activeTab === 'map' && user && !badgeWorldOpen && badgesEnabled() && (
+        <React.Suspense fallback={null}><BadgeDoor onOpen={() => setBadgeWorldOpen(true)} /></React.Suspense>
+      )}
+      {badgeWorldOpen && badgesEnabled() && (
+        <React.Suspense fallback={null}><BadgeWorld onClose={() => setBadgeWorldOpen(false)} /></React.Suspense>
+      )}
       {/* First-time-user onboarding overlay */}
       {showOnboarding && <OnboardingModal onDismiss={dismissOnboarding} />}
       {/* One maps chooser for every "open in maps" action app-wide. */}
