@@ -29,6 +29,7 @@ const DEMO_SPOTS = [
   { label: 'Flatiron', loc: { lat: 40.7400, lng: -73.9884 } },
   { label: 'Empire State', loc: { lat: 40.7482, lng: -73.9860 } },
   { label: 'Central Park', loc: { lat: 40.7738, lng: -73.9712 } },
+  { label: 'Guggenheim', loc: { lat: 40.7830, lng: -73.9590 } },
 ]
 
 function ensureLeaflet(cb) {
