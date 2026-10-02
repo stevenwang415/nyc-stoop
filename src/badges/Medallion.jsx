@@ -4,11 +4,20 @@
 // ever supply the glyph path; struck/outline states and finishes come free.
 import React from 'react'
 import { FINISHES } from './catalog.js'
+import { COINS } from './coinsArt.js'
 
 const SERIF = "Didot, 'Bodoni 72', 'Times New Roman', serif"
 
 export default function Medallion({ badge, size = 64, struck = true, spinning = false }) {
   const f = FINISHES[badge.finish] || FINISHES.brass
+  // Whole-coin designer art (v3): the collected front face is the image —
+  // outline state and the engraved back remain programmatic.
+  if (struck && COINS[badge.id]) {
+    return (
+      <img src={COINS[badge.id]} alt={badge.name} width={size} height={size} draggable={false}
+        style={{ display: 'block', width: size, height: size, borderRadius: '50%', userSelect: 'none' }} />
+    )
+  }
   const uid = React.useId().replace(/[:]/g, '')
   const arcId = `arc${uid}`
   const bottom = badge.main ? '★ MAIN ★' : 'MANHATTAN'

@@ -10,6 +10,7 @@ import { prepareImage, thumbSrc } from '../share/shareApi.js'
 import { BADGES, byId, FINISHES, COLLECT_RADIUS_M, CLOSE_BY_M, distanceM, fmtDist, levelState, collectRadius, seasonOpen } from './catalog.js'
 import { myAwards, collectBadge, setBadgeVisibility } from './badgesApi.js'
 import Medallion from './Medallion.jsx'
+import { COINS } from './coinsArt.js'
 import { ShareIcon } from './icons.jsx'
 import BadgeDetail from './BadgeDetail.jsx'
 import RoutesTab, { AddToRouteSheet } from './RoutesTab.jsx'
@@ -160,7 +161,7 @@ export default function BadgeWorld({ onClose }) {
         const html = has
           ? `<div style="position:relative;width:26px;height:26px">
                <div style="width:26px;height:26px;border-radius:50%;border:2.5px solid #090D13;
-                 background:radial-gradient(circle at 35% 28%, ${f.hi}, ${f.base} 55%, ${f.shadow});
+                 background:${COINS[b.id] ? `url(${COINS[b.id]}) center/cover` : `radial-gradient(circle at 35% 28%, ${f.hi}, ${f.base} 55%, ${f.shadow})`};
                  box-shadow:0 0 14px 4px rgba(227,195,107,0.45)"></div>
                <div style="position:absolute;left:-8px;top:13px;width:14px;height:17px;background:#F4EFE4;border-radius:2px;
                  transform:rotate(-10deg);box-shadow:0 1px 3px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center">

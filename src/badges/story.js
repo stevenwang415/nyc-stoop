@@ -4,6 +4,7 @@
 // rasterized), and the caption lines. Shares via the system sheet when the
 // browser supports file sharing; otherwise downloads.
 import { FINISHES } from './catalog.js'
+import { COINS } from './coinsArt.js'
 
 const SERIF = "Didot, 'Bodoni 72', 'Times New Roman', serif"
 
@@ -89,11 +90,19 @@ export async function renderStory({ badge, photoSrc, owner, dateLabel, progressL
     ctx.restore()
   }
 
-  // medallion over the stamp's bottom-right (or centered without a photo)
-  const mimg = await loadImg('data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(medallionSvgString(badge))))).catch(() => null)
+  // medallion over the stamp's bottom-right (or centered without a photo) —
+  // whole-coin designer image when available, programmatic SVG otherwise
+  const msrc = COINS[badge.id]
+    ? COINS[badge.id]
+    : 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(medallionSvgString(badge))))
+  const mimg = await loadImg(msrc).catch(() => null)
   if (mimg) {
-    if (photoSrc) ctx.drawImage(mimg, 640, 985, 330, 330)
-    else ctx.drawImage(mimg, 540 - 260, 560, 520, 520)
+    const draw = (x, y, s2) => {
+      if (COINS[badge.id]) { ctx.save(); ctx.beginPath(); ctx.arc(x + s2 / 2, y + s2 / 2, s2 / 2, 0, 7); ctx.clip(); ctx.drawImage(mimg, x, y, s2, s2); ctx.restore() }
+      else ctx.drawImage(mimg, x, y, s2, s2)
+    }
+    if (photoSrc) draw(640, 985, 330)
+    else draw(540 - 260, 560, 520)
   }
 
   // captions
