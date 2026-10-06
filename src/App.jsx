@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { tonightPicks } from './data/tonight.js'
 import { moods, moodById, flattenMoodPicks, ACTIVITIES, ACTIVITY_ORDER } from './data/moods.js'
 import { initPush, teardownPush } from './lib/push.js'
+import { localYMD } from './lib/dates.js'
 import { restoreStateIfNewer, schedulePushState, flushState } from './lib/stateSync.js'
 import { CUISINE_OPTIONS, RESTAURANT_DATA, RESTAURANT_COORDS, PLANNER_RESTAURANTS } from './data/restaurants.js'
 import { userPicks, mapsUrl } from './data/userPicks.js'
@@ -18900,7 +18901,7 @@ export default function App() {
                     ? <>🤝 <b>{e.author?.display_name}</b> {t('is now your friend')}</>
                     : <>📷 <b>{e.author?.display_name}</b> {t('added a photo')}{e.place_name ? ` · ${e.place_name}` : ''}</>}
                 </div>
-                <div style={{ fontSize: 11.5, color: 'var(--gray-500)', marginTop: 2 }}>{(e.created_at || '').slice(0, 10)}</div>
+                <div style={{ fontSize: 11.5, color: 'var(--gray-500)', marginTop: 2 }}>{localYMD(e.created_at)}</div>
               </button>
             ))}
           </div>

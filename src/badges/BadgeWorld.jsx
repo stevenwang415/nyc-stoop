@@ -6,6 +6,7 @@
 import React from 'react'
 import { createPortal } from 'react-dom'
 import { t } from '../lib/i18n.js'
+import { localYMD } from '../lib/dates.js'
 import { prepareImage, thumbSrc } from '../share/shareApi.js'
 import { BADGES, byId, FINISHES, COLLECT_RADIUS_M, CLOSE_BY_M, distanceM, fmtDist, levelState, collectRadius, seasonOpen } from './catalog.js'
 import { myAwards, collectBadge, setBadgeVisibility } from './badgesApi.js'
@@ -277,7 +278,7 @@ export default function BadgeWorld({ onClose }) {
             {b.name} {b.main && <span style={{ fontSize: 10, fontWeight: 800, color: GOLD, border: `1px solid ${GOLD}55`, borderRadius: 99, padding: '1.5px 7px', marginLeft: 4 }}>MAIN</span>}
           </div>
           <div style={{ fontSize: 12.5, color: has ? SUB : (!seasonOpen(b) ? '#C9B6FF' : near ? GOLD : SUB), marginTop: 2 }}>
-            {has ? `${t('Collected')} ${(awards.find(a => a.badge_id === b.id)?.created_at || '').slice(0, 10)}`
+            {has ? `${t('Collected')} ${localYMD(awards.find(a => a.badge_id === b.id)?.created_at)}`
               : !seasonOpen(b) ? `${t('Seasonal')} · ${b.season}`
               : near ? `${t("You're here")} · ${fmtDist(d)}`
               : d != null ? `${fmtDist(d)} ${t('away')}` : b.category}

@@ -5,6 +5,7 @@
 // "At this spot", then Take photo / Add to route / Show on map.
 import React from 'react'
 import { t } from '../lib/i18n.js'
+import { parseUTC } from '../lib/dates.js'
 import { fmtDist, collectRadius, seasonOpen } from './catalog.js'
 import SpinBadge from './SpinBadge.jsx'
 import { ShareIcon, CloseIcon, CameraIcon, LockIcon } from './icons.jsx'
@@ -25,9 +26,8 @@ const circleBtn = {
 }
 
 function fmtWhen(iso) {
-  if (!iso) return ''
-  const d = new Date(iso)
-  return isNaN(d) ? iso.slice(0, 10) : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  const d = parseUTC(iso)
+  return d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : (iso || '').slice(0, 10)
 }
 
 export default function BadgeDetail({ badge, award, dist, onClose, onTakePhoto, onVisibility, onAddToRoute, onShowOnMap, onShare }) {

@@ -4,6 +4,7 @@
 // photos, Open badge pill, share → the three-card share sheet (mockup flow).
 import React from 'react'
 import { t } from '../lib/i18n.js'
+import { localYMD, localMD, parseUTC } from '../lib/dates.js'
 import { getUser } from '../auth/api.js'
 import { byId } from './catalog.js'
 import Stamp from './Stamp.jsx'
@@ -45,12 +46,12 @@ export default function PhotosTab({ awards, onShare, onOpenBadge, autoOpen, onAu
   const viewer = viewerIdx != null ? items[viewerIdx] : null
   const stampOf = (a, w) => (
     <button key={a.badge_id} onClick={() => openViewer(a)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
-      <Stamp src={awardPhotoSrc(a)} place={byId[a.badge_id].name} owner={me} width={w} date={(a.created_at || '').slice(5, 10).replace('-', '/')} />
+      <Stamp src={awardPhotoSrc(a)} place={byId[a.badge_id].name} owner={me} width={w} date={localMD(a.created_at)} />
     </button>
   )
 
   const byDay = {}
-  for (const a of items) { const d = (a.created_at || '').slice(0, 10); (byDay[d] = byDay[d] || []).push(a) }
+  for (const a of items) { const d = localYMD(a.created_at); (byDay[d] = byDay[d] || []).push(a) }
   const days = Object.keys(byDay).sort().reverse()
   const day0 = days.length ? days[days.length - 1] : null
   const dayN = (d) => day0 ? Math.round((new Date(d) - new Date(day0)) / 86400000) + 1 : 1
@@ -81,7 +82,7 @@ export default function PhotosTab({ awards, onShare, onOpenBadge, autoOpen, onAu
               <Medallion badge={byId[a.badge_id]} size={36} struck />
               <span>
                 <span style={{ display: 'block', fontSize: 15.5, fontWeight: 800, color: TXT }}>{byId[a.badge_id].name}</span>
-                <span style={{ display: 'block', fontSize: 11.5, color: FAINT }}>1 {t('photo')} · {(a.created_at || '').slice(0, 10)}</span>
+                <span style={{ display: 'block', fontSize: 11.5, color: FAINT }}>1 {t('photo')} · {localYMD(a.created_at)}</span>
               </span>
             </button>
             <button onClick={() => onShare(byId[a.badge_id], a, 'story')}
@@ -117,7 +118,7 @@ export default function PhotosTab({ awards, onShare, onOpenBadge, autoOpen, onAu
 
       {/* ── viewer (mockup-exact): glass header, big stamp, wide controls ── */}
       {viewer && (() => {
-        const dt = viewer.created_at ? new Date(viewer.created_at) : null
+        const dt = parseUTC(viewer.created_at)
         const sub = dt
           ? `${dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} · ${viewerIdx + 1} ${t('of')} ${items.length}`
           : `${viewerIdx + 1} ${t('of')} ${items.length}`
@@ -149,7 +150,7 @@ export default function PhotosTab({ awards, onShare, onOpenBadge, autoOpen, onAu
             {/* stage */}
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6px 18px', minHeight: 0 }}>
               {mode === 'stamp'
-                ? <Stamp src={awardPhotoSrc(viewer)} place={byId[viewer.badge_id].name} owner={me} width={stampW} date={(viewer.created_at || '').slice(5, 10).replace('-', '/')} />
+                ? <Stamp src={awardPhotoSrc(viewer)} place={byId[viewer.badge_id].name} owner={me} width={stampW} date={localMD(viewer.created_at)} />
                 : <img src={awardPhotoSrc(viewer)} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 10 }} />}
             </div>
             {/* controls — ‹ at edge · wide Stamp|Photo pill · › at edge */}

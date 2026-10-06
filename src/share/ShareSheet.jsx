@@ -250,7 +250,7 @@ function FeedPostCard({ g, onOpen, onToggleLike, planner, onPlanner, menu }) {
           </button>
         )}
       </div>
-      <div style={{ padding: '4px 12px 12px', fontSize: 11.5, color: 'var(--gray-400)' }}>{(lead.created_at || '').slice(0, 10)}</div>
+      <div style={{ padding: '4px 12px 12px', fontSize: 11.5, color: 'var(--gray-400)' }}>{localYMD(lead.created_at)}</div>
     </div>
   )
 }
@@ -1451,7 +1451,7 @@ export default function ShareSheetHost({ embedded = false }) {
             )}
             <div style={{ fontSize: 12, marginTop: 6, opacity: 0.7, display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
               <span>{{ food: '🍴', view: '🏞', vibe: '✨' }[cur.kind] || ''} {cur.place_name || cur.area_label || ''}</span>
-              <span>{(cur.created_at || '').slice(0, 10)}</span>
+              <span>{localYMD(cur.created_at)}</span>
               {viewer.mine
                 ? <>
                     <button onClick={() => startEdit(viewer.g)}

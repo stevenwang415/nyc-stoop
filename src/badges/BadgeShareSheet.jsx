@@ -5,6 +5,7 @@
 import { ShareIcon } from './icons.jsx'
 import React from 'react'
 import { t } from '../lib/i18n.js'
+import { localYMD } from '../lib/dates.js'
 import { getUser } from '../auth/api.js'
 import Stamp from './Stamp.jsx'
 import Medallion from './Medallion.jsx'
@@ -25,7 +26,7 @@ export default function BadgeShareSheet({ badge, award, initial = 'story', progr
   const [saved, setSaved] = React.useState(false)
   const [err, setErr] = React.useState('')
   const me = getUser()?.display_name || 'Me'
-  const dateLabel = (award?.created_at || '').slice(0, 10)
+  const dateLabel = localYMD(award?.created_at)
 
   React.useEffect(() => {
     let live = true
