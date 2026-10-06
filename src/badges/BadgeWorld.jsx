@@ -12,6 +12,7 @@ import { BADGES, byId, FINISHES, COLLECT_RADIUS_M, CLOSE_BY_M, distanceM, fmtDis
 import { myAwards, collectBadge, setBadgeVisibility } from './badgesApi.js'
 import Medallion from './Medallion.jsx'
 import { COINS } from './coinsArt.js'
+import { COLLECTIONS, collectionState } from './collections.js'
 import { ShareIcon } from './icons.jsx'
 import BadgeDetail from './BadgeDetail.jsx'
 import RoutesTab, { AddToRouteSheet } from './RoutesTab.jsx'
@@ -374,6 +375,60 @@ export default function BadgeWorld({ onClose }) {
       {tab === 'badges' && (
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px calc(env(safe-area-inset-bottom, 0px) + 20px)' }}>
           {levelCard}
+
+          {/* ── Collections (spec §6) ── */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '18px 0 10px' }}>
+            <span style={{ fontSize: 17, fontWeight: 800, color: TXT }}>{t('Collections')}</span>
+            <span style={{ fontSize: 12.5, color: SUB }}>
+              {COLLECTIONS.filter(c => collectionState(c, owned).done).length} {t('of')} {COLLECTIONS.length} {t('complete')}
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {COLLECTIONS.map(col => {
+              const cs = collectionState(col, owned)
+              return (
+                <div key={col.id} style={{
+                  background: cs.done ? 'linear-gradient(135deg, rgba(227,195,107,0.16), rgba(227,195,107,0.05))' : 'rgba(255,255,255,0.06)',
+                  border: cs.done ? '1px solid rgba(227,195,107,0.45)' : '1px solid rgba(255,255,255,0.07)',
+                  borderRadius: 18, padding: '12px 14px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                    <span style={{ fontSize: 15, fontWeight: 800, color: TXT }}>{col.emoji} {t(col.name)}</span>
+                    <span style={{ fontSize: 12, fontWeight: cs.done ? 800 : 400, color: cs.done ? GOLD : SUB }}>
+                      {cs.total === 0 ? t('Coming soon') : cs.done ? `★ ${t('Complete')} ★` : `${cs.have} ${t('of')} ${cs.total}`}
+                    </span>
+                  </div>
+                  {cs.total > 0 && (
+                    <div style={{ height: 5, borderRadius: 99, background: 'rgba(255,255,255,0.12)', margin: '9px 0 10px' }}>
+                      <div style={{ width: `${Math.round(100 * cs.have / cs.total)}%`, height: '100%', borderRadius: 99,
+                        background: 'linear-gradient(90deg,#8A6A15,#E3C36B,#F6E39B)' }} />
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: cs.total ? 0 : 8 }}>
+                    {cs.members.map(id => (
+                      <button key={id} onClick={() => setDetail(byId[id])}
+                        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex',
+                          flexDirection: 'column', alignItems: 'center', gap: 3, fontFamily: 'inherit', width: 54 }}>
+                        <Medallion badge={byId[id]} size={46} struck={owned.has(id)} />
+                        <span style={{ fontSize: 9.5, color: owned.has(id) ? TXT : FAINT, textAlign: 'center',
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 54 }}>
+                          {byId[id].name}
+                        </span>
+                      </button>
+                    ))}
+                    {(col.coming || []).map(label => (
+                      <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, width: 54 }}>
+                        <div style={{ width: 46, height: 46, borderRadius: '50%', border: '1.5px dashed rgba(255,255,255,0.22)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: FAINT }}>?</div>
+                        <span style={{ fontSize: 9.5, color: FAINT, textAlign: 'center', whiteSpace: 'nowrap',
+                          overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 54 }}>{label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '18px 0 10px' }}>
             <span style={{ fontSize: 17, fontWeight: 800, color: TXT }}>{t('On the map')}</span>
             <span style={{ fontSize: 12.5, color: SUB }}>{lv.owned} {t('of')} {lv.total} {t('collected')}</span>

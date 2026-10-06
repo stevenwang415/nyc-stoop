@@ -92,6 +92,12 @@ tiers/levels.
 
 Members TBD.
 
+> **Status 2026-10-06**: Collections UI shipped on the Badges shelf
+> (src/badges/collections.js) — progress bars, member medallions, gold
+> "Complete" plaque. Museums counts the 4 in-catalog members; AMNH + MoMA
+> show as placeholders until their badges are added. Broadway/Steakhouse
+> render as Coming-soon cards; filling in `members` ids is all they need.
+
 ### 6.3 Collection of Steakhouse
 
 Members TBD.
