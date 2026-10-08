@@ -164,7 +164,13 @@ Remaining before launch:
 5. Collection rewards treatment + AMNH/MoMA badges yes/no
 6. Haptics on strike; native tester unlock; e2e UI suite green
 7. Flip the badge gate; remove APNS_SANDBOX if testing left it set
-8. App Store assets: screenshots with badge world, What's New
+8. **Two color modes (UX upgrade, decided 2026-10-09)** — today the main
+   app is light-only and the badge world is dark-only. v3.0 ships an
+   app-wide light/dark mode: **light is the default** (current NYC Stoop
+   look). Two themes are missing and must be designed + built: a **light
+   badge world** and a **dark NYC Stoop** (all 5 main tabs). UX design to
+   follow; likely a Settings toggle + optional follow-system.
+9. App Store assets: screenshots with badge world, What's New
 
 ### v3.1 — "Make Your Own Badge" (proposed, after v3.0 stabilizes)
 User-minted personal badges (configure, never draw): glyph library +
