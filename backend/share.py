@@ -943,6 +943,12 @@ BADGE_CATALOG = {
     "usopen": {"name": "US Open", "lat": 40.7500, "lng": -73.8451, "radius": 400, "season": "08-24~09-07"},
     "pride": {"name": "Pride March", "lat": 40.7336, "lng": -74.0027, "radius": 400, "season": "06-24~06-30"},
     "dykerlights": {"name": "Dyker Heights Christmas Lights", "lat": 40.6210, "lng": -74.0152, "radius": 400, "season": "12-01~12-31"},
+    "billsburger": {"name": "Bill's Bar & Burger", "lat": 40.7598, "lng": -73.9790, "radius": 200},
+    "sawaan": {"name": "Sawaan Thai", "lat": 40.7523, "lng": -73.9851, "radius": 200},
+    "tonchin": {"name": "Tonchin New York", "lat": 40.7500, "lng": -73.9846, "radius": 200},
+    "viacarota": {"name": "Via Carota", "lat": 40.7331, "lng": -74.0033, "radius": 200},
+    "clintonst": {"name": "Clinton St. Baking Company", "lat": 40.7212, "lng": -73.9840, "radius": 200},
+    "birrialandia": {"name": "Birria-Landia NYC", "lat": 40.7470, "lng": -73.8916, "radius": 100},
 }
 BADGE_COLLECT_RADIUS_M = 200
 

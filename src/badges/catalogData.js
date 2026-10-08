@@ -494,5 +494,83 @@ export const CATALOG = [
     "lng": -74.0152,
     "season": "12-01~12-31",
     "radius": 400
+  },
+  {
+    "id": "billsburger",
+    "name": "Bill's Bar & Burger",
+    "name_zh": "Bill 漢堡店",
+    "short": "BILL'S BURGER",
+    "category": "food",
+    "finish": "copper",
+    "main": false,
+    "lat": 40.7598,
+    "lng": -73.979,
+    "season": null,
+    "radius": null
+  },
+  {
+    "id": "sawaan",
+    "name": "Sawaan Thai",
+    "name_zh": "Sawaan 泰式料理",
+    "short": "SAWAAN THAI",
+    "category": "food",
+    "finish": "copper",
+    "main": false,
+    "lat": 40.7523,
+    "lng": -73.9851,
+    "season": null,
+    "radius": null
+  },
+  {
+    "id": "tonchin",
+    "name": "Tonchin New York",
+    "name_zh": "Tonchin 拉麵",
+    "short": "TONCHIN",
+    "category": "food",
+    "finish": "copper",
+    "main": false,
+    "lat": 40.75,
+    "lng": -73.9846,
+    "season": null,
+    "radius": null
+  },
+  {
+    "id": "viacarota",
+    "name": "Via Carota",
+    "name_zh": "Via Carota",
+    "short": "VIA CAROTA",
+    "category": "food",
+    "finish": "copper",
+    "main": false,
+    "lat": 40.7331,
+    "lng": -74.0033,
+    "season": null,
+    "radius": null
+  },
+  {
+    "id": "clintonst",
+    "name": "Clinton St. Baking Company",
+    "name_zh": "Clinton St. 鬆餅",
+    "short": "CLINTON ST.",
+    "category": "food",
+    "finish": "copper",
+    "main": false,
+    "lat": 40.7212,
+    "lng": -73.984,
+    "season": null,
+    "radius": null
+  },
+  {
+    "id": "birrialandia",
+    "name": "Birria-Landia NYC",
+    "name_zh": "Birria 塔可餅",
+    "short": "BIRRIA-LANDIA",
+    "category": "food",
+    "finish": "copper",
+    "main": false,
+    "lat": 40.747,
+    "lng": -73.8916,
+    "season": null,
+    "radius": 100
   }
 ]
