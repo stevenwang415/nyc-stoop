@@ -142,7 +142,7 @@ export default function BadgeDetail({ badge, award, dist, onClose, onTakePhoto, 
             </div>
             <p style={{ fontSize: 12.5, color: SUB, margin: '8px 2px 0', lineHeight: 1.45 }}>
               {vis === 'public'
-                ? `${t('People at')} ${badgeName(badge)} ${t('can see your badge and photos while they\'re there.')}`
+                ? t('Friends can see this badge and its photos.')
                 : t('Only you can see this badge. You can still share it to your stories.')}
             </p>
           </div>
