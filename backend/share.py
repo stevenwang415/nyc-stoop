@@ -949,6 +949,16 @@ BADGE_CATALOG = {
     "viacarota": {"name": "Via Carota", "lat": 40.7331, "lng": -74.0033, "radius": 200},
     "clintonst": {"name": "Clinton St. Baking Company", "lat": 40.7212, "lng": -73.9840, "radius": 200},
     "birrialandia": {"name": "Birria-Landia NYC", "lat": 40.7470, "lng": -73.8916, "radius": 100},
+    "hamilton": {"name": "Hamilton", "lat": 40.7590, "lng": -73.9869, "radius": 200},
+    "chicagoshow": {"name": "Chicago", "lat": 40.7609, "lng": -73.9846, "radius": 200},
+    "harrypotter": {"name": "Harry Potter", "lat": 40.7566, "lng": -73.9885, "radius": 200},
+    "lionking": {"name": "The Lion King", "lat": 40.7580, "lng": -73.9855, "radius": 200},
+    "wicked": {"name": "Wicked", "lat": 40.7625, "lng": -73.9838, "radius": 200},
+    "peterluger": {"name": "Peter Luger Steak House", "lat": 40.7099, "lng": -73.9622, "radius": 200},
+    "gallaghers": {"name": "Gallaghers Steakhouse", "lat": 40.7632, "lng": -73.9833, "radius": 200},
+    "keens": {"name": "Keens Steakhouse", "lat": 40.7507, "lng": -73.9862, "radius": 200},
+    "thegrill": {"name": "The Grill", "lat": 40.7585, "lng": -73.9722, "radius": 200},
+    "fourcharles": {"name": "4 Charles Prime Rib", "lat": 40.7343, "lng": -74.0010, "radius": 200},
 }
 BADGE_COLLECT_RADIUS_M = 200
 

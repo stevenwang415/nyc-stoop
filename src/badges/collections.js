@@ -20,16 +20,16 @@ export const COLLECTIONS = [
     name: 'Broadway',
     name_zh: '百老匯',
     emoji: '🎭',
-    members: [],
-    coming: ['Members coming soon'],
+    members: ['hamilton', 'chicagoshow', 'harrypotter', 'lionking', 'wicked'],
+    coming: [],
   },
   {
     id: 'steakhouse',
     name: 'Steakhouse',
     name_zh: '牛排館',
     emoji: '🥩',
-    members: [],
-    coming: ['Members coming soon'],
+    members: ['peterluger', 'gallaghers', 'keens', 'thegrill', 'fourcharles'],
+    coming: [],
   },
 ]
 

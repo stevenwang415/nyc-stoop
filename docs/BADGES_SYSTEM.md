@@ -88,9 +88,10 @@ tiers/levels.
 | Whitney | Nickel |
 | Brooklyn Museum | Nickel |
 
-### 6.2 Collection of Broadway
+### 6.2 Collection of Broadway (5 badges, nickel)
 
-Members TBD.
+Hamilton (Richard Rodgers) · Chicago (Ambassador) · Harry Potter (Lyric) ·
+The Lion King (Minskoff) · Wicked (Gershwin). Added 2026-10-08.
 
 > **Status 2026-10-06**: Collections UI shipped on the Badges shelf
 > (src/badges/collections.js) — progress bars, member medallions, gold
@@ -98,9 +99,10 @@ Members TBD.
 > show as placeholders until their badges are added. Broadway/Steakhouse
 > render as Coming-soon cards; filling in `members` ids is all they need.
 
-### 6.3 Collection of Steakhouse
+### 6.3 Collection of Steakhouse (5 badges, copper)
 
-Members TBD.
+Peter Luger · Gallaghers · Keens · The Grill · 4 Charles Prime Rib.
+Added 2026-10-08.
 
 ---
 
