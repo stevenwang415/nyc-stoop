@@ -5,18 +5,30 @@ chat ("add … to the Badges System file"); this file is the single source of
 truth for structure decisions before they're ingested into the app catalog
 (`docs/badge-catalog-template.csv` → `src/badges/catalog.js`).
 
-Last updated: 2026-09-28 (iris complete: 11 seasonal badges)
+Last updated: 2026-10-08 (tier redefinition + roadmap; 54 badges)
 
 ---
 
-## 1. Badge tiers (finish)
+## 1. Badge tiers (finish) — redefined 2026-10-08
 
-| Tier | Finish | Meaning |
+The tiers are a TRAVELER'S PRIORITY GUIDE, not a prestige ranking. Each tier
+answers one question: "how much time do you have in New York?"
+
+| Tier | Finish | Definition |
 |---|---|---|
-| Brass | gold metal | Main spots — the landmark set; required by the level ladder |
-| Nickel | silver metal | Notable places & stores |
-| Copper | copper metal | Food & restaurants |
-| Iris | iridescent | Seasonal — collectible only in their date window; bonus, never required |
+| Brass | gold metal | **Must-visit.** The places and restaurants no first trip should skip. Backbone of the level ladder. |
+| Nickel | silver metal | **If you have extra time.** Worth it, optional — second-trip material. |
+| Copper | copper metal | **If you have plenty of time.** Deep cuts for people really living the city. |
+| Iris | iridescent | **Seasonal events.** Collectible only inside their date window; bonus, never required by the ladder. |
+
+Implications of the redefinition (open review items):
+- Tier is no longer category-bound: a restaurant CAN be brass if it's a
+  must-visit (candidate: Katz's — currently copper). Review each badge
+  against the time-priority question, not against "is it food".
+- Current mapping holds until reviewed: 14 brass, 17 nickel (incl. the 5
+  Broadway shows), 12 copper (incl. the 5 steakhouses), 11 iris.
+- Level ladder reads brass as its spine — any badge promoted to brass
+  automatically becomes required for New York Regular (all mains).
 
 ## 2. Brass badges (14) — confirmed 2026-09-28
 
@@ -117,6 +129,45 @@ Leaning: friends can collect each other's badges (the participation
 flywheel); never counts toward levels. To decide: 2/week limit + ~10
 active cap, friends-collectible vs private, finish look, separate map
 layer, privacy guardrail (no homes), glyph library owner.
+
+## 9. Roadmap
+
+### Shipped
+- **v2.2** (Sep 2026) — Share social core: friends, posts, comments, likes,
+  IG-style profiles, Today in NYC, Stoop rename.
+- **v2.2.1** (Sep 2026) — OSM tile hotfix (CARTO policy change).
+- **v2.2.2** (Oct 2026) — push notifications working end-to-end,
+  post-scoped comments, timezone-correct dates, account-state backup to
+  Neon (plans/trips survive reinstall), badge code isolated to a lazy
+  chunk.
+
+### v3.0 — "Badges" (target: ~2 weeks, gated by designer art)
+Done and waiting behind the beta gate:
+- Badge world (map · shelf · routes · photos), camera collect with
+  server-side radius + season rules, strike ceremony, stamp viewer,
+  share (story/stamp/photo), whole-coin designer art pipeline
+  (Guggenheim live), collections (Museums · Broadway · Steakhouse),
+  5-level ladder, profile badge strip, full zh-TW, 54-badge catalog.
+Remaining before launch:
+1. Designer coins — 53 remaining (pipeline: 1 image + 1 command each)
+2. $3.99 IAP revival — decide free/paid split, StoreKit re-test
+3. EU DSA trader decision (or exclude EU) — blocks IAP
+4. Tier review pass under the new definitions (promote/demote)
+5. Collection rewards treatment + AMNH/MoMA badges yes/no
+6. Haptics on strike; native tester unlock; e2e UI suite green
+7. Flip the badge gate; remove APNS_SANDBOX if testing left it set
+8. App Store assets: screenshots with badge world, What's New
+
+### v3.1 — "Make Your Own Badge" (proposed, after v3.0 stabilizes)
+User-minted personal badges (configure, never draw): glyph library +
+engraved name + location pin, personal finish, 2/week cap. Spec in §7.
+
+### Parallel track
+- **Tokyo Stoop** — second city on a new stack (Expo + Hono/CF Workers),
+  structure sprint planned; NYC learnings (catalog pipeline, badge rules,
+  state backup) port over as patterns, not code.
+
+---
 
 ## 8. Open items / to reconcile
 
