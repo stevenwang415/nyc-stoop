@@ -31,6 +31,17 @@ function fmtWhen(iso) {
 }
 
 export default function BadgeDetail({ badge, award, dist, onClose, onTakePhoto, onVisibility, onAddToRoute, onShowOnMap, onShare }) {
+  const [planAdded, setPlanAdded] = React.useState(false)
+  // Badge → Planner bridge (2026-10-09): a badge is a place, so it rides the
+  // same nyc-add-to-planner event the feed uses — dedup + save handled there.
+  const addToPlanner = () => {
+    try {
+      window.dispatchEvent(new CustomEvent('nyc-add-to-planner', {
+        detail: { name: badge.name, lat: badge.lat, lng: badge.lng },
+      }))
+      setPlanAdded(true)
+    } catch {}
+  }
   const has = !!award
   const open = seasonOpen(badge)
   const near = dist != null && dist <= collectRadius(badge)
@@ -144,6 +155,12 @@ export default function BadgeDetail({ badge, award, dist, onClose, onTakePhoto, 
               <CameraIcon c="#1A1405" /> {t('Take photo')}
             </button>
           )}
+          <button onClick={addToPlanner} disabled={planAdded}
+            style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)',
+              color: planAdded ? GOLD : TXT, fontSize: 14, fontWeight: 700, padding: '13px 0',
+              borderRadius: 999, cursor: planAdded ? 'default' : 'pointer', fontFamily: 'inherit' }}>
+            {planAdded ? `${t('Added to Planner')} ✓` : `＋ ${t('Add to Planner')}`}
+          </button>
           <div style={{ display: 'flex', gap: 9 }}>
             <button onClick={onAddToRoute}
               style={{ flex: 1, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', color: TXT,
