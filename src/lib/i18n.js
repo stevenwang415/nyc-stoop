@@ -30,6 +30,8 @@ export function dateLocale() { return _lang === 'zh' ? 'zh-TW' : 'en-US' }
 
 const ZH = {
   // ── Badge world (v3, 2026-10-08) ──
+  "Friends here": "朋友來過", "No friends have collected this yet.": "還沒有朋友收集過這枚徽章。",
+
   "Add": "新增",
   "Add to route": "加入路線",
   "Added ✓": "已加入 ✓",

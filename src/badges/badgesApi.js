@@ -26,3 +26,8 @@ export const collectBadge = (p) => call('/share/badges/collect', { method: 'POST
 export const setBadgeVisibility = (badgeId, visibility) =>
   call(`/share/badges/${badgeId}`, { method: 'PATCH', body: { visibility } })
 export const awardsOf = (userId) => call(`/share/badges/of/${userId}`)
+
+// ── Multi-photo + friends-at-badge (2026-10-10) ────────────────────────────
+export const badgePhotos = (badgeId) => call(`/share/badges/${badgeId}/photos`)
+export const addBadgePhoto = (badgeId, body) => call(`/share/badges/${badgeId}/photos`, { method: 'POST', body })
+export const badgeFriends = (badgeId) => call(`/share/badges/${badgeId}/friends`)

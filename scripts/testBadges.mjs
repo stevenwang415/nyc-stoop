@@ -165,6 +165,31 @@ try {
   await pg.locator('[aria-label="Close"], button:text-is("✕")').last().click().catch(() => pg.mouse.click(195, 100))
   await pg.waitForTimeout(500)
 
+  // multi-photo + friends-here (2026-10-10): add a photo on site, see it in
+  // the strip; friends section visible from anywhere; API gates enforced
+  await pg.locator('button:has-text("Flatiron Building")').last().click()
+  await pg.waitForTimeout(900)
+  ok('Friends here section shows', await pg.locator('text=Friends here').count() > 0)
+  const addTile = pg.locator('button:has-text("Add photo")').last()
+  ok('Add photo tile active on site', await addTile.isVisible().catch(() => false))
+  await addTile.click(); await pg.waitForTimeout(400)
+  await pg.locator('input[type=file]').last().setInputFiles({ name: 'p2.jpg', mimeType: 'image/jpeg', buffer: jpg })
+  await pg.waitForTimeout(1500)
+  const bp = await pg.evaluate(async (t) =>
+    (await (await fetch('/share/badges/flatiron/photos', { headers: { Authorization: 'Bearer ' + t } })).json()).photos.length, tok)
+  ok('extra photo stored', bp === 1, `got ${bp}`)
+  ok('strip shows 2 photos', await pg.locator('img[src^="data:image"]').count() >= 2)
+  const farAdd = await pg.evaluate(async (t) => (await fetch('/share/badges/flatiron/photos', {
+    method: 'POST', headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ lat: 40.78, lng: -73.96, image_b64: 'x'.repeat(200), thumb_b64: 'x'.repeat(80) }) })).status, tok)
+  ok('add photo off-site → 403', farAdd === 403, `got ${farAdd}`)
+  const notOwned = await pg.evaluate(async (t) => (await fetch('/share/badges/guggenheim/photos', {
+    method: 'POST', headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ lat: 40.783, lng: -73.959, image_b64: 'x'.repeat(200), thumb_b64: 'x'.repeat(80) }) })).status, tok)
+  ok('add photo on uncollected badge → 403', notOwned === 403, `got ${notOwned}`)
+  await pg.locator('[aria-label="Close"]').last().click().catch(() => pg.mouse.click(195, 100))
+  await pg.waitForTimeout(500)
+
   // photos tab → stamp → viewer with mockup controls
   await pg.locator('button:text-is("Photos")').last().click(); await pg.waitForTimeout(800)
   const stamp = pg.locator('text=Taken on NYC Stoop').first()

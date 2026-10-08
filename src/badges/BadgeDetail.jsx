@@ -8,6 +8,8 @@ import { t, dateLocale } from '../lib/i18n.js'
 import { parseUTC } from '../lib/dates.js'
 import { fmtDist, collectRadius, seasonOpen, badgeName } from './catalog.js'
 import SpinBadge from './SpinBadge.jsx'
+import { badgePhotos, badgeFriends } from './badgesApi.js'
+import { awardPhotoSrc } from './BadgeShareSheet.jsx'
 import { ShareIcon, CloseIcon, CameraIcon, LockIcon } from './icons.jsx'
 
 const GOLD = '#E3C36B'
@@ -30,7 +32,7 @@ function fmtWhen(iso) {
   return d ? d.toLocaleDateString(dateLocale(), { month: 'short', day: 'numeric' }) : (iso || '').slice(0, 10)
 }
 
-export default function BadgeDetail({ badge, award, dist, onClose, onTakePhoto, onVisibility, onAddToRoute, onShowOnMap, onShare }) {
+export default function BadgeDetail({ badge, award, dist, onClose, onTakePhoto, onVisibility, onAddToRoute, onShowOnMap, onShare, onAddPhoto, photosBump }) {
   const [planAdded, setPlanAdded] = React.useState(false)
   // Badge → Planner bridge (2026-10-09): a badge is a place, so it rides the
   // same nyc-add-to-planner event the feed uses — dedup + save handled there.
@@ -43,6 +45,16 @@ export default function BadgeDetail({ badge, award, dist, onClose, onTakePhoto, 
     } catch {}
   }
   const has = !!award
+  // Extra photos (mine) + friends' public photos here — the location gate is
+  // on ADDING, not viewing (product call 2026-10-10).
+  const [extraPhotos, setExtraPhotos] = React.useState([])
+  const [friendsHere, setFriendsHere] = React.useState(null)
+  React.useEffect(() => {
+    let dead = false
+    if (has) badgePhotos(badge.id).then(r => { if (!dead) setExtraPhotos(r.photos || []) }).catch(() => {})
+    badgeFriends(badge.id).then(r => { if (!dead) setFriendsHere(r.friends || []) }).catch(() => { if (!dead) setFriendsHere([]) })
+    return () => { dead = true }
+  }, [badge.id, has, photosBump])
   const open = seasonOpen(badge)
   const near = dist != null && dist <= collectRadius(badge)
   const photo = award && (award.image_url || (award.image_b64 ? 'data:image/jpeg;base64,' + award.image_b64 : null) || award.thumb_url || (award.thumb_b64 ? 'data:image/jpeg;base64,' + award.thumb_b64 : null))
@@ -85,17 +97,22 @@ export default function BadgeDetail({ badge, award, dist, onClose, onTakePhoto, 
           <div style={{ marginTop: 24 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '0 2px' }}>
               <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: -0.3, color: TXT }}>{t('Your photos')}</span>
-              <span style={{ fontSize: 13, color: SUB }}>{photo ? 1 : 0}</span>
+              <span style={{ fontSize: 13, color: SUB }}>{(photo ? 1 : 0) + extraPhotos.length}</span>
             </div>
             <div style={{ display: 'flex', gap: 8, overflowX: 'auto', marginTop: 10, scrollbarWidth: 'none' }}>
               {photo && <img src={photo} alt="" style={{ flex: '0 0 auto', width: 92, height: 122, objectFit: 'cover', borderRadius: 16 }} />}
-              <div style={{ flex: '0 0 auto', width: 92, height: 122, borderRadius: 16,
-                background: 'rgba(255,255,255,0.05)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6,
-                color: FAINT, fontSize: 12, fontWeight: 600 }}>
-                <CameraIcon c={FAINT} />
-                {t('On site only')}
-              </div>
+              {extraPhotos.map(p => (
+                <img key={p.id} src={awardPhotoSrc(p)} alt="" style={{ flex: '0 0 auto', width: 92, height: 122, objectFit: 'cover', borderRadius: 16 }} />
+              ))}
+              <button onClick={near ? onAddPhoto : undefined} disabled={!near}
+                style={{ flex: '0 0 auto', width: 92, height: 122, borderRadius: 16, border: 'none',
+                  background: near ? 'rgba(227,195,107,0.14)' : 'rgba(255,255,255,0.05)',
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)', fontFamily: 'inherit',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  color: near ? GOLD : FAINT, fontSize: 12, fontWeight: 600, cursor: near ? 'pointer' : 'default' }}>
+                <CameraIcon c={near ? GOLD : FAINT} />
+                {near ? t('Add photo') : t('On site only')}
+              </button>
             </div>
             {!near && dist != null && (
               <p style={{ fontSize: 12.5, color: SUB, margin: '10px 2px 0', lineHeight: 1.45 }}>
@@ -131,20 +148,29 @@ export default function BadgeDetail({ badge, award, dist, onClose, onTakePhoto, 
           </div>
         )}
 
-        {/* At this spot — locked in the prototype */}
-        <div style={{ marginTop: 22 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '0 2px' }}>
-            <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: -0.3, color: TXT }}>{t('At this spot')}</span>
-            <span style={{ fontSize: 12.5, color: SUB }}>{t('Only visible here')}</span>
+        {/* Friends here — friends' public badges, viewable from anywhere */}
+        {friendsHere != null && (
+          <div style={{ marginTop: 22 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '0 2px' }}>
+              <span style={{ fontSize: 17, fontWeight: 600, letterSpacing: -0.3, color: TXT }}>{t('Friends here')}</span>
+              <span style={{ fontSize: 12.5, color: SUB }}>{friendsHere.length || ''}</span>
+            </div>
+            {friendsHere.length === 0 ? (
+              <p style={{ fontSize: 12.5, color: FAINT, margin: '8px 2px 0' }}>{t('No friends have collected this yet.')}</p>
+            ) : (
+              <div style={{ display: 'flex', gap: 10, overflowX: 'auto', marginTop: 10, scrollbarWidth: 'none' }}>
+                {friendsHere.map((f, i) => (
+                  <div key={i} style={{ flex: '0 0 auto', width: 92, textAlign: 'center' }}>
+                    <img src={awardPhotoSrc(f)} alt="" style={{ width: 92, height: 122, objectFit: 'cover', borderRadius: 16 }} />
+                    <div style={{ fontSize: 11.5, fontWeight: 700, color: TXT, marginTop: 5, whiteSpace: 'nowrap',
+                      overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.user?.display_name || ''}</div>
+                    <div style={{ fontSize: 10.5, color: SUB }}>{fmtWhen(f.created_at)}</div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-          <div style={{ background: 'rgba(255,255,255,0.05)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)',
-            borderRadius: 18, padding: '13px 14px', marginTop: 10, display: 'flex', gap: 12, alignItems: 'center' }}>
-            <LockIcon c={SUB} />
-            <span style={{ fontSize: 13, color: SUB, lineHeight: 1.45 }}>
-              {t("Other people's public badges and photos show up here while you're at")} {badgeName(badge)}.
-            </span>
-          </div>
-        </div>
+        )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 22 }}>
           {!has && near && open && (

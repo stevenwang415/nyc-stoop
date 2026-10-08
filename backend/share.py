@@ -101,7 +101,7 @@ def _attach_comments(metas: list, db) -> list:
 
 from auth import get_current_user
 from database import get_db
-from models import BadgeAward, Friendship, PushToken, ShareComment, ShareLike, SharePhoto, User, UserState
+from models import BadgeAward, BadgePhoto, Friendship, PushToken, ShareComment, ShareLike, SharePhoto, User, UserState
 
 router = APIRouter(prefix="/share", tags=["share"])
 
@@ -1011,6 +1011,85 @@ def badges_of(user_id: int, user: User = Depends(get_current_user), db: Session 
     if user_id != user.id:
         rows = [a for a in rows if a.visibility == "public"]
     return {"awards": [_award_meta(a) for a in rows]}
+
+
+def _badge_photo_meta(p: BadgePhoto) -> dict:
+    thumb_url = r2_url(p.thumb_key) if (r2_enabled() and p.thumb_key) else None
+    image_url = r2_url(p.image_key) if (r2_enabled() and p.image_key) else None
+    return {"id": p.id, "badge_id": p.badge_id,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+            "thumb_url": thumb_url, "thumb_b64": (p.thumb_b64 if not thumb_url else None),
+            "image_url": image_url, "image_b64": (p.image_b64 if not image_url else None)}
+
+
+class BadgePhotoIn(BaseModel):
+    lat: Optional[float] = Field(default=None, ge=-90, le=90)
+    lng: Optional[float] = Field(default=None, ge=-180, le=180)
+    image_b64: str = Field(min_length=100, max_length=3_000_000)
+    thumb_b64: str = Field(min_length=50, max_length=120_000)
+
+
+MAX_BADGE_PHOTOS = 10
+
+
+@router.get("/badges/{badge_id}/photos")
+def badge_photos(badge_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    """The caller's extra photos for one badge (collect photo lives on the award)."""
+    rows = db.execute(select(BadgePhoto).where(
+        BadgePhoto.user_id == user.id, BadgePhoto.badge_id == badge_id)
+        .order_by(BadgePhoto.created_at)).scalars().all()
+    return {"photos": [_badge_photo_meta(p) for p in rows]}
+
+
+@router.post("/badges/{badge_id}/photos")
+def badge_add_photo(badge_id: str, body: BadgePhotoIn,
+                    user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    """Add a photo to an owned badge — same radius proof as collecting."""
+    b = BADGE_CATALOG.get(badge_id)
+    if not b:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such badge")
+    owned = db.execute(select(BadgeAward.id).where(
+        BadgeAward.user_id == user.id, BadgeAward.badge_id == badge_id)).first()
+    if not owned:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "collect it first")
+    if body.lat is None or body.lng is None:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "location required")
+    if _badge_distance_m(body.lat, body.lng, b["lat"], b["lng"]) > b.get("radius", BADGE_COLLECT_RADIUS_M):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "too far away")
+    count = len(db.execute(select(BadgePhoto.id).where(
+        BadgePhoto.user_id == user.id, BadgePhoto.badge_id == badge_id)).all())
+    if count >= MAX_BADGE_PHOTOS:
+        raise HTTPException(status.HTTP_409_CONFLICT, "photo limit reached")
+    p = BadgePhoto(user_id=user.id, badge_id=badge_id)
+    if r2_enabled():
+        import base64 as _b64
+        from uuid import uuid4
+        stem = f"bg/{user.id}/{uuid4().hex}"
+        p.image_key = stem + ".jpg"
+        p.thumb_key = stem + ".t.jpg"
+        r2_put(p.image_key, _b64.b64decode(body.image_b64))
+        r2_put(p.thumb_key, _b64.b64decode(body.thumb_b64))
+    else:
+        p.image_b64 = body.image_b64
+        p.thumb_b64 = body.thumb_b64
+    db.add(p)
+    db.commit()
+    db.refresh(p)
+    return {"ok": True, "photo": _badge_photo_meta(p)}
+
+
+@router.get("/badges/{badge_id}/friends")
+def badge_friends(badge_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    """Friends who collected this badge (public awards only) — viewable from
+    anywhere (2026-10-10 decision: the location gate is on adding, not viewing)."""
+    fids = _accepted_friend_ids(db, user.id)
+    if not fids:
+        return {"friends": []}
+    rows = db.execute(select(BadgeAward, User).join(User, User.id == BadgeAward.user_id)
+        .where(BadgeAward.badge_id == badge_id, BadgeAward.user_id.in_(fids),
+               BadgeAward.visibility == "public")
+        .order_by(BadgeAward.created_at)).all()
+    return {"friends": [{"user": _public_user(u), **_award_meta(a)} for a, u in rows]}
 
 
 @router.post("/badges/collect")

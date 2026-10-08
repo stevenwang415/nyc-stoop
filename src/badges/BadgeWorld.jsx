@@ -9,7 +9,7 @@ import { t, t2 } from '../lib/i18n.js'
 import { localYMD } from '../lib/dates.js'
 import { prepareImage, thumbSrc } from '../share/shareApi.js'
 import { BADGES, byId, FINISHES, COLLECT_RADIUS_M, CLOSE_BY_M, distanceM, fmtDist, levelState, collectRadius, seasonOpen, badgeName } from './catalog.js'
-import { myAwards, collectBadge, setBadgeVisibility } from './badgesApi.js'
+import { myAwards, collectBadge, setBadgeVisibility, addBadgePhoto } from './badgesApi.js'
 import Medallion from './Medallion.jsx'
 import { COINS } from './coinsArt.js'
 import { COLLECTIONS, collectionState } from './collections.js'
@@ -199,11 +199,30 @@ export default function BadgeWorld({ onClose }) {
   React.useEffect(() => () => { if (mapRef.current) { try { mapRef.current.remove() } catch {}; mapRef.current = null } }, [])
 
   // ── Collect flow ──
-  const startCollect = (b) => { setErr(''); setCollecting(b); inputRef.current?.click() }
+  const startCollect = (b) => { setErr(''); addPhotoRef.current = null; setCollecting(b); inputRef.current?.click() }
+  // Multi-photo (2026-10-10): same camera input, second mode — the server
+  // re-checks the radius, so every added photo proves presence.
+  const addPhotoRef = React.useRef(null)
+  const [photosBump, setPhotosBump] = React.useState(0)
+  const startAddPhoto = (b) => { setErr(''); setCollecting(null); addPhotoRef.current = b; inputRef.current?.click() }
   // The iOS system camera's own Retake / Use Photo screen is the review
   // step (Steven, 2026-09-28) — a confirmed photo lands here and strikes.
   const onFile = async (e) => {
     const f = e.target.files?.[0]; e.target.value = ''
+    const addTo = addPhotoRef.current
+    if (f && addTo && !busy) {
+      addPhotoRef.current = null
+      setBusy(true)
+      try {
+        const { image_b64, thumb_b64 } = await prepareImage(f)
+        await addBadgePhoto(addTo.id, { lat: loc?.lat, lng: loc?.lng, image_b64, thumb_b64 })
+        setPhotosBump(x => x + 1)
+      } catch (e2) {
+        setErr(e2.status === 403 ? t('Too far away — get within 200 m.')
+          : (e2.message || t('Something went wrong. Please try again.')))
+      } finally { setBusy(false) }
+      return
+    }
     const b = collecting
     if (!f || !b || busy) return
     setBusy(true)
@@ -530,6 +549,8 @@ export default function BadgeWorld({ onClose }) {
           onClose={() => setDetail(null)}
           onShare={(badge, award, initial) => setShare({ badge, award, initial })}
           onTakePhoto={() => { const b = detail; setDetail(null); startCollect(b) }}
+          onAddPhoto={() => startAddPhoto(detail)}
+          photosBump={photosBump}
           onVisibility={(v) => {
             setBadgeVisibility(detail.id, v).catch(() => {})
             setAwards(a => a.map(x => x.badge_id === detail.id ? { ...x, visibility: v } : x))

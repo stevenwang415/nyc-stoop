@@ -281,6 +281,38 @@ export function devSharePlugin() {
           if (uid !== String(user.id)) rows = rows.filter(a => a.visibility === 'public')
           return json(res, 200, { awards: rows.map(awardMeta) })
         }
+        // ── badge photos (multi-photo, 2026-10-10) ──
+        db.badgePhotos = db.badgePhotos || []
+        const bpMeta = (p) => ({ id: p.id, badge_id: p.badge_id, created_at: p.created_at,
+          thumb_url: null, thumb_b64: p.thumb_b64, image_url: null, image_b64: p.image_b64 })
+        const bPhotoM = url.match(/^\/share\/badges\/([a-z0-9]+)\/photos$/)
+        if (bPhotoM && m === 'GET') {
+          const rows = db.badgePhotos.filter(p => String(p.user_id) === String(user.id) && p.badge_id === bPhotoM[1])
+          return json(res, 200, { photos: rows.map(bpMeta) })
+        }
+        if (bPhotoM && m === 'POST') {
+          const cat2 = BADGE_CATALOG[bPhotoM[1]]
+          if (!cat2) return detail(res, 404, 'No such badge')
+          if (!db.badgeAwards.some(a => String(a.user_id) === String(user.id) && a.badge_id === bPhotoM[1]))
+            return detail(res, 403, 'collect it first')
+          const b2 = await readBody(req)
+          if (typeof b2.lat !== 'number' || typeof b2.lng !== 'number') return detail(res, 403, 'location required')
+          if (distM(b2.lat, b2.lng, cat2.lat, cat2.lng) > (cat2.radius || 200)) return detail(res, 403, 'too far away')
+          if (db.badgePhotos.filter(p => String(p.user_id) === String(user.id) && p.badge_id === bPhotoM[1]).length >= 10)
+            return detail(res, 409, 'photo limit reached')
+          const p = { id: Date.now(), user_id: String(user.id), badge_id: bPhotoM[1],
+            thumb_b64: b2.thumb_b64, image_b64: b2.image_b64, created_at: new Date().toISOString() }
+          db.badgePhotos.push(p); save(db)
+          return json(res, 200, { ok: true, photo: bpMeta(p) })
+        }
+        const bFriendM = url.match(/^\/share\/badges\/([a-z0-9]+)\/friends$/)
+        if (bFriendM && m === 'GET') {
+          const fids = friendIds(db, user.id)
+          const rows = db.badgeAwards.filter(a => fids.includes(String(a.user_id)) &&
+            a.badge_id === bFriendM[1] && a.visibility === 'public')
+          return json(res, 200, { friends: rows.map(a => ({
+            user: publicUser(db, a.user_id), ...awardMeta(a) })) })
+        }
         if (url === '/share/badges/collect' && m === 'POST') {
           const b = await readBody(req)
           const cat = BADGE_CATALOG[b.badge_id]

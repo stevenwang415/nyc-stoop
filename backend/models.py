@@ -171,6 +171,22 @@ class BadgeAward(Base):
     __table_args__ = (UniqueConstraint("user_id", "badge_id", name="uq_badge_award"),)
 
 
+class BadgePhoto(Base):
+    """v3: extra photos on a collected badge (2026-10-10). The collect photo
+    lives on BadgeAward; these are later on-site additions — the server
+    enforces the same per-badge radius, so every photo proves presence."""
+    __tablename__ = "badge_photos"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    badge_id: Mapped[str] = mapped_column(String(24), nullable=False, index=True)
+    image_key: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
+    thumb_key: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
+    image_b64: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    thumb_b64: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
 class PushToken(Base):
     """APNs device token per install (2026-09-24). A user can hold several
     (iPhone + iPad); tokens are pruned when APNs reports them dead (410)."""
