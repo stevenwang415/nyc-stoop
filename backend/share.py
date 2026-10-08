@@ -959,6 +959,9 @@ BADGE_CATALOG = {
     "keens": {"name": "Keens Steakhouse", "lat": 40.7507, "lng": -73.9862, "radius": 200},
     "thegrill": {"name": "The Grill", "lat": 40.7585, "lng": -73.9722, "radius": 200},
     "fourcharles": {"name": "4 Charles Prime Rib", "lat": 40.7343, "lng": -74.0010, "radius": 200},
+    "chelseamarket": {"name": "Chelsea Market", "lat": 40.7424, "lng": -74.0061, "radius": 200},
+    "highline": {"name": "The High Line", "lat": 40.7480, "lng": -74.0048, "radius": 300},
+    "lostacos": {"name": "Los Tacos No. 1", "lat": 40.7425, "lng": -74.0060, "radius": 200},
 }
 BADGE_COLLECT_RADIUS_M = 200
 

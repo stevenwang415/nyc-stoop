@@ -17,8 +17,8 @@ const ok = (name, cond, extra = '') => {
 // ── 1. Rule-level checks straight from the catalog (no browser) ────────────
 console.log('— catalog rules —')
 const cat = (await import(ROOT + 'src/badges/catalogData.js')).CATALOG
-ok('54 badges in catalog', cat.length === 54, `got ${cat.length}`)
-ok('14 brass mains', cat.filter(b => b.finish === 'brass' && b.main).length === 14)
+ok('57 badges in catalog', cat.length === 57, `got ${cat.length}`)
+ok('19 brass mains', cat.filter(b => b.finish === 'brass' && b.main).length === 19)
 ok('every badge inside NYC bounds', cat.every(b => b.lat > 40.4 && b.lat < 41 && b.lng > -74.3 && b.lng < -73.6))
 ok('liberty radius 1200', cat.find(b => b.id === 'libertystatue')?.radius === 1200)
 ok('iris badges all have seasons', cat.filter(b => b.finish === 'iris').every(b => b.season))

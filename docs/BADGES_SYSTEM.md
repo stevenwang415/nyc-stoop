@@ -30,7 +30,15 @@ Implications of the redefinition (open review items):
 - Level ladder reads brass as its spine — any badge promoted to brass
   automatically becomes required for New York Regular (all mains).
 
-## 2. Brass badges (14) — confirmed 2026-09-28
+## 2. Brass badges (19) — updated 2026-10-08
+
+Tier review round 1: Times Square promoted to brass+main; Chelsea Market,
+The High Line (r300), Los Tacos No. 1 added as brass+main; Peter Luger
+promoted copper→brass+main (stays in the Steakhouse collection). Broadway
+shows + remaining 4 steakhouses: tier assignment deferred — Steven will
+re-tier individually; collections unchanged.
+
+(original 14, confirmed 2026-09-28:)
 
 Empire State Building · Central Park · Flatiron Building · Rockefeller
 Center · Radio City Music Hall · Yankee Stadium · Statue of Liberty (radius
