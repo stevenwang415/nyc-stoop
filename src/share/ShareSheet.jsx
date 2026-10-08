@@ -521,6 +521,12 @@ function StoopMap({ photos, onOpenPhoto }) {
   )
 }
 
+// v3 badge strip — lazy chunk, invisible unless the badges beta gate is on.
+const ProfileBadgeStrip = React.lazy(() => import('../badges/ProfileBadgeStrip.jsx'))
+function badgesOn() {
+  try { return import.meta.env.DEV || localStorage.getItem('nyc_badges_beta') === '1' } catch { return false }
+}
+
 export default function ShareSheetHost({ embedded = false }) {
   const [open, setOpen] = React.useState(false)
   const isOpen = embedded || open
@@ -987,6 +993,9 @@ export default function ShareSheetHost({ embedded = false }) {
             <ProfileHeader key={'ph' + nameBump} user={user} name={myName} photos={sansToday(mine)} onSaveName={saveMyName}
               right={<button style={{ ...S.cta, flex: 1 }} onClick={() => { setPostMsg(''); setView('compose') }}>＋ {t('Add photo')}</button>} />
             )}
+            {myPostsStart == null && badgesOn() && (
+              <React.Suspense fallback={null}><ProfileBadgeStrip userId={null} /></React.Suspense>
+            )}
             {myPostsStart == null && (
             <div style={{ display: 'flex', gap: 5, padding: '0 0 10px' }}>
               <button onClick={() => setStoopView('grid')} style={S.tab(stoopView === 'grid')}><ToggleIcon kind="grid" />{t('Grid')}</button>
@@ -1136,6 +1145,9 @@ export default function ShareSheetHost({ embedded = false }) {
                 <button style={{ ...S.quiet, flex: 1 }} onClick={() => unfriend(friendView.id).then(() => { setView('friends'); listFriends().then(x => setFriends(x.friends)) })}>{t('Remove')}</button>
                 <button style={{ ...S.quiet, flex: 1, color: '#B3261E' }} onClick={() => { if (confirm(t('Block this user? Neither of you will see each other\'s content.'))) blockUser(friendView.id).then(() => { setView('friends'); listFriends().then(x => setFriends(x.friends)) }) }}>{t('Block')}</button>
               </>} />
+            )}
+            {friendPostsStart == null && badgesOn() && (
+              <React.Suspense fallback={null}><ProfileBadgeStrip userId={friendView.id} /></React.Suspense>
             )}
             {friendPostsStart == null && (
             <div style={{ display: 'flex', gap: 5, padding: '0 0 10px' }}>
