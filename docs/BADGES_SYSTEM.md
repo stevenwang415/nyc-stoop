@@ -18,7 +18,7 @@ answers one question: "how much time do you have in New York?"
 |---|---|---|
 | Brass | gold metal | **Must-visit.** The places and restaurants no first trip should skip. Backbone of the level ladder. |
 | Nickel | silver metal | **If you have extra time.** Worth it, optional — second-trip material. |
-| Copper | copper metal | **If you have plenty of time.** Deep cuts for people really living the city. |
+| Copper | copper metal | **If you have plenty of time in NYC, try these.** Mostly restaurants and food spots. |
 | Iris | iridescent | **Seasonal events.** Collectible only inside their date window; bonus, never required by the ladder. |
 
 Implications of the redefinition (open review items):
@@ -170,6 +170,11 @@ engraved name + location pin, personal finish, 2/week cap. Spec in §7.
 ---
 
 ## 8. Open items / to reconcile
+
+- **Insider tier (future, undecided)**: how to tier true insider spots — NOT
+  copper in this version; copper is "plenty of time", not "insider". Parked.
+- **Movie places collection (future, undecided)**: a Collection of famous
+  filming locations. Parked alongside the insider question.
 
 - **v3.0 launch blocker — EU DSA trader status**: account is declared **non-trader** (Sep 2026, app fully free). Before enabling the $3.99 IAP in v3.0: either switch to **trader** in App Store Connect (public contact info required — consider not using home address) **or exclude EU countries** in Pricing & Availability. IAP will be rejected/blocked in EU otherwise.
 
