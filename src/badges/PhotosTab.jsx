@@ -3,10 +3,10 @@
 // full-screen viewer: stamp first, toggle/swipe to the photo, ‹ › between
 // photos, Open badge pill, share → the three-card share sheet (mockup flow).
 import React from 'react'
-import { t } from '../lib/i18n.js'
+import { t, dateLocale } from '../lib/i18n.js'
 import { localYMD, localMD, parseUTC } from '../lib/dates.js'
 import { getUser } from '../auth/api.js'
-import { byId } from './catalog.js'
+import { byId, badgeName } from './catalog.js'
 import Stamp from './Stamp.jsx'
 import Medallion from './Medallion.jsx'
 import { ShareIcon } from './icons.jsx'
@@ -46,7 +46,7 @@ export default function PhotosTab({ awards, onShare, onOpenBadge, autoOpen, onAu
   const viewer = viewerIdx != null ? items[viewerIdx] : null
   const stampOf = (a, w) => (
     <button key={a.badge_id} onClick={() => openViewer(a)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
-      <Stamp src={awardPhotoSrc(a)} place={byId[a.badge_id].name} owner={me} width={w} date={localMD(a.created_at)} />
+      <Stamp src={awardPhotoSrc(a)} place={badgeName(byId[a.badge_id])} owner={me} width={w} date={localMD(a.created_at)} />
     </button>
   )
 
@@ -81,7 +81,7 @@ export default function PhotosTab({ awards, onShare, onOpenBadge, autoOpen, onAu
                 padding: 0, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
               <Medallion badge={byId[a.badge_id]} size={36} struck />
               <span>
-                <span style={{ display: 'block', fontSize: 15.5, fontWeight: 800, color: TXT }}>{byId[a.badge_id].name}</span>
+                <span style={{ display: 'block', fontSize: 15.5, fontWeight: 800, color: TXT }}>{badgeName(byId[a.badge_id])}</span>
                 <span style={{ display: 'block', fontSize: 11.5, color: FAINT }}>1 {t('photo')} · {localYMD(a.created_at)}</span>
               </span>
             </button>
@@ -107,7 +107,7 @@ export default function PhotosTab({ awards, onShare, onOpenBadge, autoOpen, onAu
           </div>
           <div style={{ flex: 1, paddingBottom: 16 }}>
             <div style={{ fontSize: 13.5, fontWeight: 800, color: TXT }}>
-              {t('Day')} {dayN(d)} <span style={{ color: FAINT, fontWeight: 500 }}>· {new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+              {t('Day')} {dayN(d)} <span style={{ color: FAINT, fontWeight: 500 }}>· {new Date(d + 'T12:00:00').toLocaleDateString(dateLocale(), { weekday: 'short', month: 'short', day: 'numeric' })}</span>
             </div>
             <div style={{ display: 'flex', gap: 10, overflowX: 'auto', marginTop: 9 }}>
               {byDay[d].map(a => stampOf(a, 96))}
@@ -120,7 +120,7 @@ export default function PhotosTab({ awards, onShare, onOpenBadge, autoOpen, onAu
       {viewer && (() => {
         const dt = parseUTC(viewer.created_at)
         const sub = dt
-          ? `${dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} · ${viewerIdx + 1} ${t('of')} ${items.length}`
+          ? `${dt.toLocaleDateString(dateLocale(), { weekday: 'short', month: 'short', day: 'numeric' })} · ${dt.toLocaleTimeString(dateLocale(), { hour: 'numeric', minute: '2-digit' })} · ${viewerIdx + 1} ${t('of')} ${items.length}`
           : `${viewerIdx + 1} ${t('of')} ${items.length}`
         const glassCircle = {
           width: 44, height: 44, borderRadius: 22, border: '1px solid rgba(255,255,255,0.1)',
@@ -141,7 +141,7 @@ export default function PhotosTab({ awards, onShare, onOpenBadge, autoOpen, onAu
               <button onClick={() => { setViewerIdx(null); if (fromMap.current) { fromMap.current = false; onBackToMap?.() } }} aria-label="Close" style={{ ...glassCircle, fontSize: 16 }}>✕</button>
               <div style={{ flex: 1, textAlign: 'center', minWidth: 0 }}>
                 <div style={{ fontSize: 17, fontWeight: 800, color: TXT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {byId[viewer.badge_id].name}
+                  {badgeName(byId[viewer.badge_id])}
                 </div>
                 <div style={{ fontSize: 13, color: SUB, marginTop: 2 }}>{sub}</div>
               </div>
@@ -150,7 +150,7 @@ export default function PhotosTab({ awards, onShare, onOpenBadge, autoOpen, onAu
             {/* stage */}
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6px 18px', minHeight: 0 }}>
               {mode === 'stamp'
-                ? <Stamp src={awardPhotoSrc(viewer)} place={byId[viewer.badge_id].name} owner={me} width={stampW} date={localMD(viewer.created_at)} />
+                ? <Stamp src={awardPhotoSrc(viewer)} place={badgeName(byId[viewer.badge_id])} owner={me} width={stampW} date={localMD(viewer.created_at)} />
                 : <img src={awardPhotoSrc(viewer)} alt="" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 10 }} />}
             </div>
             {/* controls — ‹ at edge · wide Stamp|Photo pill · › at edge */}

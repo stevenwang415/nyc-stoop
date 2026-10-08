@@ -4,9 +4,9 @@
 // count + on-site tile, Visibility with segmented control + caption, locked
 // "At this spot", then Take photo / Add to route / Show on map.
 import React from 'react'
-import { t } from '../lib/i18n.js'
+import { t, dateLocale } from '../lib/i18n.js'
 import { parseUTC } from '../lib/dates.js'
-import { fmtDist, collectRadius, seasonOpen } from './catalog.js'
+import { fmtDist, collectRadius, seasonOpen, badgeName } from './catalog.js'
 import SpinBadge from './SpinBadge.jsx'
 import { ShareIcon, CloseIcon, CameraIcon, LockIcon } from './icons.jsx'
 
@@ -27,7 +27,7 @@ const circleBtn = {
 
 function fmtWhen(iso) {
   const d = parseUTC(iso)
-  return d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : (iso || '').slice(0, 10)
+  return d ? d.toLocaleDateString(dateLocale(), { month: 'short', day: 'numeric' }) : (iso || '').slice(0, 10)
 }
 
 export default function BadgeDetail({ badge, award, dist, onClose, onTakePhoto, onVisibility, onAddToRoute, onShowOnMap, onShare }) {
@@ -65,7 +65,7 @@ export default function BadgeDetail({ badge, award, dist, onClose, onTakePhoto, 
         {/* the coin — physics spin on open, drag to spin, tap to flip */}
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginTop: -8 }}>
           <SpinBadge badge={badge} struck={has} size={196} spinKey={has ? 'struck' : 'open'} />
-          <h2 style={{ fontSize: 24, fontWeight: 700, letterSpacing: -0.5, margin: '18px 0 0', color: TXT }}>{badge.name}</h2>
+          <h2 style={{ fontSize: 24, fontWeight: 700, letterSpacing: -0.5, margin: '18px 0 0', color: TXT }}>{badgeName(badge)}</h2>
           <p style={{ fontSize: 14, color: SUB, margin: '4px 0 0' }}>{badge.main ? t('Main spot') : badge.category}{badge.season ? ` · ${t('Seasonal')}` : ''}</p>
           <p style={{ fontSize: 14, color: SUB, margin: '10px 0 0' }}>{status}</p>
         </div>
@@ -114,7 +114,7 @@ export default function BadgeDetail({ badge, award, dist, onClose, onTakePhoto, 
             </div>
             <p style={{ fontSize: 12.5, color: SUB, margin: '8px 2px 0', lineHeight: 1.45 }}>
               {vis === 'public'
-                ? `${t('People at')} ${badge.name} ${t('can see your badge and photos while they\'re there.')}`
+                ? `${t('People at')} ${badgeName(badge)} ${t('can see your badge and photos while they\'re there.')}`
                 : t('Only you can see this badge. You can still share it to your stories.')}
             </p>
           </div>
@@ -130,7 +130,7 @@ export default function BadgeDetail({ badge, award, dist, onClose, onTakePhoto, 
             borderRadius: 18, padding: '13px 14px', marginTop: 10, display: 'flex', gap: 12, alignItems: 'center' }}>
             <LockIcon c={SUB} />
             <span style={{ fontSize: 13, color: SUB, lineHeight: 1.45 }}>
-              {t("Other people's public badges and photos show up here while you're at")} {badge.name}.
+              {t("Other people's public badges and photos show up here while you're at")} {badgeName(badge)}.
             </span>
           </div>
         </div>

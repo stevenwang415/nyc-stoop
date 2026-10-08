@@ -8,6 +8,7 @@ export const COLLECT_RADIUS_M = 200
 export const CLOSE_BY_M = 900
 
 import { CATALOG } from './catalogData.js'
+import { t, t2, getLang } from '../lib/i18n.js'
 import { glyphOf } from './glyphs.js'
 
 // Full catalog (generated from the CSV) with glyphs attached. Component code
@@ -35,6 +36,9 @@ export const FINISHES = {
   iris:   { base: '#B8C6FF', hi: '#FFFFFF', shadow: '#6C78B0', ink: '#2B2F55' },
 }
 
+// Display name in the current language (catalog rows carry name_zh).
+export function badgeName(b) { return getLang() === 'zh' && b?.name_zh ? b.name_zh : (b?.name || '') }
+
 export const byId = Object.fromEntries(BADGES.map(b => [b.id, b]))
 export const MAINS = BADGES.filter(b => b.main).map(b => b.id)
 
@@ -54,25 +58,32 @@ export function fmtDist(m) {
 // prototype behaves sensibly. Badges only, never points; levels stack.
 export function levelState(ownedIds) {
   const owned = new Set(ownedIds)
-  const mains = MAINS
-  const nonSeasonal = BADGES.map(b => b.id) // no seasonal in the prototype
-  const mainsOwned = mains.filter(id => owned.has(id)).length
-  const extraOwned = nonSeasonal.filter(id => owned.has(id) && !mains.includes(id)).length
+  const mainsOwned = MAINS.filter(id => owned.has(id)).length
+  const totalOwned = owned.size
+  const allMains = mainsOwned === MAINS.length
+  // 5-level ladder (decided 2026-10-08): mains are the spine.
   const LEVELS = [
-    { n: 1, name: 'New York Visitor',          done: mainsOwned === mains.length,
-      have: mainsOwned, need: mains.length,
-      left: `${mains.length - mainsOwned} main spot${mains.length - mainsOwned === 1 ? '' : 's'} left` },
-    { n: 2, name: 'New York Frequent Visitor', done: mainsOwned === mains.length && extraOwned >= 3,
-      have: Math.min(extraOwned, 3), need: 3,
-      left: `Any ${Math.max(1, 3 - extraOwned)} more badge${3 - extraOwned === 1 ? '' : 's'}` },
-    { n: 3, name: 'New York Friend',           done: false, have: owned.size, need: nonSeasonal.length,
-      left: 'Full catalog coming in v3' },
+    { n: 1, name: t('New York Visitor'), done: totalOwned >= 3,
+      have: Math.min(totalOwned, 3), need: 3,
+      left: t2('{N} more badges', { N: Math.max(1, 3 - totalOwned) }) },
+    { n: 2, name: t('New York Explorer'), done: mainsOwned >= 7,
+      have: Math.min(mainsOwned, 7), need: 7,
+      left: t2('{N} main spots left', { N: Math.max(1, 7 - mainsOwned) }) },
+    { n: 3, name: t('New York Regular'), done: allMains,
+      have: mainsOwned, need: MAINS.length,
+      left: t2('{N} main spots left', { N: Math.max(1, MAINS.length - mainsOwned) }) },
+    { n: 4, name: t('New York Insider'), done: allMains && totalOwned >= 24,
+      have: Math.min(totalOwned, 24), need: 24,
+      left: t2('{N} more beyond the mains', { N: Math.max(1, 24 - totalOwned) }) },
+    { n: 5, name: t('New Yorker'), done: allMains && totalOwned >= 30,
+      have: Math.min(totalOwned, 30), need: 30,
+      left: t2('{N} badges to go', { N: Math.max(1, 30 - totalOwned) }) },
   ]
   let current = 0
   for (const l of LEVELS) { if (l.done) current = l.n; else break }
   const next = LEVELS.find(l => !l.done) || null
-  return { current, currentName: current === 0 ? 'Just arrived' : LEVELS[current - 1].name,
-    next, owned: owned.size, total: nonSeasonal.length, levels: LEVELS }
+  return { current, currentName: current === 0 ? t('Just arrived') : LEVELS[current - 1].name,
+    next, owned: totalOwned, total: BADGES.length, levels: LEVELS }
 }
 
 // Beta gate (2026-09-28): badges stay invisible in production until launch.

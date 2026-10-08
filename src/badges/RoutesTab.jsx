@@ -4,7 +4,7 @@
 // stops to the map (gold polyline, dimmed pins, next-stop banner).
 import React from 'react'
 import { t } from '../lib/i18n.js'
-import { BADGES, byId, fmtDist } from './catalog.js'
+import { BADGES, byId, fmtDist, badgeName } from './catalog.js'
 import { SUGGESTED_ROUTES, loadMyRoutes, saveMyRoutes, walkingOrder, routeStats, legMinutes } from './routes.js'
 import Medallion from './Medallion.jsx'
 
@@ -111,7 +111,7 @@ export default function RoutesTab({ owned, loc, activeRoute, onStartRoute, onEnd
                   <Medallion badge={b} size={46} struck={has} />
                 </button>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: TXT }}>{b.name}</div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: TXT }}>{badgeName(b)}</div>
                   <div style={{ fontSize: 11.5, color: SUB }}>{b.main ? t('Main spot') : b.category}</div>
                 </div>
                 {isMine && (
@@ -205,7 +205,7 @@ export function AddToRouteSheet({ badge, onClose }) {
           <Medallion badge={badge} size={46} struck={false} />
           <div>
             <div style={{ fontSize: 16, fontWeight: 800, color: TXT }}>{t('Add to route')}</div>
-            <div style={{ fontSize: 12.5, color: SUB }}>{badge.name}</div>
+            <div style={{ fontSize: 12.5, color: SUB }}>{badgeName(badge)}</div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>

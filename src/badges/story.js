@@ -3,7 +3,7 @@
 // glow, the stamp (drawn natively, tilted -3°), the medallion (SVG →
 // rasterized), and the caption lines. Shares via the system sheet when the
 // browser supports file sharing; otherwise downloads.
-import { FINISHES } from './catalog.js'
+import { FINISHES, badgeName } from './catalog.js'
 import { COINS } from './coinsArt.js'
 
 const SERIF = "Didot, 'Bodoni 72', 'Times New Roman', serif"
@@ -82,7 +82,7 @@ export async function renderStory({ badge, photoSrc, owner, dateLabel, progressL
       ctx.restore()
     }
     ctx.fillStyle = '#1D2128'; ctx.font = '700 34px -apple-system, sans-serif'; ctx.textAlign = 'left'
-    ctx.fillText(badge.name, -SW / 2 + 46, SH / 2 - 92)
+    ctx.fillText(badgeName(badge), -SW / 2 + 46, SH / 2 - 92)
     ctx.fillStyle = '#4E545D'; ctx.font = '400 27px -apple-system, sans-serif'
     ctx.fillText(owner, -SW / 2 + 46, SH / 2 - 52)
     ctx.fillStyle = '#8A8F96'; ctx.font = '400 22px -apple-system, sans-serif'
@@ -107,7 +107,7 @@ export async function renderStory({ badge, photoSrc, owner, dateLabel, progressL
 
   // captions
   ctx.textAlign = 'center'
-  ctx.fillStyle = '#F2F4F7'; ctx.font = '700 64px -apple-system, sans-serif'; ctx.fillText(badge.name, 540, 1480)
+  ctx.fillStyle = '#F2F4F7'; ctx.font = '700 64px -apple-system, sans-serif'; ctx.fillText(badgeName(badge), 540, 1480)
   ctx.fillStyle = 'rgba(235,240,245,0.62)'; ctx.font = '400 38px -apple-system, sans-serif'
   ctx.fillText(`${owner} · Collected ${dateLabel}`, 540, 1560)
   if (progressLine) { ctx.fillStyle = '#E3C36B'; ctx.font = '600 36px -apple-system, sans-serif'; ctx.fillText(progressLine, 540, 1625) }

@@ -5,10 +5,10 @@
 // 5-badge catalog, camera-only collect with server-side 200 m check.
 import React from 'react'
 import { createPortal } from 'react-dom'
-import { t } from '../lib/i18n.js'
+import { t, t2 } from '../lib/i18n.js'
 import { localYMD } from '../lib/dates.js'
 import { prepareImage, thumbSrc } from '../share/shareApi.js'
-import { BADGES, byId, FINISHES, COLLECT_RADIUS_M, CLOSE_BY_M, distanceM, fmtDist, levelState, collectRadius, seasonOpen } from './catalog.js'
+import { BADGES, byId, FINISHES, COLLECT_RADIUS_M, CLOSE_BY_M, distanceM, fmtDist, levelState, collectRadius, seasonOpen, badgeName } from './catalog.js'
 import { myAwards, collectBadge, setBadgeVisibility } from './badgesApi.js'
 import Medallion from './Medallion.jsx'
 import { COINS } from './coinsArt.js'
@@ -252,7 +252,7 @@ export default function BadgeWorld({ onClose }) {
     <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 18, padding: '13px 15px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <span style={{ fontSize: 17, fontWeight: 800, color: TXT }}>{lv.currentName}</span>
-        <span style={{ fontSize: 12, color: SUB }}>{lv.current === 0 ? t('No level yet') : `Level ${lv.current} of 5`}</span>
+        <span style={{ fontSize: 12, color: SUB }}>{lv.current === 0 ? t('No level yet') : t2('Level {N} of 5', { N: lv.current })}</span>
       </div>
       <div style={{ height: 6, borderRadius: 99, background: 'rgba(255,255,255,0.12)', margin: '11px 0 9px' }}>
         <div style={{ width: `${lv.next ? Math.round(100 * lv.next.have / lv.next.need) : 100}%`, height: '100%', borderRadius: 99,
@@ -276,7 +276,7 @@ export default function BadgeWorld({ onClose }) {
         <Medallion badge={b} size={50} struck={has} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: TXT }}>
-            {b.name} {b.main && <span style={{ fontSize: 10, fontWeight: 800, color: GOLD, border: `1px solid ${GOLD}55`, borderRadius: 99, padding: '1.5px 7px', marginLeft: 4 }}>MAIN</span>}
+            {badgeName(b)} {b.main && <span style={{ fontSize: 10, fontWeight: 800, color: GOLD, border: `1px solid ${GOLD}55`, borderRadius: 99, padding: '1.5px 7px', marginLeft: 4 }}>MAIN</span>}
           </div>
           <div style={{ fontSize: 12.5, color: has ? SUB : (!seasonOpen(b) ? '#C9B6FF' : near ? GOLD : SUB), marginTop: 2 }}>
             {has ? `${t('Collected')} ${localYMD(awards.find(a => a.badge_id === b.id)?.created_at)}`
@@ -411,7 +411,7 @@ export default function BadgeWorld({ onClose }) {
                         <Medallion badge={byId[id]} size={46} struck={owned.has(id)} />
                         <span style={{ fontSize: 9.5, color: owned.has(id) ? TXT : FAINT, textAlign: 'center',
                           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 54 }}>
-                          {byId[id].name}
+                          {badgeName(byId[id])}
                         </span>
                       </button>
                     ))}
@@ -442,7 +442,7 @@ export default function BadgeWorld({ onClose }) {
                   style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
                     background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}>
                   <Medallion badge={b} size={92} struck={has} />
-                  <div style={{ fontSize: 12, fontWeight: 700, color: TXT, textAlign: 'center' }}>{b.name}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: TXT, textAlign: 'center' }}>{badgeName(b)}</div>
                   <div style={{ fontSize: 11, color: has ? GOLD : b.main ? GOLD : FAINT }}>
                     {has ? t('Collected') : b.main ? t('Main spot') : d != null ? fmtDist(d) : ''}
                   </div>
@@ -487,7 +487,7 @@ export default function BadgeWorld({ onClose }) {
                 aria-label={`Open your photos at ${selPin.name}`}
                 style={{ position: 'absolute', left: -34, bottom: -14, border: 'none', background: 'none', padding: 0,
                   cursor: 'pointer', transform: 'rotate(-8deg)', filter: 'drop-shadow(0 6px 10px rgba(0,0,0,0.6))' }}>
-                <Stamp src={awardPhotoSrc(award)} place={selPin.name} owner={me} width={48} />
+                <Stamp src={awardPhotoSrc(award)} place={badgeName(selPin)} owner={me} width={48} />
               </button>
               <button onClick={() => setShare({ badge: selPin, award, initial: 'story' })} aria-label={`Share ${selPin.name}`}
                 style={{ ...glass, position: 'absolute', right: -46, top: 26, width: 40, height: 40, borderRadius: 20,
@@ -495,7 +495,7 @@ export default function BadgeWorld({ onClose }) {
             </div>
             <div style={{ ...glass, marginTop: 14, borderRadius: 999, padding: '6px 13px', fontSize: 12.5, fontWeight: 700,
               color: TXT, background: 'rgba(30,36,46,0.8)', pointerEvents: 'auto' }}>
-              {selPin.name}
+              {badgeName(selPin)}
             </div>
           </div>
         )
@@ -511,7 +511,7 @@ export default function BadgeWorld({ onClose }) {
               {next && <Medallion badge={next} size={38} struck={false} />}
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 800, color: TXT }}>
-                  {next ? `${t('Next')}: ${next.name}` : t('Route complete!')} 
+                  {next ? `${t('Next')}: ${badgeName(next)}` : t('Route complete!')} 
                 </div>
                 <div style={{ fontSize: 11, color: SUB }}>{activeRoute.name}{next && distTo(next) != null ? ` · ${fmtDist(distTo(next))}` : ''}</div>
               </div>
@@ -559,7 +559,7 @@ export default function BadgeWorld({ onClose }) {
             </div>
           </div>
           <div style={{ textAlign: 'center', animation: 'badge-toast 0.6s ease-out 1.2s backwards' }}>
-            <div style={{ fontSize: 21, fontWeight: 800, color: TXT }}>{struckBadge.name}</div>
+            <div style={{ fontSize: 21, fontWeight: 800, color: TXT }}>{badgeName(struckBadge)}</div>
             <div style={{ fontSize: 13, color: GOLD, fontWeight: 700, marginTop: 5, letterSpacing: '0.06em' }}>{t('BADGE COLLECTED')}</div>
           </div>
           <div style={{ position: 'absolute', bottom: 'calc(env(safe-area-inset-bottom, 0px) + 46px)', fontSize: 12.5, color: FAINT }}>

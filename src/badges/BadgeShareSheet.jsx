@@ -55,14 +55,14 @@ export default function BadgeShareSheet({ badge, award, initial = 'story', progr
       <div style={{ width: 84, height: 150, borderRadius: 8, background: 'linear-gradient(180deg,#151C2B,#06080C)',
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, position: 'relative', overflow: 'hidden' }}>
         <div style={{ transform: 'rotate(-3deg)' }}>
-          {photoSrc ? <Stamp src={photoSrc} place={badge.name} owner={me} width={52} /> : <Medallion badge={badge} size={52} struck />}
+          {photoSrc ? <Stamp src={photoSrc} place={badgeName(badge)} owner={me} width={52} /> : <Medallion badge={badge} size={52} struck />}
         </div>
         {photoSrc && <div style={{ position: 'absolute', right: 8, bottom: 30 }}><Medallion badge={badge} size={28} struck /></div>}
-        <div style={{ fontSize: 5.5, color: TXT, fontWeight: 700 }}>{badge.name}</div>
+        <div style={{ fontSize: 5.5, color: TXT, fontWeight: 700 }}>{badgeName(badge)}</div>
         <div style={{ fontSize: 4.5, color: GOLD }}>NYC STOOP · BADGES</div>
       </div>
     )
-    if (m === 'stamp') return <div style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.45))' }}><Stamp src={photoSrc} place={badge.name} owner={me} width={96} /></div>
+    if (m === 'stamp') return <div style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.45))' }}><Stamp src={photoSrc} place={badgeName(badge)} owner={me} width={96} /></div>
     return <img src={photoSrc} alt="" style={{ height: 148, borderRadius: 8, objectFit: 'cover', maxWidth: 100 }} />
   }
 
@@ -75,7 +75,7 @@ export default function BadgeShareSheet({ badge, award, initial = 'story', progr
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 6px' }}>
           <span>
             <span style={{ display: 'block', fontSize: 19, fontWeight: 800, color: TXT }}>{t('Share')}</span>
-            <span style={{ fontSize: 13, color: SUB }}>{badge.name}</span>
+            <span style={{ fontSize: 13, color: SUB }}>{badgeName(badge)}</span>
           </span>
           <button onClick={onClose} aria-label="Close share"
             style={{ width: 34, height: 34, borderRadius: 17, border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.08)',
