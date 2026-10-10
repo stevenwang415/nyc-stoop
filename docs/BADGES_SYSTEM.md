@@ -126,6 +126,26 @@ Added 2026-10-08.
 
 ---
 
+## 7a. v3.1+ (proposed): Movie badges — 記錄 2026-10-10
+
+Filming-location badges — NYC is the most-filmed city on earth. Spreadsheet
+already has a "Movie" tab awaiting rows. Seed ideas from Steven:
+- Christopher St / the FRIENDS apartment corner (Bedford & Grove)
+- Ghostbusters firehouse / WTC area
+- Central Park — Home Alone 2 (also: Plaza Hotel)
+- (endless candidates: Spider-Man, Breakfast at Tiffany's, Seinfeld diner…)
+
+Shape: likely its own tier or a Movie Collection spanning tiers — decide at
+build time. **Signature feature: a dedicated pose-photo slot** — alongside
+the normal collect photo, one slot framed for recreating the film pose at
+the spot (the multi-photo infrastructure from 2026-10-10 already supports
+extra on-site photos, so this is mostly UI framing + a prompt like "recreate
+the scene").
+
+IP note (same rule as Broadway): movie TITLES naming a real location are
+one thing, but badge artwork must stay original — no stills, posters,
+characters, or logos. Locations themselves are public places.
+
 ## 7. v3.1 (proposed): Make Your Own Badge
 
 Recorded 2026-09-28 — decide later. Users mint a badge for a favorite
