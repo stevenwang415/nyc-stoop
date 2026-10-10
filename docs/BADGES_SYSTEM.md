@@ -205,6 +205,15 @@ engraved name + location pin, personal finish, 2/week cap. Spec in §7.
 
 ## 8. Open items / to reconcile
 
+- **Tier redefinition round 2 (2026-10-10, direction set, wording TBD)**:
+  tiers are moving from "traveler priority" to **four visual design
+  families** with no inherent better/worse — placement is subjective
+  (is the Friends corner brass or nickel? no right answer). The `main`
+  flag stays an independent axis and alone drives the level ladder.
+  Iris keeps its seasonal mechanics regardless. §1 wording to be
+  rewritten when Steven settles the framing; designer brief unchanged
+  (four distinguishable finishes).
+
 - **Insider tier (future, undecided)**: how to tier true insider spots — NOT
   copper in this version; copper is "plenty of time", not "insider". Parked.
 - **Movie places collection (future, undecided)**: a Collection of famous
