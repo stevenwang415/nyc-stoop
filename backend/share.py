@@ -962,6 +962,8 @@ BADGE_CATALOG = {
     "chelseamarket": {"name": "Chelsea Market", "lat": 40.7424, "lng": -74.0061, "radius": 200},
     "highline": {"name": "The High Line", "lat": 40.7480, "lng": -74.0048, "radius": 300},
     "lostacos": {"name": "Los Tacos No. 1", "lat": 40.7425, "lng": -74.0060, "radius": 200},
+    "moma": {"name": "MoMA", "lat": 40.7614, "lng": -73.9776, "radius": 200},
+    "amnh": {"name": "Natural History Museum", "lat": 40.7813, "lng": -73.9740, "radius": 200},
 }
 BADGE_COLLECT_RADIUS_M = 200
 

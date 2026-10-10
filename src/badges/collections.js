@@ -12,8 +12,8 @@ export const COLLECTIONS = [
     name: 'Museums',
     name_zh: '博物館',
     emoji: '🏛️',
-    members: ['met', 'guggenheim', 'whitney', 'brooklynmuseum'],
-    coming: ['Natural History', 'MoMA'],
+    members: ['met', 'amnh', 'moma', 'guggenheim', 'whitney', 'brooklynmuseum'],
+    coming: [],
   },
   {
     id: 'broadway',

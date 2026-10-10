@@ -97,7 +97,7 @@ earns a Collection reward (display treatment TBD — e.g. a special plaque on
 the shelf). Badges can belong to a Collection AND count normally toward
 tiers/levels.
 
-### 6.1 Collection of Museums (6 badges)
+### 6.1 Collection of Museums (6 badges — COMPLETE 2026-10-10: AMNH + MoMA added as brass mains)
 
 | Museum | Tier |
 |---|---|
