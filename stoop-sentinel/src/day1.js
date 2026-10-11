@@ -15,7 +15,7 @@ const log = execSync('git log --since=midnight --oneline --stat', {
 }) || '(no commits today)'
 
 const msg = await client.messages.create({
-  model: 'claude-sonnet-4-5',
+  model: 'claude-sonnet-5',
   max_tokens: 500,
   system: 'You are Stoop Sentinel, release-QA assistant for the NYC Stoop iOS app. Be concise.',
   messages: [{ role: 'user', content: `Summarize today's development activity in <=5 bullet lines:\n\n${log}` }],

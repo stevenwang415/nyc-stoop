@@ -15,8 +15,8 @@ import { toolSchemas, runTool } from './tools.js'
 import { SYSTEM } from './prompt.js'
 
 const client = new Anthropic()
-const MODEL = 'claude-sonnet-4-5'
-const MAX_TURNS = 8 // safety: never loop forever
+const MODEL = 'claude-sonnet-5'
+const MAX_TURNS = 5 // safety: never loop forever
 
 async function main() {
   const messages = [{ role: 'user', content: 'Run your nightly assessment of NYC Stoop.' }]
@@ -24,6 +24,14 @@ async function main() {
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     // TODO(Steven) 1: call client.messages.create with
     //   { model: MODEL, max_tokens: 1500, system: SYSTEM, messages, tools: toolSchemas }
+    const reply = await client.messages.create({
+      model: MODEL,
+      max_tokens: 1000,
+      system: SYSTEM,
+      messages,
+      tools: toolSchemas
+    })
+
     // TODO(Steven) 2: if reply.stop_reason !== 'tool_use':
     //   the report is reply.content.find(c => c.type === 'text').text
     //   → writeFileSync('report.md', report), console.log(report), return
