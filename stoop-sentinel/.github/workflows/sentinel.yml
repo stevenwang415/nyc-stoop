@@ -1,0 +1,23 @@
+# M3: nightly run. Needs repo secret ANTHROPIC_API_KEY.
+# NOTE: run_tests needs playwright — the setup step below installs it.
+name: stoop-sentinel
+on:
+  schedule:
+    - cron: '0 1 * * *'   # 01:00 UTC = 21:00 New York (EDT)
+  workflow_dispatch: {}    # manual "Run workflow" button for testing
+jobs:
+  sentinel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }   # full history so git_log works
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci || npm install
+      - run: cd stoop-sentinel && npm install
+      - run: npx playwright install --with-deps chromium
+      - run: cd stoop-sentinel && node src/agent.js
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        with: { name: report, path: stoop-sentinel/report.md }

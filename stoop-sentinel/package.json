@@ -1,0 +1,14 @@
+{
+  "name": "stoop-sentinel",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "day1": "node src/day1.js",
+    "agent": "node src/agent.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "dotenv": "^16.4.5"
+  }
+}
