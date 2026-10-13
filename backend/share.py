@@ -814,6 +814,7 @@ class AvatarIn(BaseModel):
 
 @router.post("/me/avatar")
 def set_avatar(body: AvatarIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    _require_jpeg_b64(body.avatar_b64)
     """Device-local avatar synced up so friends see it (08-25)."""
     user.avatar_b64 = body.avatar_b64
     db.commit()
