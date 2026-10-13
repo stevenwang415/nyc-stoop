@@ -78,6 +78,24 @@ def _attach_likes(metas: list, db, user) -> list:
     return metas
 
 
+def _require_jpeg_b64(*b64s: str) -> None:
+    """Upload hardening (security audit #16, 2026-10-13): every image field
+    must be valid base64 whose bytes begin with the JPEG magic number
+    (FF D8 FF). The client only ever sends camera JPEGs, so anything else is
+    malformed or hostile — reject with 400 before it reaches storage."""
+    import base64 as _b64
+    import binascii
+    for b in b64s:
+        if not b:
+            continue
+        try:
+            head = _b64.b64decode(b[:8], validate=True)
+        except (binascii.Error, ValueError):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "invalid image encoding")
+        if not head.startswith(b"\xff\xd8\xff"):
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "not a JPEG image")
+
+
 def _attach_comments(metas: list, db) -> list:
     """Bulk-fill comments for a page of photo metas in ONE grouped query, so
     feed/profile cards can show the thread inline without per-card fetches."""
@@ -371,6 +389,7 @@ def create_photo(body: PhotoIn, user: User = Depends(get_current_user), db: Sess
         ).first()
         if exists:
             raise HTTPException(status.HTTP_409_CONFLICT, "already posted today")
+    _require_jpeg_b64(body.image_b64, body.thumb_b64)
     p = SharePhoto(
         user_id=user.id, anchor_type=body.anchor_type, place_id=body.place_id,
         place_name=body.place_name, area_label=body.area_label,
@@ -1062,6 +1081,7 @@ def badge_add_photo(badge_id: str, body: BadgePhotoIn,
         BadgePhoto.user_id == user.id, BadgePhoto.badge_id == badge_id)).all())
     if count >= MAX_BADGE_PHOTOS:
         raise HTTPException(status.HTTP_409_CONFLICT, "photo limit reached")
+    _require_jpeg_b64(body.image_b64, body.thumb_b64)
     p = BadgePhoto(user_id=user.id, badge_id=badge_id)
     if r2_enabled():
         import base64 as _b64
@@ -1116,6 +1136,7 @@ def badge_collect(body: BadgeCollectIn, user: User = Depends(get_current_user), 
         BadgeAward.user_id == user.id, BadgeAward.badge_id == body.badge_id)).first()
     if exists:
         raise HTTPException(status.HTTP_409_CONFLICT, "already collected")
+    _require_jpeg_b64(body.image_b64, body.thumb_b64)
     a = BadgeAward(user_id=user.id, badge_id=body.badge_id, visibility="public")
     if r2_enabled():
         import base64 as _b64
